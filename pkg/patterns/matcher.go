@@ -344,7 +344,7 @@ func (m *Matcher) loadPatterns() {
 		ID:          "CIPHER-001",
 		Name:        "Weak Cipher Suite",
 		Category:    "Weak Cipher",
-		Regex:       regexp.MustCompile(`(?i)(NULL|EXPORT|DES[-_]CBC|RC4|MD5)[-_]?(SHA|MD5)?|CIPHER.*NULL|anon[-_]?DH`),
+		Regex:       regexp.MustCompile(`(?i)\b(EXP[-_]|EXPORT[-_]|TLS_.*EXPORT|SSL_.*EXPORT|NULL[-_]?(SHA|MD5)|DES[-_]CBC[-_]?(SHA|MD5)?|anon[-_]?DH|ADH[-_]|AECDH[-_])\b|CIPHER.*NULL`),
 		Severity:    types.SeverityCritical,
 		Quantum:     types.QuantumVulnerable,
 		Description: "Weak or export-grade cipher suite detected. These provide inadequate security.",

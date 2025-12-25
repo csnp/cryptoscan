@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/csnp/qramm-cryptoscan/pkg/reporter"
@@ -116,25 +117,34 @@ func runScan(cmd *cobra.Command, args []string) error {
 		MinSeverity:    parseSeverity(minSeverity),
 	}
 
-	// Setup streaming output for text format
+	// Setup streaming output for text format (thread-safe for parallel scanning)
 	findingCount := 0
 	fileCount := 0
+	var outputMu sync.Mutex
 	if streamFindings && outputFormat == "text" {
 		cfg.OnFinding = func(f scanner.Finding) {
+			outputMu.Lock()
 			findingCount++
+			num := findingCount
 			// Clear the progress line before printing finding
 			fmt.Print("\r\033[K")
-			printStreamFinding(f, findingCount, !noColor)
+			printStreamFinding(f, num, !noColor)
+			outputMu.Unlock()
 		}
 		cfg.OnFileScanned = func(path string) {
+			outputMu.Lock()
 			fileCount++
-			// Show progress every 10 files (avoids too much output)
-			if fileCount%10 == 0 {
+			count := fileCount
+			outputMu.Unlock()
+			// Show progress every 50 files (less frequent for parallel scanning)
+			if count%50 == 0 {
 				shortPath := path
 				if len(shortPath) > 50 {
 					shortPath = "..." + shortPath[len(shortPath)-47:]
 				}
-				fmt.Printf("\r\033[K  \033[2m📂 %d files scanned | %s\033[0m", fileCount, shortPath)
+				outputMu.Lock()
+				fmt.Printf("\r\033[K  \033[2m📂 %d files scanned | %s\033[0m", count, shortPath)
+				outputMu.Unlock()
 			}
 		}
 	}

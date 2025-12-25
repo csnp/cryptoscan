@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -219,21 +220,53 @@ func (s *Scanner) Cleanup() {
 }
 
 func (s *Scanner) scanDirectory(root string) error {
-	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	// Collect files to scan (fast walk, no I/O)
+	var filesToScan []string
+	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
-
 		if d.IsDir() {
 			return s.shouldSkipDir(root, path, d.Name())
 		}
-
-		if !s.shouldScanFile(path) {
-			return nil
+		if s.shouldScanFile(path) {
+			filesToScan = append(filesToScan, path)
 		}
-
-		return s.scanFile(path)
+		return nil
 	})
+	if err != nil {
+		return err
+	}
+
+	// Use worker pool for parallel scanning
+	numWorkers := runtime.NumCPU()
+	if numWorkers > 16 {
+		numWorkers = 16 // Cap at 16 to avoid too many open files
+	}
+
+	fileChan := make(chan string, 100)
+	var wg sync.WaitGroup
+
+	// Start workers
+	for i := 0; i < numWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for path := range fileChan {
+				s.scanFile(path)
+			}
+		}()
+	}
+
+	// Send files to workers
+	for _, path := range filesToScan {
+		fileChan <- path
+	}
+	close(fileChan)
+
+	// Wait for all workers to finish
+	wg.Wait()
+	return nil
 }
 
 func (s *Scanner) shouldSkipDir(root, path, name string) error {

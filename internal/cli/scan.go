@@ -209,7 +209,7 @@ func printBanner() {
 	fmt.Println("  ╚═══════════════════════════════════════════════════════════════╝" + colorReset)
 	fmt.Println()
 	fmt.Println(colorBlue + "  QRAMM Cryptographic Discovery Scanner" + colorReset)
-	fmt.Println(colorDim + "  Quantum Readiness Assessment & Migration Tool" + colorReset)
+	fmt.Println(colorDim + "  Quantum Readiness Assurance & Migration Tool" + colorReset)
 	fmt.Println()
 	fmt.Println(colorGreen + "  ┌─────────────────────────────────────────────────────────────┐")
 	fmt.Println("  │" + colorReset + colorBold + "  CSNP Mission:" + colorReset + colorGreen + "                                               │")

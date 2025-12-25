@@ -22,7 +22,7 @@ var rootCmd = &cobra.Command{
 
 A powerful tool for discovering cryptographic algorithms, key sizes, and
 quantum-vulnerable patterns in your codebase. Part of the QRAMM (Quantum
-Readiness Assessment Maturity Model) toolkit by CSNP.
+Readiness Assurance Maturity Model) toolkit by CSNP.
 
 CryptoScan helps organizations prepare for post-quantum cryptography by:
   - Discovering hardcoded cryptographic algorithms (RSA, ECC, AES, etc.)

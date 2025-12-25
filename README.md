@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Version](https://img.shields.io/badge/Go-1.21+-00ADD8?style=flat&logo=go)](https://go.dev/)
 
-**CryptoScan** is a powerful command-line tool for discovering cryptographic algorithms, key sizes, and quantum-vulnerable patterns in codebases. Part of the [QRAMM](https://qramm.org) (Quantum Readiness Assessment Maturity Model) toolkit by [CSNP](https://csnp.org).
+**CryptoScan** is a powerful command-line tool for discovering cryptographic algorithms, key sizes, and quantum-vulnerable patterns in codebases. Part of the [QRAMM](https://qramm.org) (Quantum Readiness Assurance Maturity Model) toolkit by [CSNP](https://csnp.org).
 
 ## CSNP Mission
 
@@ -207,7 +207,7 @@ Apache License 2.0 - see [LICENSE](LICENSE) for details.
 
 ## About QRAMM
 
-The Quantum Readiness Assessment Maturity Model (QRAMM) is a comprehensive framework developed by [CSNP](https://csnp.org) to help organizations prepare for post-quantum cryptography. Learn more at [qramm.org](https://qramm.org).
+The Quantum Readiness Assurance Maturity Model (QRAMM) is a comprehensive framework developed by [CSNP](https://csnp.org) to help organizations prepare for post-quantum cryptography. Learn more at [qramm.org](https://qramm.org).
 
 ### QRAMM Toolkit
 

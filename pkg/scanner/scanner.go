@@ -230,6 +230,9 @@ func (s *Scanner) shouldScanFile(path string) bool {
 		".woff": true, ".woff2": true, ".ttf": true, ".eot": true,
 		".mp3": true, ".mp4": true, ".wav": true, ".avi": true, ".mkv": true,
 		".class": true, ".jar": true, ".war": true, ".pyc": true,
+		// Office formats (ZIP archives containing XML - scanning raw causes false positives)
+		".xlsx": true, ".xls": true, ".docx": true, ".doc": true,
+		".pptx": true, ".ppt": true, ".odt": true, ".ods": true, ".odp": true,
 	}
 	if binaryExts[ext] {
 		return false

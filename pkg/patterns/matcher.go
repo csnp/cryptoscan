@@ -618,4 +618,181 @@ func (m *Matcher) loadPatterns() {
 		Remediation: "Ensure key sizes meet current requirements. Use configuration for flexibility.",
 		Tags:        []string{"configuration", "key-size"},
 	})
+
+	// ============================================
+	// CRYPTO-SPECIFIC SECRETS
+	// ============================================
+	// Note: These are NOT general secrets like TruffleHog detects.
+	// These are specifically cryptographic secrets relevant to
+	// quantum readiness and cryptographic inventory.
+
+	// DSA Private Key
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "KEY-003",
+		Name:        "DSA Private Key",
+		Category:    "Secret Detection",
+		Regex:       regexp.MustCompile(`-----BEGIN\s+DSA\s+PRIVATE\s+KEY-----`),
+		Severity:    types.SeverityCritical,
+		Quantum:     types.QuantumVulnerable,
+		Description: "DSA private key found in source code. DSA is deprecated and quantum-vulnerable.",
+		Remediation: "Remove from source. Migrate to ML-DSA for signatures.",
+		Tags:        []string{"secret", "key", "quantum-vulnerable", "critical", "deprecated"},
+	})
+
+	// OpenSSH Private Key
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "KEY-004",
+		Name:        "OpenSSH Private Key",
+		Category:    "Secret Detection",
+		Regex:       regexp.MustCompile(`-----BEGIN\s+OPENSSH\s+PRIVATE\s+KEY-----`),
+		Severity:    types.SeverityCritical,
+		Quantum:     types.QuantumVulnerable,
+		Description: "OpenSSH private key found in source code. SSH keys should never be in code.",
+		Remediation: "Remove from source. Use SSH agent or secure key management.",
+		Tags:        []string{"secret", "key", "ssh", "critical"},
+	})
+
+	// PGP Private Key
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "KEY-005",
+		Name:        "PGP Private Key",
+		Category:    "Secret Detection",
+		Regex:       regexp.MustCompile(`-----BEGIN\s+PGP\s+PRIVATE\s+KEY\s+BLOCK-----`),
+		Severity:    types.SeverityCritical,
+		Quantum:     types.QuantumVulnerable,
+		Description: "PGP private key found in source code. PGP keys (RSA/ECC) are quantum-vulnerable.",
+		Remediation: "Remove from source. Plan migration to PQC-enabled PGP when available.",
+		Tags:        []string{"secret", "key", "pgp", "quantum-vulnerable", "critical"},
+	})
+
+	// PKCS#8 Private Key
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "KEY-006",
+		Name:        "PKCS#8 Private Key",
+		Category:    "Secret Detection",
+		Regex:       regexp.MustCompile(`-----BEGIN\s+(ENCRYPTED\s+)?PRIVATE\s+KEY-----`),
+		Severity:    types.SeverityCritical,
+		Quantum:     types.QuantumVulnerable,
+		Description: "PKCS#8 private key found in source code. This is a critical security issue.",
+		Remediation: "Remove private keys from source code. Use secure key management.",
+		Tags:        []string{"secret", "key", "pkcs8", "critical"},
+	})
+
+	// AWS KMS Key ID (crypto service)
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "SECRET-KMS-001",
+		Name:        "AWS KMS Key Reference",
+		Category:    "Crypto Service",
+		Regex:       regexp.MustCompile(`(?i)(arn:aws:kms:[a-z0-9-]+:\d{12}:key/[a-f0-9-]{36}|alias/[a-zA-Z0-9/_-]+)`),
+		Severity:    types.SeverityMedium,
+		Quantum:     types.QuantumUnknown,
+		Description: "AWS KMS key reference detected. Verify KMS key algorithm for quantum readiness.",
+		Remediation: "Audit KMS key configuration. AWS KMS currently uses RSA/ECC which are quantum-vulnerable.",
+		Tags:        []string{"crypto-service", "aws", "kms", "audit"},
+	})
+
+	// Azure Key Vault Reference
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "SECRET-VAULT-001",
+		Name:        "Azure Key Vault Reference",
+		Category:    "Crypto Service",
+		Regex:       regexp.MustCompile(`(?i)https://[a-zA-Z0-9-]+\.vault\.azure\.net/(keys|secrets|certificates)/[a-zA-Z0-9-]+`),
+		Severity:    types.SeverityMedium,
+		Quantum:     types.QuantumUnknown,
+		Description: "Azure Key Vault reference detected. Review key algorithms for quantum readiness.",
+		Remediation: "Audit Key Vault key types. Plan migration when Azure supports PQC.",
+		Tags:        []string{"crypto-service", "azure", "keyvault", "audit"},
+	})
+
+	// HashiCorp Vault Reference
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "SECRET-VAULT-002",
+		Name:        "HashiCorp Vault Path",
+		Category:    "Crypto Service",
+		Regex:       regexp.MustCompile(`(?i)(vault\s+read|vault\s+write|VAULT_ADDR|secret/data/|transit/encrypt|transit/decrypt)`),
+		Severity:    types.SeverityInfo,
+		Quantum:     types.QuantumUnknown,
+		Description: "HashiCorp Vault usage detected. Review transit encryption keys for quantum readiness.",
+		Remediation: "Audit Vault transit keys. Monitor HashiCorp for PQC support.",
+		Tags:        []string{"crypto-service", "vault", "hashicorp", "audit"},
+	})
+
+	// GCP KMS Reference
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "SECRET-KMS-002",
+		Name:        "GCP KMS Reference",
+		Category:    "Crypto Service",
+		Regex:       regexp.MustCompile(`projects/[a-zA-Z0-9-]+/locations/[a-zA-Z0-9-]+/keyRings/[a-zA-Z0-9-]+/cryptoKeys/[a-zA-Z0-9-]+`),
+		Severity:    types.SeverityMedium,
+		Quantum:     types.QuantumUnknown,
+		Description: "GCP Cloud KMS reference detected. Review key algorithms for quantum readiness.",
+		Remediation: "Audit GCP KMS key configurations. Plan for PQC migration.",
+		Tags:        []string{"crypto-service", "gcp", "kms", "audit"},
+	})
+
+	// JWT Secret in Code
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "SECRET-JWT-001",
+		Name:        "JWT Secret Pattern",
+		Category:    "Secret Detection",
+		Regex:       regexp.MustCompile(`(?i)(jwt[-_]?secret|JWT_SECRET|jwtSecret)\s*[=:]\s*['"][^'"]{8,}['"]`),
+		Severity:    types.SeverityCritical,
+		Quantum:     types.QuantumPartial,
+		Description: "JWT secret appears to be hardcoded. This enables token forgery if exposed.",
+		Remediation: "Move JWT secrets to secure key management. Use asymmetric JWT (RS256/ES256) with proper key rotation.",
+		Tags:        []string{"secret", "jwt", "authentication", "critical"},
+	})
+
+	// Encryption Key Variable
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "SECRET-KEY-001",
+		Name:        "Hardcoded Encryption Key",
+		Category:    "Secret Detection",
+		Regex:       regexp.MustCompile(`(?i)(encryption[-_]?key|ENCRYPTION_KEY|encryptionKey|aes[-_]?key|AES_KEY|secret[-_]?key|SECRET_KEY|master[-_]?key|MASTER_KEY)\s*[=:]\s*['"][a-zA-Z0-9+/=]{16,}['"]`),
+		Severity:    types.SeverityCritical,
+		Quantum:     types.QuantumPartial,
+		Description: "Possible encryption key hardcoded in source code.",
+		Remediation: "Remove hardcoded keys. Use secure key management (HSM, KMS, Vault).",
+		Tags:        []string{"secret", "encryption-key", "critical"},
+	})
+
+	// Base64-encoded Key Material (high entropy strings in key context)
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "SECRET-KEY-002",
+		Name:        "Base64 Key Material",
+		Category:    "Secret Detection",
+		Regex:       regexp.MustCompile(`(?i)(private[-_]?key|PRIVATE_KEY|privateKey)\s*[=:]\s*['"][a-zA-Z0-9+/]{40,}={0,2}['"]`),
+		Severity:    types.SeverityCritical,
+		Quantum:     types.QuantumVulnerable,
+		Description: "Possible base64-encoded private key material in source code.",
+		Remediation: "Remove key material from source. Use secure key storage.",
+		Tags:        []string{"secret", "key-material", "critical"},
+	})
+
+	// HMAC Secret
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "SECRET-HMAC-001",
+		Name:        "HMAC Secret Pattern",
+		Category:    "Secret Detection",
+		Regex:       regexp.MustCompile(`(?i)(hmac[-_]?secret|HMAC_SECRET|hmacSecret|signing[-_]?key|SIGNING_KEY)\s*[=:]\s*['"][^'"]{8,}['"]`),
+		Severity:    types.SeverityHigh,
+		Quantum:     types.QuantumPartial,
+		Description: "HMAC/signing secret appears to be hardcoded.",
+		Remediation: "Move HMAC secrets to secure configuration. Ensure key length >= 256 bits.",
+		Tags:        []string{"secret", "hmac", "signing"},
+	})
+
+	// Password-Based Key Derivation (weak)
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "PBKDF-001",
+		Name:        "Weak PBKDF Usage",
+		Category:    "Key Derivation",
+		Regex:       regexp.MustCompile(`(?i)(PBKDF1|pbkdf1|MD5.*iterations|SHA1.*iterations|iterations\s*[=:]\s*[0-9]{1,4}\b)`),
+		Severity:    types.SeverityHigh,
+		Quantum:     types.QuantumPartial,
+		Description: "Weak password-based key derivation detected. Low iteration counts or weak hashes reduce security.",
+		Remediation: "Use Argon2id, scrypt, or PBKDF2-SHA256 with >= 600,000 iterations.",
+		References:  []string{"https://cheatsheetseries.owasp.org/cheatsheets/Password_Storage_Cheat_Sheet.html"},
+		Tags:        []string{"key-derivation", "password", "weak"},
+	})
 }

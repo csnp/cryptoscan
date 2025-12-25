@@ -73,102 +73,169 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 
 	// Header
 	b.WriteString("\n")
-	b.WriteString(r.color(colorBold, "═══════════════════════════════════════════════════════════════\n"))
-	b.WriteString(r.color(colorBold, "                    CRYPTOGRAPHIC SCAN RESULTS\n"))
-	b.WriteString(r.color(colorBold, "═══════════════════════════════════════════════════════════════\n"))
+	b.WriteString(r.color(colorBold, "╔═══════════════════════════════════════════════════════════════╗\n"))
+	b.WriteString(r.color(colorBold, "║              CRYPTOGRAPHIC SCAN RESULTS                       ║\n"))
+	b.WriteString(r.color(colorBold, "╚═══════════════════════════════════════════════════════════════╝\n"))
 	b.WriteString("\n")
 
-	// Scan metadata
-	b.WriteString(r.color(colorBold, "Scan Target: "))
-	b.WriteString(results.ScanTarget + "\n")
-	b.WriteString(r.color(colorBold, "Scan Time:   "))
-	b.WriteString(results.ScanTime.Format("2006-01-02 15:04:05") + "\n")
-	b.WriteString(r.color(colorBold, "Duration:    "))
-	b.WriteString(results.ScanDuration.String() + "\n")
-	b.WriteString(r.color(colorBold, "Files:       "))
-	b.WriteString(fmt.Sprintf("%d files, %d lines scanned\n", results.FilesScanned, results.LinesScanned))
+	// Scan metadata in a box
+	b.WriteString(r.color(colorCyan, "┌─ Scan Information ─────────────────────────────────────────────┐\n"))
+	b.WriteString(r.color(colorCyan, "│") + r.color(colorBold, " Target:   ") + fmt.Sprintf("%-52s", results.ScanTarget) + r.color(colorCyan, "│\n"))
+	b.WriteString(r.color(colorCyan, "│") + r.color(colorBold, " Time:     ") + fmt.Sprintf("%-52s", results.ScanTime.Format("2006-01-02 15:04:05")) + r.color(colorCyan, "│\n"))
+	b.WriteString(r.color(colorCyan, "│") + r.color(colorBold, " Duration: ") + fmt.Sprintf("%-52s", results.ScanDuration.String()) + r.color(colorCyan, "│\n"))
+	b.WriteString(r.color(colorCyan, "│") + r.color(colorBold, " Files:    ") + fmt.Sprintf("%-52s", fmt.Sprintf("%d files, %d lines scanned", results.FilesScanned, results.LinesScanned)) + r.color(colorCyan, "│\n"))
+	b.WriteString(r.color(colorCyan, "└─────────────────────────────────────────────────────────────────┘\n"))
 	b.WriteString("\n")
 
-	// Summary
-	b.WriteString(r.color(colorBold, "─────────────────────────────────────────────────────────────────\n"))
-	b.WriteString(r.color(colorBold, "                           SUMMARY\n"))
-	b.WriteString(r.color(colorBold, "─────────────────────────────────────────────────────────────────\n"))
+	// Summary section
+	b.WriteString(r.color(colorBold, "┌─ Summary ───────────────────────────────────────────────────────┐\n"))
+	b.WriteString(r.color(colorBold, fmt.Sprintf("│  Total Findings: %-46d │\n", results.Summary.TotalFindings)))
+	b.WriteString(r.color(colorBold, "└─────────────────────────────────────────────────────────────────┘\n"))
 	b.WriteString("\n")
 
-	b.WriteString(fmt.Sprintf("Total Findings: %d\n", results.Summary.TotalFindings))
-	b.WriteString("\n")
-
-	// By severity
-	b.WriteString(r.color(colorBold, "By Severity:\n"))
-	for _, sev := range []string{"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"} {
-		if count, ok := results.Summary.BySeverity[sev]; ok && count > 0 {
-			b.WriteString(fmt.Sprintf("  %-10s %d\n", sev+":", count))
+	// Severity breakdown with visual indicators
+	b.WriteString(r.color(colorBold, "  Severity Breakdown:\n"))
+	severities := []struct {
+		name  string
+		color string
+		icon  string
+	}{
+		{"CRITICAL", colorRed + colorBold, "●"},
+		{"HIGH", colorRed, "●"},
+		{"MEDIUM", colorYellow, "●"},
+		{"LOW", colorBlue, "●"},
+		{"INFO", colorCyan, "●"},
+	}
+	for _, sev := range severities {
+		if count, ok := results.Summary.BySeverity[sev.name]; ok && count > 0 {
+			bar := strings.Repeat("█", min(count, 30))
+			b.WriteString(fmt.Sprintf("    %s %s%-10s%s %3d %s\n",
+				r.color(sev.color, sev.icon),
+				r.color(sev.color, ""),
+				sev.name,
+				r.color(colorReset, ""),
+				count,
+				r.color(sev.color, bar)))
 		}
 	}
 	b.WriteString("\n")
 
-	// Quantum risk summary
-	b.WriteString(r.color(colorBold, "Quantum Risk Assessment:\n"))
+	// Quantum Risk Assessment with visual emphasis
+	b.WriteString(r.color(colorBold, "  Quantum Risk Assessment:\n"))
 	if results.Summary.QuantumVulnCount > 0 {
-		b.WriteString(r.color(colorRed+colorBold, fmt.Sprintf("  ⚠️  %d quantum-vulnerable findings require immediate attention\n", results.Summary.QuantumVulnCount)))
+		b.WriteString(r.color(colorRed+colorBold, fmt.Sprintf("    ⚠️  %d quantum-vulnerable findings require migration planning\n", results.Summary.QuantumVulnCount)))
 	}
-	for _, risk := range []string{"VULNERABLE", "PARTIAL", "SAFE", "UNKNOWN"} {
-		if count, ok := results.Summary.ByQuantumRisk[risk]; ok && count > 0 {
-			b.WriteString(fmt.Sprintf("  %-12s %d\n", risk+":", count))
+	quantumRisks := []struct {
+		name  string
+		color string
+		icon  string
+	}{
+		{"VULNERABLE", colorRed, "◆"},
+		{"PARTIAL", colorYellow, "◇"},
+		{"SAFE", colorGreen, "✓"},
+		{"UNKNOWN", colorCyan, "?"},
+	}
+	for _, risk := range quantumRisks {
+		if count, ok := results.Summary.ByQuantumRisk[risk.name]; ok && count > 0 {
+			b.WriteString(fmt.Sprintf("    %s %s%-12s%s %d\n",
+				r.color(risk.color, risk.icon),
+				r.color(risk.color, ""),
+				risk.name,
+				r.color(colorReset, ""),
+				count))
 		}
 	}
 	b.WriteString("\n")
 
-	// By category
-	b.WriteString(r.color(colorBold, "By Category:\n"))
+	// Categories
+	b.WriteString(r.color(colorBold, "  Categories Found:\n"))
 	for cat, count := range results.Summary.ByCategory {
-		b.WriteString(fmt.Sprintf("  %-20s %d\n", cat+":", count))
+		b.WriteString(fmt.Sprintf("    ├─ %-24s %d\n", cat, count))
 	}
 	b.WriteString("\n")
 
 	if len(results.Findings) == 0 {
-		b.WriteString(r.color(colorGreen, "✓ No cryptographic findings detected\n"))
+		b.WriteString(r.color(colorGreen, "  ✓ No cryptographic findings detected\n"))
+		b.WriteString("\n")
+		r.writeFooter(&b)
 		return b.String(), nil
 	}
 
-	// Detailed findings
-	b.WriteString(r.color(colorBold, "─────────────────────────────────────────────────────────────────\n"))
-	b.WriteString(r.color(colorBold, "                          FINDINGS\n"))
-	b.WriteString(r.color(colorBold, "─────────────────────────────────────────────────────────────────\n"))
+	// Findings section
+	b.WriteString(r.color(colorBold, "╔═══════════════════════════════════════════════════════════════╗\n"))
+	b.WriteString(r.color(colorBold, "║                      DETAILED FINDINGS                        ║\n"))
+	b.WriteString(r.color(colorBold, "╚═══════════════════════════════════════════════════════════════╝\n"))
 	b.WriteString("\n")
 
 	for i, f := range results.Findings {
-		// Finding header
+		// Finding number and severity badge
 		sevColor := r.severityColor(f.Severity)
-		b.WriteString(r.color(sevColor, fmt.Sprintf("[%s] ", f.Severity.String())))
-		b.WriteString(r.color(colorBold, f.Type))
-		b.WriteString("\n")
+		b.WriteString(fmt.Sprintf("  %s Finding #%d %s\n",
+			r.color(colorBold, "┌──"),
+			i+1,
+			r.color(sevColor, fmt.Sprintf("[%s]", f.Severity.String()))))
+
+		// Type
+		b.WriteString(fmt.Sprintf("  │ %s %s\n",
+			r.color(colorBold, "Type:"),
+			r.color(colorBold, f.Type)))
 
 		// Location
-		b.WriteString(fmt.Sprintf("  File: %s:%d\n", f.File, f.Line))
+		b.WriteString(fmt.Sprintf("  │ %s %s:%d\n",
+			r.color(colorBold, "File:"),
+			f.File, f.Line))
 
 		// Match
-		b.WriteString(fmt.Sprintf("  Match: %s\n", f.Match))
+		b.WriteString(fmt.Sprintf("  │ %s %s\n",
+			r.color(colorBold, "Match:"),
+			r.color(colorMagenta, f.Match)))
 
-		// Algorithm and key size if present
+		// Algorithm and key size
 		if f.Algorithm != "" {
-			b.WriteString(fmt.Sprintf("  Algorithm: %s", f.Algorithm))
+			algoStr := f.Algorithm
 			if f.KeySize > 0 {
-				b.WriteString(fmt.Sprintf(" (%d-bit)", f.KeySize))
+				algoStr += fmt.Sprintf(" (%d-bit)", f.KeySize)
 			}
-			b.WriteString("\n")
+			b.WriteString(fmt.Sprintf("  │ %s %s\n",
+				r.color(colorBold, "Algorithm:"),
+				algoStr))
 		}
 
-		// Quantum risk
-		b.WriteString(fmt.Sprintf("  Quantum: %s\n", r.quantumIcon(f.Quantum)))
+		// Quantum risk with icon
+		b.WriteString(fmt.Sprintf("  │ %s %s\n",
+			r.color(colorBold, "Quantum:"),
+			r.quantumIcon(f.Quantum)))
+
+		// Confidence
+		if f.Confidence != "" {
+			b.WriteString(fmt.Sprintf("  │ %s %s\n",
+				r.color(colorBold, "Confidence:"),
+				string(f.Confidence)))
+		}
 
 		// Description
-		b.WriteString(fmt.Sprintf("  Description: %s\n", f.Description))
+		b.WriteString(fmt.Sprintf("  │ %s\n", r.color(colorBold, "Description:")))
+		b.WriteString(fmt.Sprintf("  │   %s\n", f.Description))
 
 		// Remediation
 		if f.Remediation != "" {
-			b.WriteString(r.color(colorGreen, fmt.Sprintf("  Remediation: %s\n", f.Remediation)))
+			b.WriteString(fmt.Sprintf("  │ %s\n", r.color(colorGreen+colorBold, "Remediation:")))
+			b.WriteString(fmt.Sprintf("  │   %s\n", r.color(colorGreen, f.Remediation)))
 		}
+
+		// Impact and Effort if present
+		if f.Impact != "" {
+			b.WriteString(fmt.Sprintf("  │ %s %s\n",
+				r.color(colorBold, "Impact:"),
+				f.Impact))
+		}
+		if f.Effort != "" {
+			b.WriteString(fmt.Sprintf("  │ %s %s\n",
+				r.color(colorBold, "Effort:"),
+				f.Effort))
+		}
+
+		b.WriteString("  └────────────────────────────────────────────────────────────\n")
 
 		if i < len(results.Findings)-1 {
 			b.WriteString("\n")
@@ -176,7 +243,24 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 	}
 
 	b.WriteString("\n")
-	b.WriteString(r.color(colorBold, "═══════════════════════════════════════════════════════════════\n"))
+	r.writeFooter(&b)
 
 	return b.String(), nil
+}
+
+func (r *TextReporter) writeFooter(b *strings.Builder) {
+	b.WriteString(r.color(colorBold, "═══════════════════════════════════════════════════════════════\n"))
+	b.WriteString(r.color(colorCyan, "  QRAMM Cryptographic Scanner") + " - Part of the QRAMM Toolkit\n")
+	b.WriteString("  https://qramm.org  •  https://csnp.org\n")
+	b.WriteString("\n")
+	b.WriteString(r.color(colorGreen, "  CSNP Mission: ") + "Advancing cybersecurity through education,\n")
+	b.WriteString("  research, and open-source tools that empower organizations.\n")
+	b.WriteString(r.color(colorBold, "═══════════════════════════════════════════════════════════════\n"))
+}
+
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

@@ -58,7 +58,7 @@ Examples:
 }
 
 func init() {
-	scanCmd.Flags().StringVarP(&outputFormat, "format", "f", "text", "Output format: text, json, sarif, cbom")
+	scanCmd.Flags().StringVarP(&outputFormat, "format", "f", "text", "Output format: text, json, csv, sarif, cbom")
 	scanCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
 	scanCmd.Flags().StringVarP(&includeGlobs, "include", "i", "", "File patterns to include (comma-separated)")
 	scanCmd.Flags().StringVarP(&excludeGlobs, "exclude", "e", "", "File patterns to exclude (comma-separated)")
@@ -138,6 +138,8 @@ func runScan(cmd *cobra.Command, args []string) error {
 	switch outputFormat {
 	case "json":
 		rep = reporter.NewJSONReporter(jsonPretty)
+	case "csv":
+		rep = reporter.NewCSVReporter()
 	case "sarif":
 		rep = reporter.NewSARIFReporter()
 	case "cbom":
@@ -178,16 +180,44 @@ func runScan(cmd *cobra.Command, args []string) error {
 }
 
 func printBanner() {
-	fmt.Println("\033[36m")
-	fmt.Println("   ____                  _        ____")
-	fmt.Println("  / ___|_ __ _   _ _ __ | |_ ___ / ___|  ___ __ _ _ __")
-	fmt.Println(" | |   | '__| | | | '_ \\| __/ _ \\\\___ \\ / __/ _` | '_ \\")
-	fmt.Println(" | |___| |  | |_| | |_) | || (_) |___) | (_| (_| | | | |")
-	fmt.Println("  \\____|_|   \\__, | .__/ \\__\\___/|____/ \\___\\__,_|_| |_|")
-	fmt.Println("             |___/|_|")
-	fmt.Println("\033[0m")
-	fmt.Println(" QRAMM Cryptographic Scanner - https://qramm.org")
-	fmt.Println(" Copyright 2025 CSNP")
+	const (
+		colorCyan   = "\033[36m"
+		colorBlue   = "\033[34m"
+		colorGreen  = "\033[32m"
+		colorYellow = "\033[33m"
+		colorReset  = "\033[0m"
+		colorBold   = "\033[1m"
+		colorDim    = "\033[2m"
+	)
+
+	fmt.Println()
+	fmt.Println(colorCyan + colorBold + "  ╔═══════════════════════════════════════════════════════════════╗")
+	fmt.Println("  ║                                                                 ║")
+	fmt.Println("  ║   ██████╗██████╗ ██╗   ██╗██████╗ ████████╗ ██████╗ ███████╗   ║")
+	fmt.Println("  ║  ██╔════╝██╔══██╗╚██╗ ██╔╝██╔══██╗╚══██╔══╝██╔═══██╗██╔════╝   ║")
+	fmt.Println("  ║  ██║     ██████╔╝ ╚████╔╝ ██████╔╝   ██║   ██║   ██║███████╗   ║")
+	fmt.Println("  ║  ██║     ██╔══██╗  ╚██╔╝  ██╔═══╝    ██║   ██║   ██║╚════██║   ║")
+	fmt.Println("  ║  ╚██████╗██║  ██║   ██║   ██║        ██║   ╚██████╔╝███████║   ║")
+	fmt.Println("  ║   ╚═════╝╚═╝  ╚═╝   ╚═╝   ╚═╝        ╚═╝    ╚═════╝ ╚══════╝   ║")
+	fmt.Println("  ║                     ███████╗ ██████╗ █████╗ ███╗   ██╗         ║")
+	fmt.Println("  ║                     ██╔════╝██╔════╝██╔══██╗████╗  ██║         ║")
+	fmt.Println("  ║                     ███████╗██║     ███████║██╔██╗ ██║         ║")
+	fmt.Println("  ║                     ╚════██║██║     ██╔══██║██║╚██╗██║         ║")
+	fmt.Println("  ║                     ███████║╚██████╗██║  ██║██║ ╚████║         ║")
+	fmt.Println("  ║                     ╚══════╝ ╚═════╝╚═╝  ╚═╝╚═╝  ╚═══╝         ║")
+	fmt.Println("  ║                                                                 ║")
+	fmt.Println("  ╚═══════════════════════════════════════════════════════════════╝" + colorReset)
+	fmt.Println()
+	fmt.Println(colorBlue + "  QRAMM Cryptographic Discovery Scanner" + colorReset)
+	fmt.Println(colorDim + "  Quantum Readiness Assessment & Migration Tool" + colorReset)
+	fmt.Println()
+	fmt.Println(colorGreen + "  ┌─────────────────────────────────────────────────────────────┐")
+	fmt.Println("  │" + colorReset + colorBold + "  CSNP Mission:" + colorReset + colorGreen + "                                               │")
+	fmt.Println("  │" + colorReset + "  Advancing cybersecurity through education, research, and    " + colorGreen + "│")
+	fmt.Println("  │" + colorReset + "  open-source tools that empower organizations worldwide.     " + colorGreen + "│")
+	fmt.Println("  └─────────────────────────────────────────────────────────────┘" + colorReset)
+	fmt.Println()
+	fmt.Println(colorDim + "  https://qramm.org  •  https://csnp.org  •  Apache-2.0 License" + colorReset)
 	fmt.Println()
 }
 

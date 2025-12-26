@@ -478,7 +478,7 @@ CryptoScan is part of the **Quantum Readiness Assurance Maturity Model (QRAMM)**
 
 - **CryptoScan** — Cryptographic discovery scanner (this project)
 - **QRAMM Assessment** — Quantum readiness maturity assessment
-- **TLS Analyzer** — TLS/SSL configuration analysis (coming soon)
+- **[TLS Analyzer](https://github.com/csnp/qramm-tls-analyzer)** — TLS/SSL configuration analysis with CNSA 2.0 compliance tracking
 - **CryptoCBOM** — Cryptographic Bill of Materials generator (coming soon)
 
 Learn more at [qramm.org](https://qramm.org) and [csnp.org](https://csnp.org).

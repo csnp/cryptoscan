@@ -38,16 +38,41 @@ CryptoScan is purpose-built for quantum readiness assessment:
 | Capability | CryptoScan | grep/ripgrep | Commercial Tools |
 |------------|:----------:|:------------:|:----------------:|
 | Remote Git URL scanning | **Yes** | No | Some |
-| Source code context (see surrounding lines) | **Yes** | No | Rarely |
-| Quantum risk classification per finding | **Yes** | No | Some |
-| Context-aware confidence scoring | **Yes** | No | Varies |
-| CBOM (Cryptographic Bill of Materials) | **Yes** | No | Rarely |
-| SARIF output for GitHub Security | **Yes** | No | Yes |
+| Source code context | **Yes** | No | Rarely |
+| Quantum risk classification | **Yes** | No | Some |
+| Context-aware confidence | **Yes** | No | Varies |
+| CBOM output | **Yes** | No | Rarely |
+| SARIF for GitHub Security | **Yes** | No | Yes |
 | Inline ignore comments | **Yes** | No | Some |
-| Migration guidance per finding | **Yes** | No | Varies |
-| Dependency scanning (20+ package managers) | **Yes** | No | Some |
+| Migration guidance | **Yes** | No | Varies |
+| Dependency scanning | **Yes** | No | Some |
 | Open source | **Yes** | Yes | No |
 | Price | **Free** | Free | $$$$ |
+
+### What These Capabilities Mean
+
+<details>
+<summary><strong>Click to expand capability descriptions</strong></summary>
+
+**Remote Git URL scanning** — Scan any public or private Git repository directly by URL without cloning it first. Just run `cryptoscan scan https://github.com/org/repo.git` and get results immediately.
+
+**Source code context** — Every finding includes the 3 lines before and after the match, so you can immediately understand the context without opening the file. Know if it's in a comment, test, or production code at a glance.
+
+**Quantum risk classification** — Each finding is tagged with its quantum computing threat level: VULNERABLE (broken by Shor's algorithm), PARTIAL (weakened by Grover's algorithm), SAFE (quantum-resistant), or UNKNOWN. This tells you exactly what needs to migrate first.
+
+**Context-aware confidence** — Not all matches are equal. CryptoScan reduces confidence for findings in comments, documentation, log messages, and test files. High-confidence findings in production code are prioritized over low-confidence matches in docs.
+
+**CBOM output** — Generate a Cryptographic Bill of Materials—a machine-readable inventory of all cryptographic algorithms in your codebase. Required for federal compliance (OMB M-23-02) and essential for tracking quantum migration progress.
+
+**SARIF for GitHub Security** — Output findings in SARIF format for direct integration with GitHub Code Scanning. See cryptographic issues as security alerts in your pull requests and repository Security tab.
+
+**Inline ignore comments** — Suppress false positives directly in your code with `// cryptoscan:ignore`. No need to maintain separate exclusion files or configure complex ignore rules.
+
+**Migration guidance** — Every finding includes specific remediation advice: which NIST PQC algorithm to migrate to (ML-KEM, ML-DSA, SLH-DSA), links to standards, and effort estimates.
+
+**Dependency scanning** — Scans package manifests (package.json, go.mod, requirements.txt, pom.xml, etc.) to identify crypto libraries in your dependencies. Covers 20+ package manager formats.
+
+</details>
 
 ## Quick Start
 

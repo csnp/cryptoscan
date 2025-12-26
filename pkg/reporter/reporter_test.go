@@ -222,6 +222,279 @@ func TestCBOMReporter(t *testing.T) {
 	}
 }
 
+func TestTextReporterGroupByFile(t *testing.T) {
+	results := createTestResults()
+	reporter := NewTextReporter(false)
+	reporter.SetGroupBy("file")
+
+	output, err := reporter.Generate(results)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// Should contain file grouping indicators
+	checks := []string{
+		"/test/crypto.go",
+		"/test/encrypt.go",
+		"findings",
+	}
+
+	for _, check := range checks {
+		if !strings.Contains(output, check) {
+			t.Errorf("Grouped output missing expected text: %s", check)
+		}
+	}
+}
+
+func TestSeverityColors(t *testing.T) {
+	// Test all severity levels to ensure they produce different colored output
+	results := &scanner.Results{
+		ScanTarget:   "/test",
+		ScanTime:     time.Now(),
+		ScanDuration: time.Second,
+		FilesScanned: 1,
+		LinesScanned: 100,
+		Findings: []scanner.Finding{
+			{ID: "1", Type: "Critical Test", Severity: scanner.SeverityCritical, File: "/a.go", Line: 1},
+			{ID: "2", Type: "High Test", Severity: scanner.SeverityHigh, File: "/b.go", Line: 2},
+			{ID: "3", Type: "Medium Test", Severity: scanner.SeverityMedium, File: "/c.go", Line: 3},
+			{ID: "4", Type: "Low Test", Severity: scanner.SeverityLow, File: "/d.go", Line: 4},
+			{ID: "5", Type: "Info Test", Severity: scanner.SeverityInfo, File: "/e.go", Line: 5},
+		},
+		Summary: scanner.Summary{
+			TotalFindings: 5,
+			BySeverity:    map[string]int{"CRITICAL": 1, "HIGH": 1, "MEDIUM": 1, "LOW": 1, "INFO": 1},
+			ByCategory:    map[string]int{},
+			ByQuantumRisk: map[string]int{},
+		},
+	}
+
+	reporter := NewTextReporter(true)
+	output, err := reporter.Generate(results)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	// All severity levels should appear
+	for _, sev := range []string{"CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"} {
+		if !strings.Contains(output, sev) {
+			t.Errorf("Output missing severity: %s", sev)
+		}
+	}
+}
+
+func TestQuantumRiskIcons(t *testing.T) {
+	results := &scanner.Results{
+		ScanTarget:   "/test",
+		ScanTime:     time.Now(),
+		ScanDuration: time.Second,
+		FilesScanned: 1,
+		LinesScanned: 100,
+		Findings: []scanner.Finding{
+			{ID: "1", Type: "Vulnerable", Quantum: scanner.QuantumVulnerable, File: "/a.go", Line: 1},
+			{ID: "2", Type: "Partial", Quantum: scanner.QuantumPartial, File: "/b.go", Line: 2},
+			{ID: "3", Type: "Safe", Quantum: scanner.QuantumSafe, File: "/c.go", Line: 3},
+			{ID: "4", Type: "Unknown", Quantum: scanner.QuantumUnknown, File: "/d.go", Line: 4},
+		},
+		Summary: scanner.Summary{
+			TotalFindings: 4,
+			BySeverity:    map[string]int{},
+			ByCategory:    map[string]int{},
+			ByQuantumRisk: map[string]int{"VULNERABLE": 1, "PARTIAL": 1, "SAFE": 1, "UNKNOWN": 1},
+		},
+	}
+
+	reporter := NewTextReporter(false)
+	output, err := reporter.Generate(results)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	checks := []string{"QUANTUM VULNERABLE", "QUANTUM WEAKENED", "QUANTUM SAFE", "UNKNOWN"}
+	for _, check := range checks {
+		if !strings.Contains(output, check) {
+			t.Errorf("Output missing quantum icon: %s", check)
+		}
+	}
+}
+
+func TestCBOMCategoryToAssetType(t *testing.T) {
+	tests := []struct {
+		category string
+		want     string
+	}{
+		{"asymmetric", "algorithm"},
+		{"key-exchange", "algorithm"},
+		{"symmetric", "algorithm"},
+		{"hash", "algorithm"},
+		{"tls", "protocol"},
+		{"protocol", "protocol"},
+		{"certificate", "certificate"},
+		{"key", "certificate"},
+		{"library", "related-crypto-material"},
+		{"unknown", "algorithm"},
+		{"", "algorithm"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.category, func(t *testing.T) {
+			got := categoryToAssetType(tt.category)
+			if got != tt.want {
+				t.Errorf("categoryToAssetType(%q) = %q, want %q", tt.category, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCBOMAlgorithmToPrimitive(t *testing.T) {
+	tests := []struct {
+		algo string
+		want string
+	}{
+		{"RSA", "pke"},
+		{"ECDSA", "signature"},
+		{"DSA", "signature"},
+		{"Ed25519", "signature"},
+		{"DH", "kdf"},
+		{"ECDH", "kdf"},
+		{"X25519", "kdf"},
+		{"AES", "block-cipher"},
+		{"DES", "block-cipher"},
+		{"3DES", "block-cipher"},
+		{"Blowfish", "block-cipher"},
+		{"ChaCha20", "block-cipher"},
+		{"RC4", "block-cipher"},
+		{"MD5", "hash"},
+		{"SHA-1", "hash"},
+		{"SHA-256", "hash"},
+		{"SHA-384", "hash"},
+		{"SHA-512", "hash"},
+		{"SHA-3", "hash"},
+		{"Unknown", "other"},
+		{"", "other"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.algo, func(t *testing.T) {
+			got := algorithmToPrimitive(tt.algo)
+			if got != tt.want {
+				t.Errorf("algorithmToPrimitive(%q) = %q, want %q", tt.algo, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestCBOMKeySizeToSecurityLevel(t *testing.T) {
+	tests := []struct {
+		keySize int
+		algo    string
+		want    int
+	}{
+		{4096, "RSA", 192},
+		{3072, "RSA", 128},
+		{2048, "RSA", 112},
+		{1024, "RSA", 80},
+		{256, "AES", 256},
+		{128, "AES", 128},
+		{256, "Unknown", 0},
+		{0, "RSA", 80},
+	}
+
+	for _, tt := range tests {
+		name := strings.ReplaceAll(tt.algo+"-"+string(rune(tt.keySize)), " ", "_")
+		t.Run(name, func(t *testing.T) {
+			got := keySizeToSecurityLevel(tt.keySize, tt.algo)
+			if got != tt.want {
+				t.Errorf("keySizeToSecurityLevel(%d, %q) = %d, want %d", tt.keySize, tt.algo, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestSARIFSeverityLevels(t *testing.T) {
+	// Create results with all severity levels
+	results := &scanner.Results{
+		ScanTarget:   "/test",
+		ScanTime:     time.Now(),
+		ScanDuration: time.Second,
+		FilesScanned: 1,
+		LinesScanned: 100,
+		Findings: []scanner.Finding{
+			{ID: "1", Type: "Critical", Severity: scanner.SeverityCritical, File: "/a.go", Line: 1},
+			{ID: "2", Type: "High", Severity: scanner.SeverityHigh, File: "/b.go", Line: 2},
+			{ID: "3", Type: "Medium", Severity: scanner.SeverityMedium, File: "/c.go", Line: 3},
+			{ID: "4", Type: "Low", Severity: scanner.SeverityLow, File: "/d.go", Line: 4},
+			{ID: "5", Type: "Info", Severity: scanner.SeverityInfo, File: "/e.go", Line: 5},
+		},
+		Summary: scanner.Summary{TotalFindings: 5},
+	}
+
+	reporter := NewSARIFReporter()
+	output, err := reporter.Generate(results)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	var sarif map[string]interface{}
+	if err := json.Unmarshal([]byte(output), &sarif); err != nil {
+		t.Fatalf("Invalid SARIF: %v", err)
+	}
+
+	// Check that results exist
+	runs := sarif["runs"].([]interface{})
+	run := runs[0].(map[string]interface{})
+	results2 := run["results"].([]interface{})
+	if len(results2) != 5 {
+		t.Errorf("Expected 5 SARIF results, got %d", len(results2))
+	}
+}
+
+func TestFormatBytes(t *testing.T) {
+	tests := []struct {
+		bytes int64
+		want  string
+	}{
+		{0, "0 B"},
+		{100, "100 B"},
+		{1024, "1.0 KB"},
+		{1536, "1.5 KB"},
+		{1048576, "1.00 MB"},
+		{1572864, "1.50 MB"},
+		{1073741824, "1.00 GB"},
+		{1610612736, "1.50 GB"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.want, func(t *testing.T) {
+			got := formatBytes(tt.bytes)
+			if got != tt.want {
+				t.Errorf("formatBytes(%d) = %q, want %q", tt.bytes, got, tt.want)
+			}
+		})
+	}
+}
+
+func TestTruncatePath(t *testing.T) {
+	tests := []struct {
+		path   string
+		maxLen int
+		want   string
+	}{
+		{"/short/path.go", 50, "/short/path.go"},
+		{"/very/long/path/to/some/deeply/nested/file.go", 30, ".../deeply/nested/file.go"},
+		{"/a.go", 10, "/a.go"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.path, func(t *testing.T) {
+			got := truncatePath(tt.path, tt.maxLen)
+			if len(got) > tt.maxLen && tt.maxLen > 10 {
+				t.Errorf("truncatePath(%q, %d) = %q (len %d), exceeds max", tt.path, tt.maxLen, got, len(got))
+			}
+		})
+	}
+}
+
 func TestEmptyResults(t *testing.T) {
 	results := &scanner.Results{
 		ScanTarget:   "/empty",

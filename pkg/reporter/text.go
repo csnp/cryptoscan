@@ -199,7 +199,7 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 
 		// Source code context - the key feature for verification
 		if f.SourceContext != nil && len(f.SourceContext.Lines) > 0 {
-			b.WriteString(fmt.Sprintf("  │\n"))
+			b.WriteString("  │\n")
 			b.WriteString(fmt.Sprintf("  │ %s\n", r.color(colorBold, "Source:")))
 			b.WriteString(fmt.Sprintf("  │ %s\n", r.color(colorCyan, "┌────────────────────────────────────────────────────────")))
 			for _, srcLine := range f.SourceContext.Lines {
@@ -220,7 +220,7 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 				}
 			}
 			b.WriteString(fmt.Sprintf("  │ %s\n", r.color(colorCyan, "└────────────────────────────────────────────────────────")))
-			b.WriteString(fmt.Sprintf("  │\n"))
+			b.WriteString("  │\n")
 		}
 
 		// Match (what pattern was detected)

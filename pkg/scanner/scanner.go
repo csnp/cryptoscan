@@ -265,7 +265,7 @@ func (s *Scanner) scanDirectory(root string) error {
 		go func() {
 			defer wg.Done()
 			for path := range fileChan {
-				s.scanFile(path)
+				_ = s.scanFile(path) // Error logged internally
 			}
 		}()
 	}

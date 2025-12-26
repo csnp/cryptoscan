@@ -289,7 +289,7 @@ func scanPyprojectToml(data []byte, path string) []DependencyFinding {
 }
 
 func createDependencyFinding(lib CryptoLibrary, version, path string) DependencyFinding {
-	severity := types.SeverityMedium
+	var severity types.Severity
 	quantum := types.QuantumVulnerable
 	remediation := ""
 

@@ -492,7 +492,9 @@ func TestScanProgress(t *testing.T) {
 	// Create multiple files
 	for i := 0; i < 5; i++ {
 		testFile := filepath.Join(tmpDir, filepath.FromSlash(filepath.Join("dir", string(rune('a'+i))+".go")))
-		os.MkdirAll(filepath.Dir(testFile), 0755)
+		if err := os.MkdirAll(filepath.Dir(testFile), 0755); err != nil {
+			t.Fatal(err)
+		}
 		content := `package main
 func init() {}
 `

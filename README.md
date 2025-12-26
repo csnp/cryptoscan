@@ -157,7 +157,7 @@ CryptoScan identifies cryptographic usage across your entire technology stack:
 | **Dependencies** | Crypto libraries across 20+ package managers |
 | **Configurations** | Hardcoded key sizes, algorithm selections, TLS settings |
 
-**50+ detection patterns** with context-aware confidence scoring to minimize false positives.
+**[50+ detection patterns](PATTERNS.md)** with context-aware confidence scoring to minimize false positives.
 
 ### Quantum Risk Classification
 

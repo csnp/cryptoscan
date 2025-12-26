@@ -76,22 +76,34 @@ CryptoScan is purpose-built for quantum readiness assessment:
 
 ## Quick Start
 
-### Prerequisites
-
-- **Go 1.21 or later** — [Download Go](https://go.dev/dl/)
-- **Git** — Required for scanning remote repositories
-
 ### Installation
 
-```bash
-# Install with Go (recommended)
-go install github.com/csnp/qramm-cryptoscan/cmd/cryptoscan@latest
+#### Option 1: Build from Source
 
-# Or build from source
+Requires **Go 1.21+** ([install Go](https://go.dev/dl/))
+
+Copy and paste this entire block:
+
+```bash
 git clone https://github.com/csnp/qramm-cryptoscan.git
 cd qramm-cryptoscan
 go build -o cryptoscan ./cmd/cryptoscan
+sudo mv cryptoscan /usr/local/bin/
+cd .. && rm -rf qramm-cryptoscan
+cryptoscan --version
 ```
+
+#### Option 2: Go Install
+
+For Go developers:
+
+```bash
+go install github.com/csnp/qramm-cryptoscan/cmd/cryptoscan@latest
+```
+
+#### Option 3: Download Binary
+
+Download pre-built binaries from [GitHub Releases](https://github.com/csnp/qramm-cryptoscan/releases/latest).
 
 ### Basic Usage
 

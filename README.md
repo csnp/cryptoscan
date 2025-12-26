@@ -1,6 +1,3 @@
-<p align="center">
-  <img src="assets/logos/logo.png" alt="CryptoScan" width="400">
-</p>
 
 <h3 align="center">Discover. Assess. Migrate.</h3>
 

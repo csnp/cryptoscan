@@ -6,7 +6,7 @@ package analyzer
 import (
 	"testing"
 
-	"github.com/csnp/qramm-cryptoscan/pkg/types"
+	"github.com/csnp/cryptoscan/pkg/types"
 )
 
 func TestAnalyzeLine(t *testing.T) {

@@ -8,8 +8,8 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/csnp/qramm-cryptoscan/pkg/analyzer"
-	"github.com/csnp/qramm-cryptoscan/pkg/types"
+	"github.com/csnp/cryptoscan/pkg/analyzer"
+	"github.com/csnp/cryptoscan/pkg/types"
 )
 
 // Pattern defines a cryptographic pattern to match

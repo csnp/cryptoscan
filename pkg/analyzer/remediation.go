@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/csnp/qramm-cryptoscan/pkg/types"
+	"github.com/csnp/cryptoscan/pkg/types"
 )
 
 // RemediationEngine provides language-aware remediation suggestions

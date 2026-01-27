@@ -11,8 +11,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/csnp/qramm-cryptoscan/pkg/reporter"
-	"github.com/csnp/qramm-cryptoscan/pkg/scanner"
+	"github.com/csnp/cryptoscan/pkg/reporter"
+	"github.com/csnp/cryptoscan/pkg/scanner"
 	"github.com/spf13/cobra"
 )
 

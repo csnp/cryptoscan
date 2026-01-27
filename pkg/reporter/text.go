@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/csnp/qramm-cryptoscan/pkg/scanner"
+	"github.com/csnp/cryptoscan/pkg/scanner"
 )
 
 // TextReporter generates human-readable text output

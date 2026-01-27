@@ -6,7 +6,7 @@ package main
 import (
 	"os"
 
-	"github.com/csnp/qramm-cryptoscan/internal/cli"
+	"github.com/csnp/cryptoscan/internal/cli"
 )
 
 var (

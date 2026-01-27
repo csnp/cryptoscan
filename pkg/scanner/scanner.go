@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/csnp/qramm-cryptoscan/pkg/analyzer"
-	"github.com/csnp/qramm-cryptoscan/pkg/patterns"
-	"github.com/csnp/qramm-cryptoscan/pkg/types"
+	"github.com/csnp/cryptoscan/pkg/analyzer"
+	"github.com/csnp/cryptoscan/pkg/patterns"
+	"github.com/csnp/cryptoscan/pkg/types"
 )
 
 // Re-export types for convenience

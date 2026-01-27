@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/csnp/qramm-cryptoscan/pkg/types"
+	"github.com/csnp/cryptoscan/pkg/types"
 )
 
 func TestScanDependenciesPackageJSON(t *testing.T) {

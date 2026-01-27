@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/csnp/qramm-cryptoscan/pkg/scanner"
+	"github.com/csnp/cryptoscan/pkg/scanner"
 )
 
 func createTestResults() *scanner.Results {

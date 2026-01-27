@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/csnp/qramm-cryptoscan/pkg/analyzer"
-	"github.com/csnp/qramm-cryptoscan/pkg/types"
+	"github.com/csnp/cryptoscan/pkg/analyzer"
+	"github.com/csnp/cryptoscan/pkg/types"
 )
 
 func TestNewMatcher(t *testing.T) {

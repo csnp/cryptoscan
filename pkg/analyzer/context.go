@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/csnp/qramm-cryptoscan/pkg/types"
+	"github.com/csnp/cryptoscan/pkg/types"
 )
 
 // LineContext provides context about a specific line of code

@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/csnp/qramm-cryptoscan/pkg/types"
+	"github.com/csnp/cryptoscan/pkg/types"
 )
 
 // CalculateMigrationScore computes the quantum migration readiness score

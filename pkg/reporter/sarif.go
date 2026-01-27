@@ -9,7 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/csnp/qramm-cryptoscan/pkg/scanner"
+	"github.com/csnp/cryptoscan/pkg/scanner"
 )
 
 // SARIFReporter generates SARIF 2.1.0 format output

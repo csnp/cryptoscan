@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/csnp/qramm-cryptoscan/pkg/scanner"
+	"github.com/csnp/cryptoscan/pkg/scanner"
 )
 
 // CSVReporter generates CSV output for easy import into spreadsheets

@@ -3,7 +3,7 @@
 
 package reporter
 
-import "github.com/csnp/qramm-cryptoscan/pkg/scanner"
+import "github.com/csnp/cryptoscan/pkg/scanner"
 
 // Reporter interface for generating output in various formats
 type Reporter interface {

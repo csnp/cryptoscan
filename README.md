@@ -562,9 +562,9 @@ We believe that:
 CryptoScan is part of the **Quantum Readiness Assurance Maturity Model (QRAMM)** toolkit—a suite of open-source tools designed to help organizations prepare for the post-quantum era:
 
 - **CryptoScan** — Cryptographic discovery scanner (this project)
+- **[CryptoDeps](https://github.com/csnp/qramm-cryptodeps)** — Quantum-safe dependency analysis for your software supply chain
 - **QRAMM Assessment** — Quantum readiness maturity assessment
 - **[TLS Analyzer](https://github.com/csnp/qramm-tls-analyzer)** — TLS/SSL configuration analysis with CNSA 2.0 compliance tracking
-- **CryptoCBOM** — Cryptographic Bill of Materials generator (coming soon)
 
 Learn more at [qramm.org](https://qramm.org) and [csnp.org](https://csnp.org).
 

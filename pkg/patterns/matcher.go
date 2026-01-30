@@ -203,6 +203,27 @@ func determineImpact(f types.Finding) string {
 	if f.FindingType == types.FindingTypeSecret {
 		return "Critical: Exposed cryptographic secrets can lead to complete system compromise"
 	}
+	// Certificate-specific impact based on pattern ID (check before generic quantum status)
+	if f.Category == "Certificate" || strings.HasPrefix(f.ID, "CERT-") {
+		switch {
+		case strings.HasPrefix(f.ID, "CERT-VALIDATION-BYPASS"):
+			return "Critical: Certificate validation disabled - vulnerable to MITM attacks"
+		case strings.HasPrefix(f.ID, "CERT-SIGALG-WEAK"):
+			return "High: Weak signature algorithm undermines certificate trust chain integrity"
+		case strings.HasPrefix(f.ID, "CERT-SELFSIGNED"):
+			return "Medium: Self-signed certificates lack third-party trust verification"
+		case strings.HasPrefix(f.ID, "CERT-EXPIRY"):
+			return "Important: Certificate expiration must be monitored to prevent service disruption"
+		case strings.HasPrefix(f.ID, "CERT-PKCS12"):
+			return "Note: PKCS#12 files contain private keys - ensure proper access controls"
+		case strings.HasPrefix(f.ID, "CERT-PINNING"):
+			return "Security hardening: Certificate pinning protects against CA compromise"
+		case strings.HasPrefix(f.ID, "CERT-MTLS"):
+			return "Strong auth: mTLS provides mutual authentication for zero-trust architecture"
+		default:
+			return "PKI infrastructure - include in cryptographic inventory"
+		}
+	}
 	switch f.Quantum {
 	case types.QuantumVulnerable:
 		switch f.Severity {
@@ -224,12 +245,41 @@ func determineEffort(f types.Finding) string {
 	if f.FindingType == types.FindingTypeSecret {
 		return "Immediate action required - rotate secrets and remove from code"
 	}
+	// Certificate-specific effort guidance with clear next steps (check before generic types)
+	if f.Category == "Certificate" || strings.HasPrefix(f.ID, "CERT-") {
+		switch {
+		case strings.HasPrefix(f.ID, "CERT-VALIDATION-BYPASS"):
+			return "URGENT: Remove InsecureSkipVerify, configure proper CA trust store"
+		case strings.HasPrefix(f.ID, "CERT-SIGALG-WEAK"):
+			return "Replace certificate: Request new cert with SHA-256+ from your CA"
+		case strings.HasPrefix(f.ID, "CERT-SELFSIGNED"):
+			return "For production: Obtain certificate from trusted CA (e.g., Let's Encrypt)"
+		case strings.HasPrefix(f.ID, "CERT-EXPIRY"):
+			return "Add to monitoring: Set up certificate expiration alerts (e.g., certbot renew)"
+		case strings.HasPrefix(f.ID, "CERT-PKCS12"):
+			return "Audit: Verify file permissions, consider HSM for production keys"
+		case strings.HasPrefix(f.ID, "CERT-CHAIN"):
+			return "Document: Map certificate chain hierarchy for PQC migration planning"
+		case strings.HasPrefix(f.ID, "CERT-001"), strings.HasPrefix(f.ID, "CERT-CSR"):
+			return "Inventory: Add to CBOM, verify algorithm meets requirements"
+		case strings.HasPrefix(f.ID, "CERT-PINNING"):
+			return "Best practice: Ensure pin rotation strategy is documented"
+		case strings.HasPrefix(f.ID, "CERT-REVOCATION"):
+			return "Verify: Confirm OCSP/CRL checking is enabled in production"
+		case strings.HasPrefix(f.ID, "CERT-MTLS"):
+			return "Document: Map client certificate requirements for API consumers"
+		default:
+			return "Inventory: Add to cryptographic bill of materials (CBOM)"
+		}
+	}
+	// FindingType-based effort
 	if f.FindingType == types.FindingTypeConfig {
 		return "Configuration change - low effort"
 	}
 	if f.FindingType == types.FindingTypeDependency {
 		return "Library upgrade - medium effort, requires testing"
 	}
+	// Category-based effort
 	switch f.Category {
 	case "Asymmetric Encryption", "Key Exchange":
 		return "Algorithm replacement - high effort, requires PKI changes"

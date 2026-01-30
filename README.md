@@ -23,6 +23,18 @@
 
 ---
 
+> **Part of the QRAMM Toolkit** — Open-source tools for quantum readiness:
+>
+> | Tool | Purpose |
+> |------|---------|
+> | **[CryptoScan](https://github.com/csnp/cryptoscan)** | Cryptographic discovery in source code ← You are here |
+> | **[CryptoDeps](https://github.com/csnp/cryptodeps)** | Quantum-safe dependency analysis for your supply chain |
+> | **[TLS-Analyzer](https://github.com/csnp/tls-analyzer)** | TLS/SSL configuration analysis with CNSA 2.0 compliance |
+>
+> Learn more at [qramm.org](https://qramm.org)
+
+---
+
 ## The Quantum Computing Challenge
 
 **Quantum computers will break RSA, ECDSA, and Diffie-Hellman within the next decade.** This isn't speculation—the NSA, NIST, and major technology companies are already migrating to post-quantum cryptography (PQC).

@@ -44,12 +44,16 @@ CryptoScan is purpose-built for quantum readiness assessment:
 | **Migration Readiness Score** | **Yes** | No | No |
 | **Hybrid crypto recognition** | **Yes** | No | Rarely |
 | **QRAMM framework mapping** | **Yes** | No | No |
+| **CI/CD baseline comparison** | **Yes** | No | Some |
+| **Configurable exit codes** | **Yes** | No | Some |
 | Context-aware confidence | **Yes** | No | Varies |
 | CBOM output | **Yes** | No | Rarely |
 | SARIF for GitHub Security | **Yes** | No | Yes |
 | Inline ignore comments | **Yes** | No | Some |
+| Pattern-specific suppression | **Yes** | No | Rarely |
 | Migration guidance | **Yes** | No | Varies |
 | Dependency scanning | **Yes** | No | Some |
+| Configuration file | **Yes** | N/A | Yes |
 | Open source | **Yes** | Yes | No |
 
 ### What These Capabilities Mean
@@ -276,18 +280,25 @@ Arguments:
   path    Local directory, file, or Git URL to scan (default: current directory)
 
 Flags:
-  -f, --format string       Output format: text, json, csv, sarif, cbom (default "text")
-  -o, --output string       Output file path (default: stdout)
-  -i, --include string      File patterns to include (comma-separated globs)
-  -e, --exclude string      File patterns to exclude (comma-separated globs)
-  -d, --max-depth int       Maximum directory depth (0 = unlimited)
-  -g, --group-by string     Group output by: file, severity, category, quantum
-  -c, --context int         Lines of source context to show (default 3)
-  -p, --progress            Show scan progress indicator
-      --min-severity string Minimum severity to report: info, low, medium, high, critical
-      --no-color            Disable colored output
-      --pretty              Pretty print JSON output
-  -h, --help                Show help
+  -f, --format string           Output format: text, json, csv, sarif, cbom (default "text")
+  -o, --output string           Output file path (default: stdout)
+  -i, --include string          File patterns to include (comma-separated globs)
+  -e, --exclude string          File patterns to exclude (comma-separated globs)
+  -d, --max-depth int           Maximum directory depth (0 = unlimited)
+  -g, --group-by string         Group output by: file, severity, category, quantum
+  -c, --context int             Lines of source context to show (default 3)
+  -p, --progress                Show scan progress indicator
+      --min-severity string     Minimum severity to report: info, low, medium, high, critical
+      --no-color                Disable colored output
+      --pretty                  Pretty print JSON output
+  -h, --help                    Show help
+
+CI/CD Flags:
+      --ignore string           Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*")
+      --ignore-category string  Categories to ignore (e.g., "Certificate,Library Import")
+      --fail-on string          Exit non-zero if findings at this severity or higher
+      --baseline string         Baseline JSON file - only report new findings
+      --config string           Config file path (default: auto-detect .cryptoscan.yaml)
 ```
 
 ### Common Workflows
@@ -314,8 +325,14 @@ cryptoscan scan . --min-severity critical --format json | jq '.findings | length
 Use inline comments to suppress findings that are intentional or not applicable:
 
 ```go
-// Suppress a specific line
+// Suppress all findings on this line
 key := rsa.GenerateKey(rand.Reader, 2048) // cryptoscan:ignore
+
+// Suppress only RSA findings (ECDSA would still be reported)
+import "crypto/rsa" // cryptoscan:ignore RSA-001
+
+// Suppress an entire pattern family
+legacyAuth() // cryptoscan:ignore CERT-*
 
 // Suppress the next line
 // cryptoscan:ignore-next-line
@@ -323,12 +340,80 @@ legacyKey := oldCrypto.NewKey()
 ```
 
 Supported directives:
-- `cryptoscan:ignore` — Ignore finding on this line
+- `cryptoscan:ignore` — Ignore all findings on this line
+- `cryptoscan:ignore RSA-001` — Ignore specific pattern ID
+- `cryptoscan:ignore RSA-*` — Ignore pattern family (wildcard)
 - `cryptoscan:ignore-next-line` — Ignore finding on the following line
 - `crypto-scan:ignore` — Alternative format
-- `noscan` — Quick ignore
+- `noscan` — Quick ignore all
 
 ### CI/CD Integration
+
+CryptoScan provides enterprise-grade CI/CD flexibility with ignore mechanisms, baseline comparison, and configurable exit codes.
+
+#### Configuration File
+
+Create a `.cryptoscan.yaml` in your project root to configure default behavior:
+
+```yaml
+# .cryptoscan.yaml - CryptoScan configuration
+ignore:
+  patterns:
+    - CERT-SELFSIGNED-001   # Known dev certificates
+    - RSA-001               # Legacy auth, migration tracked in JIRA-123
+  categories:
+    - Library Import        # Don't report import statements
+  files:
+    - "vendor/*"
+    - "testdata/*"
+
+failOn: high              # Exit non-zero on HIGH or CRITICAL findings
+minSeverity: low          # Report LOW and above
+baseline: baseline.json   # Only report new findings vs baseline
+```
+
+#### Baseline Workflow
+
+Use baselines to track progress and only fail on **new** issues:
+
+```bash
+# 1. Generate initial baseline (stores current known issues)
+cryptoscan scan . --format json --output baseline.json
+
+# 2. In CI, compare against baseline - only new issues cause failure
+cryptoscan scan . --baseline baseline.json --fail-on high
+
+# 3. After fixing issues, regenerate baseline
+cryptoscan scan . --format json --output baseline.json
+```
+
+#### Exit Code Control
+
+Control when CI fails based on finding severity:
+
+```bash
+# Fail on any HIGH or CRITICAL findings
+cryptoscan scan . --fail-on high
+
+# Fail only on CRITICAL findings (most permissive)
+cryptoscan scan . --fail-on critical
+
+# Fail on MEDIUM and above (stricter)
+cryptoscan scan . --fail-on medium
+```
+
+#### Suppressing Known Issues
+
+```bash
+# Ignore specific pattern IDs
+cryptoscan scan . --ignore "RSA-001,CERT-SELFSIGNED-001"
+
+# Ignore entire categories
+cryptoscan scan . --ignore-category "Certificate,Library Import"
+
+# Combine with baseline for maximum flexibility
+cryptoscan scan . --ignore "RSA-*" --baseline baseline.json --fail-on high
+```
 
 #### GitHub Actions with SARIF
 
@@ -359,10 +444,17 @@ jobs:
         run: go install github.com/csnp/cryptoscan/cmd/cryptoscan@latest
 
       - name: Run Scan
-        run: cryptoscan scan . --format sarif --output results.sarif
+        run: |
+          # Use baseline if it exists, fail on new HIGH+ findings
+          if [ -f baseline.json ]; then
+            cryptoscan scan . --baseline baseline.json --fail-on high --format sarif --output results.sarif
+          else
+            cryptoscan scan . --fail-on critical --format sarif --output results.sarif
+          fi
 
       - name: Upload SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
+        if: always()
         with:
           sarif_file: results.sarif
 ```
@@ -375,12 +467,13 @@ crypto-scan:
   image: golang:1.21
   script:
     - go install github.com/csnp/cryptoscan/cmd/cryptoscan@latest
-    - cryptoscan scan . --format json --output crypto-findings.json
+    - cryptoscan scan . --baseline baseline.json --fail-on high --format json --output crypto-findings.json
   artifacts:
     reports:
       sast: crypto-findings.json
     paths:
       - crypto-findings.json
+  allow_failure: false
 ```
 
 #### Pre-commit Hook
@@ -390,7 +483,8 @@ crypto-scan:
 # .git/hooks/pre-commit
 
 if command -v cryptoscan &> /dev/null; then
-    cryptoscan scan . --min-severity critical --format text
+    # Only check staged files, fail on critical
+    cryptoscan scan . --fail-on critical --min-severity high
     if [ $? -ne 0 ]; then
         echo "Critical cryptographic issues found. Commit blocked."
         exit 1
@@ -479,7 +573,7 @@ cryptoscan/
 
 ## Roadmap
 
-### v1.2 (Current Release)
+### v1.3 (Current Release)
 - [x] Local and remote repository scanning
 - [x] 90+ cryptographic patterns
 - [x] Multiple output formats (text, JSON, CSV, SARIF, CBOM)
@@ -493,16 +587,19 @@ cryptoscan/
 - [x] KDF detection (HKDF, PBKDF2, Argon2id, scrypt, bcrypt)
 - [x] Migration Readiness Score with visual dashboard
 - [x] QRAMM framework integration (CVI Dimension mapping)
-- [x] **NEW: Certificate detection (X.509, CSR, PKCS#12, chains, mTLS, JWK)**
-- [x] **NEW: Certificate validation bypass detection (CRITICAL severity)**
-- [x] **NEW: Weak certificate signature detection (SHA-1/MD5)**
-- [x] **NEW: Enhanced false positive reduction with smart context analysis**
+- [x] Certificate detection (X.509, CSR, PKCS#12, chains, mTLS, JWK)
+- [x] Certificate validation bypass detection (CRITICAL severity)
+- [x] Weak certificate signature detection (SHA-1/MD5)
+- [x] Enhanced false positive reduction with smart context analysis
+- [x] **NEW: CI/CD flexibility with `--ignore`, `--ignore-category`, `--fail-on`, `--baseline`**
+- [x] **NEW: Configuration file support (`.cryptoscan.yaml`)**
+- [x] **NEW: Pattern-specific inline suppression (`cryptoscan:ignore RSA-001`)**
+- [x] **NEW: Baseline comparison for tracking new findings only**
 
-### v1.3 (Next)
+### v1.4 (Next)
 - [ ] Smart remediation engine with language-specific recommendations
 - [ ] Enhanced CBOM output (CycloneDX 1.6 cryptoProperties)
 - [ ] Git history scanning (find crypto in past commits)
-- [ ] Configuration file templates
 
 ### v2.0 (Future)
 - [ ] AWS resource scanning (KMS, ACM, Secrets Manager)

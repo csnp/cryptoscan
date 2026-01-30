@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/csnp/cryptoscan/pkg/analyzer"
+	"github.com/csnp/cryptoscan/pkg/config"
 	"github.com/csnp/cryptoscan/pkg/patterns"
 	"github.com/csnp/cryptoscan/pkg/types"
 )
@@ -61,6 +62,11 @@ type Config struct {
 	IncludeQuantumSafe bool              // Whether to include quantum-safe findings like SHA-256, AES-256 (default false)
 	OnFinding          func(Finding)     // Callback when a finding is discovered (for streaming output)
 	OnFileScanned      func(path string) // Callback when a file is scanned (for progress)
+
+	// CI/CD flexibility options
+	IgnoreIDs        []string // Pattern IDs to ignore (e.g., "RSA-001", "CERT-SELFSIGNED-001")
+	IgnoreCategories []string // Categories to ignore (e.g., "Certificate", "Library Import")
+	IgnoreFiles      []string // File patterns to ignore (e.g., "vendor/*", "test/*")
 }
 
 // Results contains all scan results
@@ -107,6 +113,16 @@ type Summary struct {
 // HasCritical returns true if any critical findings exist
 func (r *Results) HasCritical() bool {
 	return r.Summary.BySeverity["CRITICAL"] > 0
+}
+
+// HasFindingsAtOrAbove returns true if any findings exist at or above the given severity
+func (r *Results) HasFindingsAtOrAbove(sev Severity) bool {
+	for _, f := range r.Findings {
+		if f.Severity >= sev {
+			return true
+		}
+	}
+	return false
 }
 
 // Scanner performs cryptographic scanning
@@ -499,10 +515,12 @@ func (s *Scanner) scanFile(path string) error {
 		s.stats.linesScanned++
 		s.mu.Unlock()
 
-		// Check for ignore comment on this line or previous line
+		// Check for blanket ignore comment on this line or previous line
 		if s.hasIgnoreComment(line, allLines, lineNum) {
 			continue
 		}
+
+		// Pattern-specific ignore will be checked per-finding below
 
 		// Skip extremely long lines (minified/bundled code)
 		// These produce false positives from coincidental string matches
@@ -534,6 +552,16 @@ func (s *Scanner) scanFile(path string) error {
 
 			// Apply noise reduction filters
 			if !s.shouldIncludeFinding(m) {
+				continue
+			}
+
+			// Check if pattern ID or category should be ignored (CI/CD flexibility)
+			if s.shouldIgnorePattern(m.ID, m.Category) {
+				continue
+			}
+
+			// Check for pattern-specific inline ignore (e.g., cryptoscan:ignore RSA-001)
+			if s.hasPatternSpecificIgnore(line, allLines, lineNum, m.ID) {
 				continue
 			}
 
@@ -584,27 +612,146 @@ func (s *Scanner) readFileLines(path string) ([]string, error) {
 }
 
 // hasIgnoreComment checks if this line should be ignored via cryptoscan:ignore
+// This is the basic check - returns true if the line has any ignore directive
 func (s *Scanner) hasIgnoreComment(line string, allLines []string, lineNum int) bool {
 	lowerLine := strings.ToLower(line)
 
-	// Check inline comment on same line
+	// Check inline comment on same line (blanket ignore)
 	if strings.Contains(lowerLine, "cryptoscan:ignore") ||
 		strings.Contains(lowerLine, "crypto-scan:ignore") ||
 		strings.Contains(lowerLine, "noscan") {
-		return true
-	}
-
-	// Check previous line for ignore directive
-	if lineNum >= 2 && lineNum-2 < len(allLines) {
-		prevLine := strings.ToLower(allLines[lineNum-2])
-		if strings.Contains(prevLine, "cryptoscan:ignore") ||
-			strings.Contains(prevLine, "crypto-scan:ignore") ||
-			strings.Contains(prevLine, "cryptoscan:ignore-next-line") {
+		// Check if it's a blanket ignore (no specific pattern)
+		if s.isBlanketIgnore(line) {
 			return true
 		}
 	}
 
+	// Check previous line for ignore directive
+	if lineNum >= 2 && lineNum-2 < len(allLines) {
+		prevLine := allLines[lineNum-2]
+		prevLower := strings.ToLower(prevLine)
+		if strings.Contains(prevLower, "cryptoscan:ignore") ||
+			strings.Contains(prevLower, "crypto-scan:ignore") ||
+			strings.Contains(prevLower, "cryptoscan:ignore-next-line") {
+			// Check if it's a blanket ignore
+			if s.isBlanketIgnore(prevLine) {
+				return true
+			}
+		}
+	}
+
 	return false
+}
+
+// isBlanketIgnore checks if an ignore directive is a blanket ignore (no specific pattern)
+func (s *Scanner) isBlanketIgnore(line string) bool {
+	lowerLine := strings.ToLower(line)
+
+	// Find the ignore directive
+	idx := strings.Index(lowerLine, "cryptoscan:ignore")
+	if idx == -1 {
+		idx = strings.Index(lowerLine, "crypto-scan:ignore")
+	}
+	if idx == -1 {
+		idx = strings.Index(lowerLine, "noscan")
+		if idx != -1 {
+			return true // noscan is always a blanket ignore
+		}
+		return false
+	}
+
+	// Get the remainder after the directive
+	remainder := strings.TrimSpace(line[idx+17:]) // len("cryptoscan:ignore") = 17
+	if strings.HasPrefix(strings.ToLower(remainder), "-next-line") {
+		remainder = strings.TrimSpace(remainder[10:]) // len("-next-line") = 10
+	}
+
+	// If nothing follows, it's a blanket ignore
+	return remainder == "" || strings.HasPrefix(remainder, "//") || strings.HasPrefix(remainder, "*/") ||
+		strings.HasPrefix(remainder, "#") || strings.HasPrefix(remainder, "--")
+}
+
+// hasPatternSpecificIgnore checks if a specific pattern should be ignored based on inline comments
+func (s *Scanner) hasPatternSpecificIgnore(line string, allLines []string, lineNum int, patternID string) bool {
+	// Check current line
+	if patterns := s.extractIgnorePatterns(line); len(patterns) > 0 {
+		for _, p := range patterns {
+			if config.MatchesPattern(patternID, p) {
+				return true
+			}
+		}
+	}
+
+	// Check previous line
+	if lineNum >= 2 && lineNum-2 < len(allLines) {
+		prevLine := allLines[lineNum-2]
+		if patterns := s.extractIgnorePatterns(prevLine); len(patterns) > 0 {
+			for _, p := range patterns {
+				if config.MatchesPattern(patternID, p) {
+					return true
+				}
+			}
+		}
+	}
+
+	return false
+}
+
+// extractIgnorePatterns extracts pattern IDs from an ignore comment
+// Examples:
+//
+//	"// cryptoscan:ignore RSA-001" -> ["RSA-001"]
+//	"// cryptoscan:ignore RSA-001,CERT-*" -> ["RSA-001", "CERT-*"]
+//	"// cryptoscan:ignore" -> [] (blanket ignore, no specific patterns)
+func (s *Scanner) extractIgnorePatterns(line string) []string {
+	lowerLine := strings.ToLower(line)
+
+	// Find the ignore directive
+	var idx int
+	if i := strings.Index(lowerLine, "cryptoscan:ignore"); i != -1 {
+		idx = i + 17 // len("cryptoscan:ignore")
+	} else if i := strings.Index(lowerLine, "crypto-scan:ignore"); i != -1 {
+		idx = i + 18 // len("crypto-scan:ignore")
+	} else {
+		return nil
+	}
+
+	// Handle -next-line suffix
+	remainder := line[idx:]
+	if strings.HasPrefix(strings.ToLower(remainder), "-next-line") {
+		remainder = remainder[10:] // len("-next-line")
+	}
+
+	// Trim and get pattern list
+	remainder = strings.TrimSpace(remainder)
+	if remainder == "" {
+		return nil
+	}
+
+	// Stop at comment terminators
+	for _, term := range []string{"//", "*/", "#", "--", "*/"} {
+		if i := strings.Index(remainder, term); i != -1 {
+			remainder = strings.TrimSpace(remainder[:i])
+		}
+	}
+
+	if remainder == "" {
+		return nil
+	}
+
+	// Split by comma or whitespace
+	var patterns []string
+	parts := strings.FieldsFunc(remainder, func(r rune) bool {
+		return r == ',' || r == ' ' || r == '\t'
+	})
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			patterns = append(patterns, p)
+		}
+	}
+
+	return patterns
 }
 
 // extractSourceContext extracts lines around a finding for display
@@ -735,6 +882,25 @@ func (s *Scanner) shouldIncludeFinding(f types.Finding) bool {
 	}
 
 	return true
+}
+
+// shouldIgnorePattern checks if a finding should be ignored based on config
+func (s *Scanner) shouldIgnorePattern(id, category string) bool {
+	// Check exact ID match or prefix match
+	for _, ignore := range s.config.IgnoreIDs {
+		if config.MatchesPattern(id, ignore) {
+			return true
+		}
+	}
+
+	// Check category match
+	for _, ignoreCat := range s.config.IgnoreCategories {
+		if config.MatchesCategory(category, ignoreCat) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // isLowValueContext checks if a line contains algorithm mentions in contexts

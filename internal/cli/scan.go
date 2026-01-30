@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -11,6 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/csnp/cryptoscan/pkg/analyzer"
+	"github.com/csnp/cryptoscan/pkg/config"
 	"github.com/csnp/cryptoscan/pkg/reporter"
 	"github.com/csnp/cryptoscan/pkg/scanner"
 	"github.com/spf13/cobra"
@@ -33,6 +36,13 @@ var (
 	includeImports     bool
 	includeQuantumSafe bool
 	verbose            bool
+
+	// CI/CD flexibility flags
+	ignorePatterns   string // --ignore "RSA-001,DES-001"
+	ignoreCategories string // --ignore-category "Certificate"
+	failOn           string // --fail-on "high"
+	baselineFile     string // --baseline "baseline.json"
+	configFile       string // --config ".cryptoscan.yaml"
 )
 
 var scanCmd = &cobra.Command{
@@ -54,12 +64,30 @@ Output formats:
   - sarif: SARIF format for security tool integration
   - cbom:  Cryptographic Bill of Materials
 
+CI/CD Integration:
+  --ignore              Suppress specific pattern IDs (e.g., "RSA-001,CERT-*")
+  --ignore-category     Suppress entire categories (e.g., "Certificate,Library Import")
+  --fail-on             Exit non-zero if findings at this severity or higher
+  --baseline            Only report new findings compared to baseline JSON
+  --config              Path to .cryptoscan.yaml config file
+
+Inline Suppression:
+  // cryptoscan:ignore                  Ignore all findings on this line
+  // cryptoscan:ignore RSA-001          Ignore specific pattern
+  // cryptoscan:ignore RSA-*            Ignore pattern family
+
 Examples:
   cryptoscan scan .
   cryptoscan scan /path/to/project
   cryptoscan scan https://github.com/org/repo
   cryptoscan scan . --format json --output findings.json
-  cryptoscan scan . --include "*.java,*.py" --exclude "vendor/*,test/*"`,
+  cryptoscan scan . --include "*.java,*.py" --exclude "vendor/*,test/*"
+
+  # CI/CD examples
+  cryptoscan scan . --ignore "RSA-001,CERT-SELFSIGNED-001"
+  cryptoscan scan . --ignore-category "Certificate,Library Import"
+  cryptoscan scan . --fail-on high  # Exit 1 if HIGH or CRITICAL findings
+  cryptoscan scan . --baseline baseline.json  # Only show new findings`,
 	Args: cobra.ExactArgs(1),
 	RunE: runScan,
 }
@@ -81,10 +109,39 @@ func init() {
 	scanCmd.Flags().BoolVar(&includeImports, "include-imports", false, "Include library import findings (normally suppressed as low-value)")
 	scanCmd.Flags().BoolVar(&includeQuantumSafe, "include-quantum-safe", false, "Include quantum-safe algorithm findings (SHA-256, AES-256)")
 	scanCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show all findings including imports and quantum-safe algorithms")
+
+	// CI/CD flexibility flags
+	scanCmd.Flags().StringVar(&ignorePatterns, "ignore", "", "Pattern IDs to ignore (comma-separated, e.g., \"RSA-001,CERT-*\")")
+	scanCmd.Flags().StringVar(&ignoreCategories, "ignore-category", "", "Categories to ignore (comma-separated, e.g., \"Certificate,Library Import\")")
+	scanCmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero if findings at this severity or higher (info, low, medium, high, critical)")
+	scanCmd.Flags().StringVar(&baselineFile, "baseline", "", "Baseline JSON file - only report new findings")
+	scanCmd.Flags().StringVar(&configFile, "config", "", "Config file path (default: auto-detect .cryptoscan.yaml)")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
 	target := args[0]
+
+	// Load config file (explicit or auto-detected)
+	var cfgFile *config.Config
+	cfgPath := configFile
+	if cfgPath == "" {
+		// Auto-detect config file starting from target directory
+		startDir := target
+		if isURL(target) {
+			startDir = "."
+		}
+		if absPath, err := filepath.Abs(startDir); err == nil {
+			cfgPath = config.FindConfigFile(absPath)
+		}
+	}
+	if cfgPath != "" {
+		if loaded, err := config.Load(cfgPath); err == nil {
+			cfgFile = loaded
+		} else if configFile != "" {
+			// Only error if explicitly specified
+			return fmt.Errorf("failed to load config file %s: %w", cfgPath, err)
+		}
+	}
 
 	// Parse include/exclude patterns
 	var includes, excludes []string
@@ -112,6 +169,48 @@ func runScan(cmd *cobra.Command, args []string) error {
 	}
 	excludes = append(excludes, defaultExcludes...)
 
+	// Parse ignore patterns from CLI flags
+	var ignoreIDs, ignoreCats []string
+	if ignorePatterns != "" {
+		for _, p := range strings.Split(ignorePatterns, ",") {
+			if p = strings.TrimSpace(p); p != "" {
+				ignoreIDs = append(ignoreIDs, p)
+			}
+		}
+	}
+	if ignoreCategories != "" {
+		for _, c := range strings.Split(ignoreCategories, ",") {
+			if c = strings.TrimSpace(c); c != "" {
+				ignoreCats = append(ignoreCats, c)
+			}
+		}
+	}
+
+	// Merge config file settings (CLI flags take precedence)
+	effectiveMinSeverity := minSeverity
+	effectiveFailOn := failOn
+	effectiveBaseline := baselineFile
+	if cfgFile != nil {
+		// Add config file ignore patterns (CLI patterns take precedence)
+		ignoreIDs = append(ignoreIDs, cfgFile.Ignore.Patterns...)
+		ignoreCats = append(ignoreCats, cfgFile.Ignore.Categories...)
+		excludes = append(excludes, cfgFile.Ignore.Files...)
+
+		// Use config file settings if CLI flags not set
+		if effectiveMinSeverity == "info" && cfgFile.MinSeverity != "" {
+			effectiveMinSeverity = cfgFile.MinSeverity
+		}
+		if effectiveFailOn == "" && cfgFile.FailOn != "" {
+			effectiveFailOn = cfgFile.FailOn
+		}
+		if effectiveBaseline == "" && cfgFile.Baseline != "" {
+			effectiveBaseline = cfgFile.Baseline
+		}
+		if outputFormat == "text" && cfgFile.Format != "" {
+			outputFormat = cfgFile.Format
+		}
+	}
+
 	// Create scanner config
 	cfg := scanner.Config{
 		Target:             target,
@@ -120,9 +219,11 @@ func runScan(cmd *cobra.Command, args []string) error {
 		MaxDepth:           maxDepth,
 		ShowProgress:       showProgress,
 		ScanGitHistory:     scanGitHistory,
-		MinSeverity:        parseSeverity(minSeverity),
+		MinSeverity:        parseSeverity(effectiveMinSeverity),
 		IncludeImports:     includeImports || verbose,     // Include if explicitly set or verbose mode
 		IncludeQuantumSafe: includeQuantumSafe || verbose, // Include if explicitly set or verbose mode
+		IgnoreIDs:          ignoreIDs,
+		IgnoreCategories:   ignoreCats,
 	}
 
 	// Setup streaming output for text format (thread-safe for parallel scanning)
@@ -192,6 +293,18 @@ func runScan(cmd *cobra.Command, args []string) error {
 		printScanningFooter(findingCount, fileCount, duration, !noColor)
 	}
 
+	// Apply baseline comparison if specified
+	if effectiveBaseline != "" {
+		baseline, err := loadBaseline(effectiveBaseline)
+		if err != nil {
+			return fmt.Errorf("failed to load baseline: %w", err)
+		}
+		results.Findings = filterNewFindings(results.Findings, baseline)
+		// Recalculate summary and migration score after filtering
+		results.Summary = calculateSummary(results.Findings)
+		results.MigrationScore = analyzer.CalculateMigrationScore(results.Findings)
+	}
+
 	// Create reporter
 	var rep reporter.Reporter
 	switch outputFormat {
@@ -232,9 +345,17 @@ func runScan(cmd *cobra.Command, args []string) error {
 		fmt.Println(report)
 	}
 
-	// Exit with non-zero if critical findings
-	if results.HasCritical() {
-		os.Exit(1)
+	// Exit code control based on --fail-on flag
+	if effectiveFailOn != "" {
+		failSeverity := parseSeverity(effectiveFailOn)
+		if results.HasFindingsAtOrAbove(failSeverity) {
+			os.Exit(1)
+		}
+	} else {
+		// Default: exit non-zero only for critical findings
+		if results.HasCritical() {
+			os.Exit(1)
+		}
 	}
 
 	return nil
@@ -405,4 +526,107 @@ func parseSeverity(s string) scanner.Severity {
 	default:
 		return scanner.SeverityInfo
 	}
+}
+
+// baselineResults is used for loading baseline JSON files
+type baselineResults struct {
+	Findings []scanner.Finding `json:"findings"`
+}
+
+// loadBaseline loads a baseline JSON file containing previous scan results
+func loadBaseline(path string) ([]scanner.Finding, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+
+	var results baselineResults
+	if err := json.Unmarshal(data, &results); err != nil {
+		return nil, err
+	}
+
+	return results.Findings, nil
+}
+
+// filterNewFindings removes findings that already exist in the baseline
+// Comparison is based on file + line + pattern ID prefix
+func filterNewFindings(findings []scanner.Finding, baseline []scanner.Finding) []scanner.Finding {
+	baselineSet := make(map[string]bool)
+	for _, f := range baseline {
+		// Key: file + line + patternID prefix (ignoring column for minor shifts)
+		key := fmt.Sprintf("%s:%d:%s", f.File, f.Line, extractPatternPrefix(f.ID))
+		baselineSet[key] = true
+	}
+
+	var newFindings []scanner.Finding
+	for _, f := range findings {
+		key := fmt.Sprintf("%s:%d:%s", f.File, f.Line, extractPatternPrefix(f.ID))
+		if !baselineSet[key] {
+			newFindings = append(newFindings, f)
+		}
+	}
+	return newFindings
+}
+
+// extractPatternPrefix extracts the pattern family prefix from a finding ID
+// e.g., "RSA-001-a1b2c3d4" -> "RSA-001", "CERT-SELFSIGNED-001" -> "CERT-SELFSIGNED-001"
+func extractPatternPrefix(id string) string {
+	// If ID contains a hash suffix (pattern-NNN-HASH), remove it
+	parts := strings.Split(id, "-")
+	if len(parts) >= 3 {
+		// Check if last part looks like a hash (lowercase hex)
+		last := parts[len(parts)-1]
+		if len(last) >= 6 && isHexString(last) {
+			return strings.Join(parts[:len(parts)-1], "-")
+		}
+	}
+	return id
+}
+
+// isHexString checks if a string contains only hexadecimal characters
+func isHexString(s string) bool {
+	for _, c := range s {
+		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
+			return false
+		}
+	}
+	return len(s) > 0
+}
+
+// calculateSummary recalculates the summary after filtering findings
+func calculateSummary(findings []scanner.Finding) scanner.Summary {
+	summary := scanner.Summary{
+		TotalFindings: len(findings),
+		BySeverity:    make(map[string]int),
+		ByCategory:    make(map[string]int),
+		ByQuantumRisk: make(map[string]int),
+		ByConfidence:  make(map[string]int),
+		ByFileType:    make(map[string]int),
+		ByLanguage:    make(map[string]int),
+	}
+
+	for _, f := range findings {
+		summary.BySeverity[f.Severity.String()]++
+		summary.ByCategory[f.Category]++
+		summary.ByQuantumRisk[string(f.Quantum)]++
+		summary.ByConfidence[string(f.Confidence)]++
+		if f.FileType != "" {
+			summary.ByFileType[f.FileType]++
+		}
+		if f.Language != "" {
+			summary.ByLanguage[f.Language]++
+		}
+
+		if f.Quantum == scanner.QuantumVulnerable {
+			summary.QuantumVulnCount++
+		}
+		if f.Confidence == "HIGH" {
+			summary.HighConfidence++
+		}
+		if f.Confidence == "HIGH" && f.FileType == "code" {
+			summary.ActionableCount++
+		}
+	}
+
+	return summary
 }

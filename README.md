@@ -169,13 +169,14 @@ CryptoScan identifies cryptographic usage across your entire technology stack:
 | **Hash Functions** | SHA-2, SHA-3, SHAKE128/256, BLAKE2, BLAKE3, MD5, SHA-1 |
 | **MACs** | HMAC-SHA256/384/512, HMAC-SHA3, KMAC128/256, CMAC, GMAC, Poly1305 |
 | **Key Derivation (KDFs)** | HKDF, PBKDF2, Argon2id, scrypt, bcrypt |
-| **TLS/SSL** | Protocol versions, cipher suites, weak configurations |
+| **Certificates** | X.509, CSR, PKCS#12/PFX, certificate chains, mTLS, validation bypass, expiration, JWK |
+| **TLS/SSL** | Protocol versions, cipher suites, weak configurations, certificate pinning |
 | **Key Material** | Private keys (RSA, EC, SSH, PGP, PKCS#8), JWT secrets, HMAC keys |
 | **Cloud KMS** | AWS KMS, Azure Key Vault, GCP Cloud KMS, HashiCorp Vault |
 | **Dependencies** | Crypto libraries across 20+ package managers |
 | **Configurations** | Hardcoded key sizes, algorithm selections, TLS settings |
 
-**[100+ detection patterns](PATTERNS.md)** with context-aware confidence scoring to minimize false positives.
+**[90+ detection patterns](PATTERNS.md)** with context-aware confidence scoring to minimize false positives.
 
 ### Quantum Risk Classification
 
@@ -478,22 +479,26 @@ cryptoscan/
 
 ## Roadmap
 
-### v1.1 (Current Release)
+### v1.2 (Current Release)
 - [x] Local and remote repository scanning
-- [x] 100+ cryptographic patterns (expanded from 50+)
+- [x] 90+ cryptographic patterns
 - [x] Multiple output formats (text, JSON, CSV, SARIF, CBOM)
 - [x] Context-aware analysis with confidence scoring
 - [x] Dependency scanning for 20+ package managers
 - [x] Parallel scanning with worker pools
 - [x] Inline ignore comments
-- [x] **NEW: Post-Quantum Cryptography detection (ML-KEM, ML-DSA, SLH-DSA, FN-DSA, XMSS, LMS)**
-- [x] **NEW: Hybrid cryptography recognition (X25519+ML-KEM, composite signatures)**
-- [x] **NEW: Comprehensive MAC detection (HMAC, KMAC, CMAC, GMAC, Poly1305)**
-- [x] **NEW: KDF detection (HKDF, PBKDF2, Argon2id, scrypt, bcrypt)**
-- [x] **NEW: Migration Readiness Score with visual dashboard**
-- [x] **NEW: QRAMM framework integration (CVI Dimension mapping)**
+- [x] Post-Quantum Cryptography detection (ML-KEM, ML-DSA, SLH-DSA, FN-DSA, XMSS, LMS)
+- [x] Hybrid cryptography recognition (X25519+ML-KEM, composite signatures)
+- [x] Comprehensive MAC detection (HMAC, KMAC, CMAC, GMAC, Poly1305)
+- [x] KDF detection (HKDF, PBKDF2, Argon2id, scrypt, bcrypt)
+- [x] Migration Readiness Score with visual dashboard
+- [x] QRAMM framework integration (CVI Dimension mapping)
+- [x] **NEW: Certificate detection (X.509, CSR, PKCS#12, chains, mTLS, JWK)**
+- [x] **NEW: Certificate validation bypass detection (CRITICAL severity)**
+- [x] **NEW: Weak certificate signature detection (SHA-1/MD5)**
+- [x] **NEW: Enhanced false positive reduction with smart context analysis**
 
-### v1.2 (Next)
+### v1.3 (Next)
 - [ ] Smart remediation engine with language-specific recommendations
 - [ ] Enhanced CBOM output (CycloneDX 1.6 cryptoProperties)
 - [ ] Git history scanning (find crypto in past commits)
@@ -504,7 +509,6 @@ cryptoscan/
 - [ ] Azure resource scanning (Key Vault, App Configuration)
 - [ ] GCP resource scanning (Cloud KMS, Secret Manager)
 - [ ] Infrastructure-as-Code analysis (Terraform, CloudFormation, Pulumi)
-- [ ] Certificate chain analysis
 
 ## Contributing
 

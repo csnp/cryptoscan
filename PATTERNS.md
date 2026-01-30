@@ -1,19 +1,20 @@
 # CryptoScan Detection Patterns
 
-CryptoScan uses 100+ detection patterns to identify cryptographic algorithms, protocols, keys, and configurations in your codebase. Each pattern includes quantum risk classification and remediation guidance.
+CryptoScan uses 90+ detection patterns to identify cryptographic algorithms, protocols, keys, certificates, and configurations in your codebase. Each pattern includes quantum risk classification and remediation guidance.
 
 ## Table of Contents
 
 - [How Detection Works](#how-detection-works)
 - [Confidence Scoring](#confidence-scoring)
 - [Pattern Categories](#pattern-categories)
-  - [Post-Quantum Cryptography](#post-quantum-cryptography) *(NEW)*
-  - [Hybrid Cryptography](#hybrid-cryptography) *(NEW)*
+  - [Post-Quantum Cryptography](#post-quantum-cryptography)
+  - [Hybrid Cryptography](#hybrid-cryptography)
   - [Asymmetric Encryption](#asymmetric-encryption)
   - [Symmetric Encryption](#symmetric-encryption)
   - [Hash Functions](#hash-functions)
-  - [Message Authentication Codes (MACs)](#message-authentication-codes-macs) *(NEW)*
-  - [Key Derivation Functions (KDFs)](#key-derivation-functions-kdfs) *(NEW)*
+  - [Message Authentication Codes (MACs)](#message-authentication-codes-macs)
+  - [Key Derivation Functions (KDFs)](#key-derivation-functions-kdfs)
+  - [Certificates](#certificates) *(NEW in v1.2)*
   - [TLS/SSL Protocols](#tlsssl-protocols)
   - [Key Material & Secrets](#key-material--secrets)
   - [Cloud KMS Services](#cloud-kms-services)
@@ -240,6 +241,44 @@ KDFs derive cryptographic keys from passwords or other input material.
 - **HKDF**: Use for deriving keys from high-entropy secrets (SP 800-56C)
 
 **Note**: Argon2 and scrypt are not yet NIST-approved but are widely recommended by security researchers.
+
+---
+
+### Certificates
+
+X.509 certificates, certificate chains, and PKI infrastructure. *(NEW in v1.2)*
+
+| Pattern ID | Name | Quantum Risk | Severity | What It Detects |
+|------------|------|--------------|----------|-----------------|
+| CERT-001 | X.509 Certificate | UNKNOWN | Info | `-----BEGIN CERTIFICATE-----` |
+| CERT-CSR-001 | Certificate Signing Request | UNKNOWN | Info | `-----BEGIN CERTIFICATE REQUEST-----` |
+| CERT-PKCS12-001 | PKCS#12/PFX Container | UNKNOWN | Medium | `.p12`, `.pfx`, `PKCS12` references |
+| CERT-CHAIN-001 | Certificate Chain | UNKNOWN | Info | `cert_chain`, `ca_bundle`, `root_ca`, `trust_anchor` |
+| CERT-TRUSTED-001 | Trusted Certificate | UNKNOWN | Info | `-----BEGIN TRUSTED CERTIFICATE-----` |
+| CERT-EXPIRY-001 | Certificate Expiration | UNKNOWN | Info | `NotAfter`, `validUntil`, expiration checks |
+| CERT-SUBJECT-001 | Certificate Subject/Issuer | UNKNOWN | Info | `subjectDN`, `issuerDN`, `getSubject`, `getIssuer` |
+| CERT-SIGALG-001 | Certificate Signature Algorithm | VULNERABLE | Medium | `sha256WithRSA`, `ecdsaWithSHA256` |
+| CERT-SIGALG-WEAK-001 | Weak Certificate Signature | VULNERABLE | **Critical** | `sha1WithRSA`, `md5WithRSA` |
+| CERT-KEYUSAGE-001 | Certificate Key Usage | UNKNOWN | Info | `keyUsage`, `extendedKeyUsage` |
+| CERT-SAN-001 | Subject Alternative Name | UNKNOWN | Info | `subjectAltName`, `dnsNames` |
+| CERT-PARSE-001 | X.509 Certificate Parsing | UNKNOWN | Info | `x509.ParseCertificate`, `X509Certificate` |
+| CERT-VALIDATION-BYPASS-001 | Certificate Validation Bypass | UNKNOWN | **Critical** | `InsecureSkipVerify: true`, `verify=false`, `CERT_NONE` |
+| CERT-SELFSIGNED-001 | Self-Signed Certificate | UNKNOWN | Medium | `self_signed`, `generateSelfSignedCert` |
+| CERT-MTLS-001 | Mutual TLS (mTLS) | PARTIAL | Info | `mutual_tls`, `client_cert`, `RequireClientCert` |
+| CERT-REVOCATION-001 | Certificate Revocation | UNKNOWN | Info | `OCSP`, `CRL`, `checkRevocation` |
+| CERT-PINNING-001 | Certificate Pinning | UNKNOWN | Info | `cert_pin`, `TrustManagerFactory` |
+| CERT-ACME-001 | ACME/Let's Encrypt | VULNERABLE | Info | `letsencrypt`, `certbot`, `acme_challenge` |
+| KEY-JWK-001 | JSON Web Key (JWK) | VULNERABLE | Medium | `"kty": "RSA"`, `"kty": "EC"`, `.well-known/jwks` |
+
+**Critical Findings**:
+- **Certificate Validation Bypass**: Disabling certificate validation enables man-in-the-middle attacks. This should be fixed immediately.
+- **Weak Certificate Signatures**: SHA-1 and MD5 signatures are deprecated and insecure. Replace certificates immediately.
+
+**Remediation**:
+- Use certificates with RSA-3072+ or ECC-P256+ keys
+- Ensure SHA-256 or stronger signature algorithms
+- Never disable certificate validation in production
+- Plan for PQC certificate migration when standards finalize
 
 ---
 

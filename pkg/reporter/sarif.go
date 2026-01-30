@@ -55,9 +55,9 @@ type sarifRule struct {
 }
 
 type sarifRuleProperties struct {
-	Tags         []string `json:"tags,omitempty"`
-	QuantumRisk  string   `json:"quantumRisk,omitempty"`
-	Category     string   `json:"category,omitempty"`
+	Tags        []string `json:"tags,omitempty"`
+	QuantumRisk string   `json:"quantumRisk,omitempty"`
+	Category    string   `json:"category,omitempty"`
 }
 
 type sarifDefaultConfig struct {
@@ -69,11 +69,11 @@ type sarifMessage struct {
 }
 
 type sarifResult struct {
-	RuleID    string             `json:"ruleId"`
-	Level     string             `json:"level"`
-	Message   sarifMessage       `json:"message"`
-	Locations []sarifLocation    `json:"locations"`
-	Properties sarifResultProps  `json:"properties,omitempty"`
+	RuleID     string           `json:"ruleId"`
+	Level      string           `json:"level"`
+	Message    sarifMessage     `json:"message"`
+	Locations  []sarifLocation  `json:"locations"`
+	Properties sarifResultProps `json:"properties,omitempty"`
 }
 
 type sarifResultProps struct {

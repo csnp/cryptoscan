@@ -184,9 +184,9 @@ func TestMatchHashFunctions(t *testing.T) {
 func TestMatchCryptoImports(t *testing.T) {
 	m := NewMatcher()
 	tests := []struct {
-		name     string
-		content  string
-		file     string
+		name    string
+		content string
+		file    string
 	}{
 		{"Go crypto", `import "crypto/tls"`, "test.go"},
 		{"Python cryptography", "from cryptography.fernet import Fernet", "test.py"},
@@ -314,13 +314,13 @@ func TestMatchWithContext(t *testing.T) {
 	m := NewMatcher()
 
 	tests := []struct {
-		name           string
-		line           string
-		file           string
-		fileCtx        *analyzer.FileContext
-		lineCtx        *analyzer.LineContext
-		expectMatch    bool
-		expectLowConf  bool
+		name          string
+		line          string
+		file          string
+		fileCtx       *analyzer.FileContext
+		lineCtx       *analyzer.LineContext
+		expectMatch   bool
+		expectLowConf bool
 	}{
 		{
 			name:        "RSA in code file",

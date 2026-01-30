@@ -228,8 +228,8 @@ func logCryptoOperation() {
 // setCryptoMetadata sets metadata labels - should be filtered (string labels)
 func setCryptoMetadata() map[string]string {
 	return map[string]string{
-		"auth_method":      "ed25519",
-		"encryption_type":  "aes-256-gcm",
+		"auth_method":       "ed25519",
+		"encryption_type":   "aes-256-gcm",
 		"signing_algorithm": "ecdsa-p256",
 	}
 }

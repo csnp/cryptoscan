@@ -14,25 +14,25 @@ import (
 
 // CryptoLibrary represents a known cryptographic library
 type CryptoLibrary struct {
-	Name         string
-	Package      string            // Package identifier (npm, pypi, maven, etc.)
-	Language     Language
-	Algorithms   []string          // Known algorithms provided
-	QuantumSafe  bool              // Whether it provides PQC algorithms
-	Description  string
-	Migration    string            // Migration guidance
-	Docs         string            // Documentation URL
+	Name        string
+	Package     string // Package identifier (npm, pypi, maven, etc.)
+	Language    Language
+	Algorithms  []string // Known algorithms provided
+	QuantumSafe bool     // Whether it provides PQC algorithms
+	Description string
+	Migration   string // Migration guidance
+	Docs        string // Documentation URL
 }
 
 // DependencyFinding represents a crypto library found in dependencies
 type DependencyFinding struct {
-	Library      CryptoLibrary
-	Version      string
-	File         string
-	Severity     types.Severity
-	Quantum      types.QuantumRisk
-	Description  string
-	Remediation  string
+	Library     CryptoLibrary
+	Version     string
+	File        string
+	Severity    types.Severity
+	Quantum     types.QuantumRisk
+	Description string
+	Remediation string
 }
 
 // KnownCryptoLibraries contains well-known cryptographic libraries
@@ -41,7 +41,7 @@ var KnownCryptoLibraries = []CryptoLibrary{
 	{Name: "cryptography", Package: "cryptography", Language: LangPython,
 		Algorithms: []string{"RSA", "ECC", "AES", "ChaCha20"}, QuantumSafe: false,
 		Description: "Python cryptographic recipes and primitives",
-		Migration: "Add liboqs-python for PQC support alongside cryptography"},
+		Migration:   "Add liboqs-python for PQC support alongside cryptography"},
 	{Name: "PyCryptodome", Package: "pycryptodome", Language: LangPython,
 		Algorithms: []string{"RSA", "ECC", "AES", "DES", "3DES"}, QuantumSafe: false,
 		Description: "Self-contained Python crypto library"},
@@ -56,7 +56,7 @@ var KnownCryptoLibraries = []CryptoLibrary{
 	{Name: "crypto-js", Package: "crypto-js", Language: LangJavaScript,
 		Algorithms: []string{"AES", "DES", "3DES", "SHA", "MD5"}, QuantumSafe: false,
 		Description: "JavaScript library of crypto standards",
-		Migration: "Consider using Web Crypto API or node:crypto for better security"},
+		Migration:   "Consider using Web Crypto API or node:crypto for better security"},
 	{Name: "node-forge", Package: "node-forge", Language: LangJavaScript,
 		Algorithms: []string{"RSA", "AES", "DES", "SHA", "MD5"}, QuantumSafe: false,
 		Description: "JavaScript implementation of TLS and crypto"},
@@ -85,7 +85,7 @@ var KnownCryptoLibraries = []CryptoLibrary{
 	{Name: "Bouncy Castle", Package: "org.bouncycastle", Language: LangJava,
 		Algorithms: []string{"RSA", "ECC", "AES", "ML-KEM", "ML-DSA"}, QuantumSafe: true,
 		Description: "Java crypto provider with PQC support in recent versions",
-		Migration: "Upgrade to BC 1.78+ for ML-KEM and ML-DSA support"},
+		Migration:   "Upgrade to BC 1.78+ for ML-KEM and ML-DSA support"},
 	{Name: "Google Tink", Package: "com.google.crypto.tink", Language: LangJava,
 		Algorithms: []string{"AES-GCM", "ECDSA", "Ed25519"}, QuantumSafe: false,
 		Description: "Multi-language, cross-platform crypto library"},

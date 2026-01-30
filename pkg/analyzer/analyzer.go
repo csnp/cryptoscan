@@ -51,13 +51,13 @@ const (
 
 // FileContext contains analyzed information about a file
 type FileContext struct {
-	Path       string
-	Name       string
-	Extension  string
-	FileType   FileType
-	Language   Language
-	IsTest     bool
-	IsVendor   bool
+	Path        string
+	Name        string
+	Extension   string
+	FileType    FileType
+	Language    Language
+	IsTest      bool
+	IsVendor    bool
 	IsGenerated bool
 }
 

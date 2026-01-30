@@ -50,12 +50,12 @@ const (
 type AlgorithmPrimitive string
 
 const (
-	PrimitiveKEM          AlgorithmPrimitive = "kem"        // Key Encapsulation Mechanism
-	PrimitiveSignature    AlgorithmPrimitive = "signature"  // Digital Signature
-	PrimitiveHash         AlgorithmPrimitive = "hash"       // Hash Function
-	PrimitiveXOF          AlgorithmPrimitive = "xof"        // Extendable Output Function
-	PrimitiveMAC          AlgorithmPrimitive = "mac"        // Message Authentication Code
-	PrimitiveKDF          AlgorithmPrimitive = "kdf"        // Key Derivation Function
+	PrimitiveKEM          AlgorithmPrimitive = "kem"       // Key Encapsulation Mechanism
+	PrimitiveSignature    AlgorithmPrimitive = "signature" // Digital Signature
+	PrimitiveHash         AlgorithmPrimitive = "hash"      // Hash Function
+	PrimitiveXOF          AlgorithmPrimitive = "xof"       // Extendable Output Function
+	PrimitiveMAC          AlgorithmPrimitive = "mac"       // Message Authentication Code
+	PrimitiveKDF          AlgorithmPrimitive = "kdf"       // Key Derivation Function
 	PrimitiveBlockCipher  AlgorithmPrimitive = "block-cipher"
 	PrimitiveStreamCipher AlgorithmPrimitive = "stream-cipher"
 	PrimitiveAEAD         AlgorithmPrimitive = "aead" // Authenticated Encryption
@@ -115,19 +115,19 @@ const (
 type FindingType string
 
 const (
-	FindingTypeAlgorithm  FindingType = "algorithm"   // Direct algorithm usage
-	FindingTypeDependency FindingType = "dependency"  // Crypto library in dependencies
-	FindingTypeConfig     FindingType = "config"      // Configuration setting
-	FindingTypeSecret     FindingType = "secret"      // Exposed key/secret
-	FindingTypeProtocol   FindingType = "protocol"    // Protocol configuration (TLS, etc.)
+	FindingTypeAlgorithm  FindingType = "algorithm"  // Direct algorithm usage
+	FindingTypeDependency FindingType = "dependency" // Crypto library in dependencies
+	FindingTypeConfig     FindingType = "config"     // Configuration setting
+	FindingTypeSecret     FindingType = "secret"     // Exposed key/secret
+	FindingTypeProtocol   FindingType = "protocol"   // Protocol configuration (TLS, etc.)
 )
 
 // SourceContext represents lines of source code around a finding
 type SourceContext struct {
-	Lines      []SourceLine `json:"lines"`
-	StartLine  int          `json:"startLine"`
-	EndLine    int          `json:"endLine"`
-	MatchLine  int          `json:"matchLine"` // The line number where the match occurred
+	Lines     []SourceLine `json:"lines"`
+	StartLine int          `json:"startLine"`
+	EndLine   int          `json:"endLine"`
+	MatchLine int          `json:"matchLine"` // The line number where the match occurred
 }
 
 // SourceLine represents a single line of source code
@@ -144,7 +144,7 @@ type Finding struct {
 	FindingType     FindingType        `json:"findingType"`
 	Category        string             `json:"category"`
 	Algorithm       string             `json:"algorithm,omitempty"`
-	Primitive       AlgorithmPrimitive `json:"primitive,omitempty"`       // Algorithm primitive type
+	Primitive       AlgorithmPrimitive `json:"primitive,omitempty"` // Algorithm primitive type
 	KeySize         int                `json:"keySize,omitempty"`
 	SecurityLevel   *SecurityLevel     `json:"securityLevel,omitempty"`   // Classical and quantum security
 	MigrationStatus MigrationStatus    `json:"migrationStatus,omitempty"` // Quantum migration status
@@ -233,18 +233,18 @@ func (f *Finding) Priority() int {
 
 // MigrationScore represents the overall quantum migration readiness
 type MigrationScore struct {
-	Score           float64         `json:"score"`                     // 0-100 percentage
-	Level           string          `json:"level"`                     // Risk level: CRITICAL, HIGH, MEDIUM, LOW
-	SafeCount       int             `json:"safeCount"`                 // Quantum-safe findings
-	HybridCount     int             `json:"hybridCount"`               // Hybrid crypto findings
-	PartialCount    int             `json:"partialCount"`              // Quantum-partial findings
-	VulnerableCount int             `json:"vulnerableCount"`           // Quantum-vulnerable findings
-	CriticalCount   int             `json:"criticalCount"`             // Already broken findings
-	TotalCount      int             `json:"totalCount"`                // Total findings
-	ByPrimitive     map[string]int  `json:"byPrimitive,omitempty"`     // Count by algorithm primitive
-	ByAlgorithm     map[string]int  `json:"byAlgorithm,omitempty"`     // Count by algorithm name
-	TopRiskFiles    []FileRiskScore `json:"topRiskFiles,omitempty"`    // Highest risk files
-	QRAMMReadiness  *QRAMMReadiness `json:"qrammReadiness,omitempty"`  // QRAMM dimension readiness
+	Score           float64         `json:"score"`                    // 0-100 percentage
+	Level           string          `json:"level"`                    // Risk level: CRITICAL, HIGH, MEDIUM, LOW
+	SafeCount       int             `json:"safeCount"`                // Quantum-safe findings
+	HybridCount     int             `json:"hybridCount"`              // Hybrid crypto findings
+	PartialCount    int             `json:"partialCount"`             // Quantum-partial findings
+	VulnerableCount int             `json:"vulnerableCount"`          // Quantum-vulnerable findings
+	CriticalCount   int             `json:"criticalCount"`            // Already broken findings
+	TotalCount      int             `json:"totalCount"`               // Total findings
+	ByPrimitive     map[string]int  `json:"byPrimitive,omitempty"`    // Count by algorithm primitive
+	ByAlgorithm     map[string]int  `json:"byAlgorithm,omitempty"`    // Count by algorithm name
+	TopRiskFiles    []FileRiskScore `json:"topRiskFiles,omitempty"`   // Highest risk files
+	QRAMMReadiness  *QRAMMReadiness `json:"qrammReadiness,omitempty"` // QRAMM dimension readiness
 }
 
 // FileRiskScore represents risk score for a single file
@@ -258,10 +258,10 @@ type FileRiskScore struct {
 
 // QRAMMReadiness represents readiness scores mapped to QRAMM dimensions
 type QRAMMReadiness struct {
-	CVIScore        float64 `json:"cviScore"`        // Dimension 1: Cryptographic Visibility & Inventory
-	DiscoveryLevel  int     `json:"discoveryLevel"`  // Practice 1.1 maturity indicator (1-5)
-	AssessmentLevel int     `json:"assessmentLevel"` // Practice 1.2 maturity indicator (1-5)
-	MappingLevel    int     `json:"mappingLevel"`    // Practice 1.3 maturity indicator (1-5)
+	CVIScore        float64  `json:"cviScore"`        // Dimension 1: Cryptographic Visibility & Inventory
+	DiscoveryLevel  int      `json:"discoveryLevel"`  // Practice 1.1 maturity indicator (1-5)
+	AssessmentLevel int      `json:"assessmentLevel"` // Practice 1.2 maturity indicator (1-5)
+	MappingLevel    int      `json:"mappingLevel"`    // Practice 1.3 maturity indicator (1-5)
 	Recommendations []string `json:"recommendations,omitempty"`
 }
 
@@ -308,6 +308,6 @@ var AlgorithmOIDs = map[string]string{
 	"KMAC128": "2.16.840.1.101.3.4.2.19",
 	"KMAC256": "2.16.840.1.101.3.4.2.20",
 	// RSA
-	"RSA":  "1.2.840.113549.1.1.1",
+	"RSA":   "1.2.840.113549.1.1.1",
 	"ECDSA": "1.2.840.10045.4.3.2",
 }

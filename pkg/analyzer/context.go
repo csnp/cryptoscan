@@ -158,7 +158,7 @@ func IsURLOrPath(line, match string) bool {
 	}
 	afterMatch := ""
 	if pos+len(match) < len(line) {
-		afterMatch = line[pos+len(match):min(len(line), pos+len(match)+20)]
+		afterMatch = line[pos+len(match) : min(len(line), pos+len(match)+20)]
 	}
 
 	// Path indicators - must have actual path separator
@@ -374,16 +374,16 @@ func determinePurpose(line string, prevLines []string, lang Language) string {
 
 // ContextPatterns contains patterns that indicate specific crypto contexts
 var ContextPatterns = map[string]*regexp.Regexp{
-	"key_generation":  regexp.MustCompile(`(?i)(generate|create|new).*key`),
-	"encryption":      regexp.MustCompile(`(?i)(encrypt|cipher|encode)`),
-	"decryption":      regexp.MustCompile(`(?i)(decrypt|decipher|decode)`),
-	"signing":         regexp.MustCompile(`(?i)(sign|signature)`),
-	"verification":    regexp.MustCompile(`(?i)(verify|validate)`),
-	"hashing":         regexp.MustCompile(`(?i)(hash|digest|checksum)`),
-	"key_exchange":    regexp.MustCompile(`(?i)(exchange|agree|handshake|negotiate)`),
-	"password":        regexp.MustCompile(`(?i)(password|passphrase|secret)`),
-	"certificate":     regexp.MustCompile(`(?i)(cert|x509|pem|der)`),
-	"random":          regexp.MustCompile(`(?i)(random|entropy|seed)`),
+	"key_generation": regexp.MustCompile(`(?i)(generate|create|new).*key`),
+	"encryption":     regexp.MustCompile(`(?i)(encrypt|cipher|encode)`),
+	"decryption":     regexp.MustCompile(`(?i)(decrypt|decipher|decode)`),
+	"signing":        regexp.MustCompile(`(?i)(sign|signature)`),
+	"verification":   regexp.MustCompile(`(?i)(verify|validate)`),
+	"hashing":        regexp.MustCompile(`(?i)(hash|digest|checksum)`),
+	"key_exchange":   regexp.MustCompile(`(?i)(exchange|agree|handshake|negotiate)`),
+	"password":       regexp.MustCompile(`(?i)(password|passphrase|secret)`),
+	"certificate":    regexp.MustCompile(`(?i)(cert|x509|pem|der)`),
+	"random":         regexp.MustCompile(`(?i)(random|entropy|seed)`),
 }
 
 // DetectCryptoContext detects what cryptographic operation is happening

@@ -92,7 +92,7 @@ CryptoScan is purpose-built for quantum readiness assessment:
 
 #### Option 1: Build from Source
 
-Requires **Go 1.21+** ([install Go](https://go.dev/dl/))
+Requires **Go 1.21+** ([install Go](https://go.dev/dl/)) — always use the latest patch version for security fixes
 
 Copy and paste this entire block:
 

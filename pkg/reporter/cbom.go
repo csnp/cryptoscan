@@ -29,19 +29,19 @@ func NewCBOMReporter() *CBOMReporter {
 
 // CBOM structures following CycloneDX CBOM format
 type cbomReport struct {
-	BOMFormat    string            `json:"bomFormat"`
-	SpecVersion  string            `json:"specVersion"`
-	SerialNumber string            `json:"serialNumber"`
-	Version      int               `json:"version"`
-	Metadata     cbomMetadata      `json:"metadata"`
-	Components   []cbomComponent   `json:"components"`
-	Services     []cbomService     `json:"services,omitempty"`
-	Dependencies []cbomDependency  `json:"dependencies,omitempty"`
+	BOMFormat    string           `json:"bomFormat"`
+	SpecVersion  string           `json:"specVersion"`
+	SerialNumber string           `json:"serialNumber"`
+	Version      int              `json:"version"`
+	Metadata     cbomMetadata     `json:"metadata"`
+	Components   []cbomComponent  `json:"components"`
+	Services     []cbomService    `json:"services,omitempty"`
+	Dependencies []cbomDependency `json:"dependencies,omitempty"`
 }
 
 type cbomMetadata struct {
-	Timestamp string       `json:"timestamp"`
-	Tools     []cbomTool   `json:"tools"`
+	Timestamp string         `json:"timestamp"`
+	Tools     []cbomTool     `json:"tools"`
 	Component *cbomComponent `json:"component,omitempty"`
 }
 
@@ -52,21 +52,21 @@ type cbomTool struct {
 }
 
 type cbomComponent struct {
-	Type               string                `json:"type"`
-	BOMRef             string                `json:"bom-ref,omitempty"`
-	Name               string                `json:"name"`
-	Version            string                `json:"version,omitempty"`
-	Description        string                `json:"description,omitempty"`
-	CryptoProperties   *cbomCryptoProperties `json:"cryptoProperties,omitempty"`
-	Evidence           *cbomEvidence         `json:"evidence,omitempty"`
+	Type             string                `json:"type"`
+	BOMRef           string                `json:"bom-ref,omitempty"`
+	Name             string                `json:"name"`
+	Version          string                `json:"version,omitempty"`
+	Description      string                `json:"description,omitempty"`
+	CryptoProperties *cbomCryptoProperties `json:"cryptoProperties,omitempty"`
+	Evidence         *cbomEvidence         `json:"evidence,omitempty"`
 }
 
 type cbomCryptoProperties struct {
-	AssetType               string            `json:"assetType"`
-	AlgorithmProperties     *cbomAlgorithm    `json:"algorithmProperties,omitempty"`
-	CertificateProperties   *cbomCertificate  `json:"certificateProperties,omitempty"`
-	ProtocolProperties      *cbomProtocol     `json:"protocolProperties,omitempty"`
-	OID                     string            `json:"oid,omitempty"`
+	AssetType             string           `json:"assetType"`
+	AlgorithmProperties   *cbomAlgorithm   `json:"algorithmProperties,omitempty"`
+	CertificateProperties *cbomCertificate `json:"certificateProperties,omitempty"`
+	ProtocolProperties    *cbomProtocol    `json:"protocolProperties,omitempty"`
+	OID                   string           `json:"oid,omitempty"`
 }
 
 type cbomAlgorithm struct {
@@ -83,17 +83,17 @@ type cbomAlgorithm struct {
 }
 
 type cbomCertificate struct {
-	SubjectName   string `json:"subjectName,omitempty"`
-	IssuerName    string `json:"issuerName,omitempty"`
-	NotValidBefore string `json:"notValidBefore,omitempty"`
-	NotValidAfter  string `json:"notValidAfter,omitempty"`
+	SubjectName           string `json:"subjectName,omitempty"`
+	IssuerName            string `json:"issuerName,omitempty"`
+	NotValidBefore        string `json:"notValidBefore,omitempty"`
+	NotValidAfter         string `json:"notValidAfter,omitempty"`
 	SignatureAlgorithmRef string `json:"signatureAlgorithmRef,omitempty"`
 }
 
 type cbomProtocol struct {
-	Type          string   `json:"type,omitempty"`
-	Version       string   `json:"version,omitempty"`
-	CipherSuites  []cbomCipherSuite `json:"cipherSuites,omitempty"`
+	Type         string            `json:"type,omitempty"`
+	Version      string            `json:"version,omitempty"`
+	CipherSuites []cbomCipherSuite `json:"cipherSuites,omitempty"`
 }
 
 type cbomCipherSuite struct {
@@ -113,8 +113,8 @@ type cbomOccurrence struct {
 }
 
 type cbomService struct {
-	BOMRef   string   `json:"bom-ref,omitempty"`
-	Name     string   `json:"name,omitempty"`
+	BOMRef    string   `json:"bom-ref,omitempty"`
+	Name      string   `json:"name,omitempty"`
 	Endpoints []string `json:"endpoints,omitempty"`
 }
 

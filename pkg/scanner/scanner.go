@@ -47,36 +47,36 @@ const (
 
 // Config holds scanner configuration
 type Config struct {
-	Target           string
-	IncludeGlobs     []string
-	ExcludeGlobs     []string
-	MaxDepth         int
-	ShowProgress     bool
-	ScanGitHistory   bool
-	ScanDependencies bool
-	MinSeverity      Severity
-	MinConfidence    Confidence
-	IncludeDocs      bool               // Whether to include documentation files
-	IncludeImports   bool               // Whether to include library import findings (low-value, default false)
-	IncludeQuantumSafe bool             // Whether to include quantum-safe findings like SHA-256, AES-256 (default false)
-	OnFinding        func(Finding)      // Callback when a finding is discovered (for streaming output)
-	OnFileScanned    func(path string)  // Callback when a file is scanned (for progress)
+	Target             string
+	IncludeGlobs       []string
+	ExcludeGlobs       []string
+	MaxDepth           int
+	ShowProgress       bool
+	ScanGitHistory     bool
+	ScanDependencies   bool
+	MinSeverity        Severity
+	MinConfidence      Confidence
+	IncludeDocs        bool              // Whether to include documentation files
+	IncludeImports     bool              // Whether to include library import findings (low-value, default false)
+	IncludeQuantumSafe bool              // Whether to include quantum-safe findings like SHA-256, AES-256 (default false)
+	OnFinding          func(Finding)     // Callback when a finding is discovered (for streaming output)
+	OnFileScanned      func(path string) // Callback when a file is scanned (for progress)
 }
 
 // Results contains all scan results
 type Results struct {
-	Findings       []Finding              `json:"findings"`
-	Summary        Summary                `json:"summary"`
-	MigrationScore *types.MigrationScore  `json:"migrationScore,omitempty"`
-	Insights       []Insight              `json:"insights"`
-	ScanTarget     string                 `json:"scanTarget"`
-	ScanTime       time.Time              `json:"scanTime"`
-	ScanDuration   time.Duration          `json:"scanDuration"`
-	FilesScanned   int                    `json:"filesScanned"`
-	LinesScanned   int                    `json:"linesScanned"`
-	BytesScanned   int64                  `json:"bytesScanned"`
-	LanguageStats  map[string]int         `json:"languageStats"`
-	Metadata       map[string]string      `json:"metadata,omitempty"`
+	Findings       []Finding             `json:"findings"`
+	Summary        Summary               `json:"summary"`
+	MigrationScore *types.MigrationScore `json:"migrationScore,omitempty"`
+	Insights       []Insight             `json:"insights"`
+	ScanTarget     string                `json:"scanTarget"`
+	ScanTime       time.Time             `json:"scanTime"`
+	ScanDuration   time.Duration         `json:"scanDuration"`
+	FilesScanned   int                   `json:"filesScanned"`
+	LinesScanned   int                   `json:"linesScanned"`
+	BytesScanned   int64                 `json:"bytesScanned"`
+	LanguageStats  map[string]int        `json:"languageStats"`
+	Metadata       map[string]string     `json:"metadata,omitempty"`
 }
 
 // Insight provides actionable intelligence derived from findings
@@ -84,10 +84,10 @@ type Insight struct {
 	Type        string   `json:"type"`
 	Title       string   `json:"title"`
 	Description string   `json:"description"`
-	Priority    string   `json:"priority"`    // high, medium, low
-	Effort      string   `json:"effort"`      // Migration effort
-	Findings    []string `json:"findingIds"`  // Related finding IDs
-	Action      string   `json:"action"`      // Recommended action
+	Priority    string   `json:"priority"`   // high, medium, low
+	Effort      string   `json:"effort"`     // Migration effort
+	Findings    []string `json:"findingIds"` // Related finding IDs
+	Action      string   `json:"action"`     // Recommended action
 }
 
 // Summary provides aggregate statistics
@@ -216,9 +216,6 @@ func (s *Scanner) cloneRepository(url string) (string, error) {
 	}
 	s.tempDir = tempDir
 
-	// Print status
-	fmt.Printf("  Cloning %s...\n", url)
-
 	// Clone with shallow depth for speed, quiet mode
 	cmd := exec.Command("git", "clone", "--depth", "1", "--single-branch", "--quiet", url, tempDir)
 
@@ -227,7 +224,6 @@ func (s *Scanner) cloneRepository(url string) (string, error) {
 		return "", fmt.Errorf("git clone failed: %w", err)
 	}
 
-	fmt.Printf("  Clone complete. Scanning...\n\n")
 	return tempDir, nil
 }
 
@@ -593,8 +589,8 @@ func (s *Scanner) hasIgnoreComment(line string, allLines []string, lineNum int) 
 
 	// Check inline comment on same line
 	if strings.Contains(lowerLine, "cryptoscan:ignore") ||
-	   strings.Contains(lowerLine, "crypto-scan:ignore") ||
-	   strings.Contains(lowerLine, "noscan") {
+		strings.Contains(lowerLine, "crypto-scan:ignore") ||
+		strings.Contains(lowerLine, "noscan") {
 		return true
 	}
 
@@ -602,8 +598,8 @@ func (s *Scanner) hasIgnoreComment(line string, allLines []string, lineNum int) 
 	if lineNum >= 2 && lineNum-2 < len(allLines) {
 		prevLine := strings.ToLower(allLines[lineNum-2])
 		if strings.Contains(prevLine, "cryptoscan:ignore") ||
-		   strings.Contains(prevLine, "crypto-scan:ignore") ||
-		   strings.Contains(prevLine, "cryptoscan:ignore-next-line") {
+			strings.Contains(prevLine, "crypto-scan:ignore") ||
+			strings.Contains(prevLine, "cryptoscan:ignore-next-line") {
 			return true
 		}
 	}
@@ -799,8 +795,8 @@ func isLowValueContext(line string) bool {
 	// Docstrings - documentation inside code
 	// e.g., """Sign a message using Ed25519""", // Sign using Ed25519
 	docstringPatterns := []string{
-		`"""`,     // Python docstring
-		"'''",     // Python docstring
+		`"""`, // Python docstring
+		"'''", // Python docstring
 		"sign a message using",
 		"verify a message using",
 		"encrypt using",
@@ -828,15 +824,15 @@ func isLowValueContext(line string) bool {
 		"encrypted with",
 		"algorithm:",
 		// API documentation object patterns
-		"auth:",               // API auth method description
-		"auth\":",             // JSON style
-		"authentication:",     // Auth description
-		"verification using",  // API doc like "verification using Ed25519"
-		"signing using",       // API doc about signing
-		"cryptographic",       // Description of cryptographic features
-		"zero-effort",         // Feature description
-		"attestation",         // Security attestation descriptions
-		"capabilities",        // Capability descriptions
+		"auth:",              // API auth method description
+		"auth\":",            // JSON style
+		"authentication:",    // Auth description
+		"verification using", // API doc like "verification using Ed25519"
+		"signing using",      // API doc about signing
+		"cryptographic",      // Description of cryptographic features
+		"zero-effort",        // Feature description
+		"attestation",        // Security attestation descriptions
+		"capabilities",       // Capability descriptions
 	}
 	for _, pattern := range docPatterns {
 		if strings.Contains(lineLower, pattern) {

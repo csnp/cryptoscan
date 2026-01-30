@@ -365,7 +365,7 @@ func GetSecurityLevel(algorithm string, keySize int) *types.SecurityLevel {
 		}
 
 	case strings.Contains(algo, "SHA-256"), strings.Contains(algo, "SHA256"):
-		level.ClassicalBits = 128 // Collision resistance
+		level.ClassicalBits = 128      // Collision resistance
 		level.QuantumSecurityBits = 85 // Grover for collision
 
 	case strings.Contains(algo, "SHA-384"), strings.Contains(algo, "SHA384"):

@@ -140,7 +140,7 @@ This repository includes sample cryptographic code for testing:
 ```bash
 # Clone and build
 git clone https://github.com/csnp/cryptoscan.git
-cd qramm-cryptoscan
+cd cryptoscan
 go build -o cryptoscan ./cmd/cryptoscan
 
 # Scan the sample files (Go, Python, Java, JavaScript)
@@ -465,7 +465,7 @@ SARIF output integrates with GitHub Code Scanning, VS Code SARIF Viewer, and oth
 ### Architecture
 
 ```
-qramm-cryptoscan/
+cryptoscan/
 ├── cmd/cryptoscan/      # CLI entry point
 ├── internal/cli/        # Command implementations
 ├── pkg/
@@ -516,7 +516,7 @@ We welcome contributions from the community! See [CONTRIBUTING.md](CONTRIBUTING.
 ```bash
 # Clone the repository
 git clone https://github.com/csnp/cryptoscan.git
-cd qramm-cryptoscan
+cd cryptoscan
 
 # Install dependencies
 go mod download

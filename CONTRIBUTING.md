@@ -10,7 +10,7 @@ By participating in this project, you agree to maintain a respectful and inclusi
 
 ### Reporting Bugs
 
-1. Check if the issue already exists in [GitHub Issues](https://github.com/csnp/qramm-cryptoscan/issues)
+1. Check if the issue already exists in [GitHub Issues](https://github.com/csnp/cryptoscan/issues)
 2. If not, create a new issue with:
    - Clear, descriptive title
    - Steps to reproduce
@@ -66,8 +66,8 @@ Open an issue with the `enhancement` label describing:
 ### Building
 
 ```bash
-git clone https://github.com/csnp/qramm-cryptoscan.git
-cd qramm-cryptoscan
+git clone https://github.com/csnp/cryptoscan.git
+cd cryptoscan
 go build -o cryptoscan ./cmd/cryptoscan
 ```
 

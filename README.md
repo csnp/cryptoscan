@@ -51,7 +51,6 @@ CryptoScan is purpose-built for quantum readiness assessment:
 | Migration guidance | **Yes** | No | Varies |
 | Dependency scanning | **Yes** | No | Some |
 | Open source | **Yes** | Yes | No |
-| Price | **Free** | Free | $$$$ |
 
 ### What These Capabilities Mean
 

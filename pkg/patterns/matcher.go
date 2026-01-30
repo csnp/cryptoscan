@@ -612,17 +612,257 @@ func (m *Matcher) loadPatterns() {
 		Tags:        []string{"secret", "key", "quantum-vulnerable", "critical"},
 	})
 
-	// Certificate Detection
+	// ============================================
+	// CERTIFICATE PATTERNS
+	// ============================================
+	// X.509 certificates, chains, CSRs, and certificate attributes
+
+	// X.509 Certificate Header
 	m.patterns = append(m.patterns, Pattern{
 		ID:          "CERT-001",
-		Name:        "Certificate Header",
+		Name:        "X.509 Certificate",
 		Category:    "Certificate",
 		Regex:       regexp.MustCompile(`-----BEGIN\s+CERTIFICATE-----`),
 		Severity:    types.SeverityInfo,
 		Quantum:     types.QuantumUnknown,
-		Description: "X.509 certificate detected. Certificate algorithm should be verified for quantum safety.",
-		Remediation: "Verify certificate uses acceptable algorithms. Plan for PQC certificate migration.",
-		Tags:        []string{"certificate", "audit"},
+		Description: "X.509 certificate detected. Certificate algorithm and key size should be verified for quantum safety.",
+		Remediation: "Verify certificate uses RSA-3072+ or ECC-P256+. Plan migration to PQC certificates when standards finalize.",
+		Tags:        []string{"certificate", "x509", "audit"},
+	})
+
+	// Certificate Signing Request (CSR)
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-CSR-001",
+		Name:        "Certificate Signing Request",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`-----BEGIN\s+(NEW\s+)?CERTIFICATE\s+REQUEST-----`),
+		Severity:    types.SeverityInfo,
+		Quantum:     types.QuantumUnknown,
+		Description: "Certificate Signing Request (CSR) detected. Used to request certificate from CA.",
+		Remediation: "Ensure CSR uses strong key sizes (RSA-3072+ or ECC-P256+). Verify private key is properly secured.",
+		Tags:        []string{"certificate", "csr", "pki"},
+	})
+
+	// PKCS#12/PFX Certificate Container
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-PKCS12-001",
+		Name:        "PKCS#12 Certificate Container",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`(?i)(\.p12|\.pfx|PKCS12|PKCS#12|pkcs12[-_]?file|pfx[-_]?file)`),
+		Severity:    types.SeverityMedium,
+		Quantum:     types.QuantumUnknown,
+		Description: "PKCS#12/PFX certificate container detected. Contains private key and certificate chain.",
+		Remediation: "Ensure PKCS#12 files are properly secured. Verify contained certificates use strong algorithms.",
+		Tags:        []string{"certificate", "pkcs12", "pfx", "key-container"},
+	})
+
+	// Certificate Chain Detection
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-CHAIN-001",
+		Name:        "Certificate Chain",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`(?i)(cert[-_]?chain|certificate[-_]?chain|chain[-_]?file|ca[-_]?bundle|ca[-_]?cert|root[-_]?ca|intermediate[-_]?ca|trust[-_]?anchor)`),
+		Severity:    types.SeverityInfo,
+		Quantum:     types.QuantumUnknown,
+		Description: "Certificate chain or trust anchor reference detected. Part of PKI infrastructure.",
+		Remediation: "Audit entire certificate chain for quantum-vulnerable algorithms. Plan chain-wide PQC migration.",
+		Tags:        []string{"certificate", "chain", "pki", "trust-anchor"},
+	})
+
+	// Trusted Certificate
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-TRUSTED-001",
+		Name:        "Trusted Certificate",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`-----BEGIN\s+TRUSTED\s+CERTIFICATE-----`),
+		Severity:    types.SeverityInfo,
+		Quantum:     types.QuantumUnknown,
+		Description: "Trusted certificate with trust settings detected. OpenSSL extended format.",
+		Remediation: "Review trust settings and verify certificate algorithm is quantum-safe.",
+		Tags:        []string{"certificate", "trusted", "openssl"},
+	})
+
+	// Certificate Validity/Expiration
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-EXPIRY-001",
+		Name:        "Certificate Expiration Check",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`(?i)(notAfter|notBefore|valid[-_]?(until|from|to)|expir(y|ation|es)|cert.*expir|validityPeriod)`),
+		Severity:    types.SeverityInfo,
+		Quantum:     types.QuantumUnknown,
+		Description: "Certificate validity period handling detected. Important for certificate lifecycle management.",
+		Remediation: "Ensure certificate expiration is monitored. Plan renewal with PQC algorithms when available.",
+		Tags:        []string{"certificate", "expiration", "lifecycle"},
+	})
+
+	// Certificate Subject/Issuer
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-SUBJECT-001",
+		Name:        "Certificate Subject/Issuer",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`(?i)(subject[-_]?name|issuer[-_]?name|CN\s*=|O\s*=|OU\s*=|subjectDN|issuerDN|getSubject|getIssuer)`),
+		Severity:    types.SeverityInfo,
+		Quantum:     types.QuantumUnknown,
+		Description: "Certificate subject or issuer information handling detected.",
+		Remediation: "Document certificate issuers for PKI inventory. Verify issuer CA supports PQC migration path.",
+		Tags:        []string{"certificate", "subject", "issuer", "pki"},
+	})
+
+	// Certificate Signature Algorithm
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-SIGALG-001",
+		Name:        "Certificate Signature Algorithm",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`(?i)(signatureAlgorithm|signature[-_]?algorithm|sigAlg|sha256WithRSA|sha384WithRSA|sha512WithRSA|ecdsa[-_]?with[-_]?sha|sha1WithRSA)`),
+		Severity:    types.SeverityMedium,
+		Quantum:     types.QuantumVulnerable,
+		Description: "Certificate signature algorithm detected. RSA and ECDSA signatures are quantum-vulnerable.",
+		Remediation: "Current signature algorithms will need migration to ML-DSA or SLH-DSA for quantum safety.",
+		Tags:        []string{"certificate", "signature", "quantum-vulnerable"},
+	})
+
+	// Weak Certificate Signature (SHA-1)
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-SIGALG-WEAK-001",
+		Name:        "Weak Certificate Signature (SHA-1)",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`(?i)(sha1WithRSA|sha1[-_]?with[-_]?rsa|ecdsa[-_]?with[-_]?sha1|md5WithRSA)`),
+		Severity:    types.SeverityCritical,
+		Quantum:     types.QuantumVulnerable,
+		Description: "Weak certificate signature algorithm (SHA-1 or MD5) detected. These are deprecated and insecure.",
+		Remediation: "Immediately replace certificates using SHA-1 or MD5 signatures with SHA-256 or stronger.",
+		Tags:        []string{"certificate", "signature", "weak", "deprecated", "critical"},
+	})
+
+	// Certificate Key Usage
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-KEYUSAGE-001",
+		Name:        "Certificate Key Usage",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`(?i)(keyUsage|key[-_]?usage|digitalSignature|keyEncipherment|dataEncipherment|keyAgreement|keyCertSign|cRLSign|extendedKeyUsage|serverAuth|clientAuth)`),
+		Severity:    types.SeverityInfo,
+		Quantum:     types.QuantumUnknown,
+		Description: "Certificate key usage extension detected. Defines permitted cryptographic operations.",
+		Remediation: "Document key usage for cryptographic inventory. Ensure usage aligns with PQC migration plan.",
+		Tags:        []string{"certificate", "key-usage", "extension"},
+	})
+
+	// Subject Alternative Name (SAN)
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-SAN-001",
+		Name:        "Subject Alternative Name",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`(?i)(subjectAltName|subject[-_]?alt[-_]?name|san[-_]?extension|dnsNames|ipAddresses|DNS:|IP:)`),
+		Severity:    types.SeverityInfo,
+		Quantum:     types.QuantumUnknown,
+		Description: "Subject Alternative Name (SAN) handling detected. Modern alternative to CN for identity.",
+		Remediation: "Ensure SAN entries are documented for certificate inventory.",
+		Tags:        []string{"certificate", "san", "identity"},
+	})
+
+	// Certificate Parsing (Code Pattern)
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-PARSE-001",
+		Name:        "X.509 Certificate Parsing",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`(?i)(x509\.Parse|ParseCertificate|ParseCertificateRequest|X509Certificate|load_certificate|FILETYPE_PEM|FILETYPE_ASN1)`),
+		Severity:    types.SeverityInfo,
+		Quantum:     types.QuantumUnknown,
+		Description: "X.509 certificate parsing code detected. Verify certificates being parsed use strong algorithms.",
+		Remediation: "Audit parsed certificates for algorithm strength and quantum vulnerability.",
+		Tags:        []string{"certificate", "parsing", "code"},
+	})
+
+	// Certificate Validation Bypass (CRITICAL)
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-VALIDATION-BYPASS-001",
+		Name:        "Certificate Validation Bypass",
+		Category:    "Configuration",
+		Regex:       regexp.MustCompile(`(?i)(InsecureSkipVerify\s*[=:]\s*true|verify\s*[=:]\s*false|CERT_NONE|VERIFY_NONE|SSL_VERIFY_NONE|check_hostname\s*=\s*False|verify_mode\s*=\s*CERT_NONE)`),
+		Severity:    types.SeverityCritical,
+		Quantum:     types.QuantumUnknown,
+		Description: "Certificate validation is disabled. Critical security vulnerability enabling MITM attacks.",
+		Remediation: "Enable certificate validation immediately. Use proper CA certificates for verification.",
+		References:  []string{"https://owasp.org/www-project-web-security-testing-guide/"},
+		Tags:        []string{"certificate", "validation", "critical", "mitm"},
+	})
+
+	// Self-Signed Certificate
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-SELFSIGNED-001",
+		Name:        "Self-Signed Certificate",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`(?i)(self[-_]?signed|selfSigned|generate[-_]?self[-_]?signed|createSelfSigned|makeSelfSignedCert)`),
+		Severity:    types.SeverityMedium,
+		Quantum:     types.QuantumUnknown,
+		Description: "Self-signed certificate usage detected. Acceptable for development but not production.",
+		Remediation: "Use CA-signed certificates in production. Ensure self-signed certs use strong algorithms.",
+		Tags:        []string{"certificate", "self-signed", "development"},
+	})
+
+	// mTLS Configuration
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-MTLS-001",
+		Name:        "Mutual TLS (mTLS)",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`(?i)(mutual[-_]?tls|mtls|client[-_]?cert|client[-_]?certificate|requireClientCert|ClientAuth|VerifyClientCertIfGiven|RequestClientCert)`),
+		Severity:    types.SeverityInfo,
+		Quantum:     types.QuantumPartial,
+		Description: "Mutual TLS (mTLS) configuration detected. Good practice for service authentication.",
+		Remediation: "Ensure client certificates use strong algorithms. Plan for PQC certificate migration.",
+		Tags:        []string{"certificate", "mtls", "authentication", "tls"},
+	})
+
+	// Certificate Revocation (OCSP/CRL)
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-REVOCATION-001",
+		Name:        "Certificate Revocation Check",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`(?i)(OCSP|ocsp[-_]?stapl|crl[-_]?distribution|revocation[-_]?check|isRevoked|checkRevocation|CRLDistributionPoints)`),
+		Severity:    types.SeverityInfo,
+		Quantum:     types.QuantumUnknown,
+		Description: "Certificate revocation checking detected (OCSP or CRL). Important for PKI security.",
+		Remediation: "Ensure revocation checking is enabled. Verify OCSP/CRL endpoints are accessible.",
+		Tags:        []string{"certificate", "revocation", "ocsp", "crl", "pki"},
+	})
+
+	// Certificate Pinning
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-PINNING-001",
+		Name:        "Certificate Pinning",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`(?i)(cert[-_]?pin|certificate[-_]?pin|public[-_]?key[-_]?pin|pin[-_]?set|ssl[-_]?pin|TrustManagerFactory|X509TrustManager)`),
+		Severity:    types.SeverityInfo,
+		Quantum:     types.QuantumUnknown,
+		Description: "Certificate or public key pinning detected. Provides additional TLS security.",
+		Remediation: "Document pinned certificates/keys. Plan pin rotation during PQC migration.",
+		Tags:        []string{"certificate", "pinning", "security"},
+	})
+
+	// Let's Encrypt / ACME
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "CERT-ACME-001",
+		Name:        "ACME/Let's Encrypt",
+		Category:    "Certificate",
+		Regex:       regexp.MustCompile(`(?i)(letsencrypt|lets[-_]?encrypt|acme[-_]?client|acme[-_]?challenge|certbot|acme\.sh|autocert)`),
+		Severity:    types.SeverityInfo,
+		Quantum:     types.QuantumVulnerable,
+		Description: "ACME protocol / Let's Encrypt certificate automation detected.",
+		Remediation: "Current Let's Encrypt certificates use RSA/ECDSA. Monitor for PQC certificate support.",
+		Tags:        []string{"certificate", "acme", "letsencrypt", "automation"},
+	})
+
+	// JWK (JSON Web Key)
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "KEY-JWK-001",
+		Name:        "JSON Web Key (JWK)",
+		Category:    "Key Format",
+		Regex:       regexp.MustCompile(`(?i)("kty"\s*:\s*"(RSA|EC|oct|OKP)"|"use"\s*:\s*"(sig|enc)"|\.well-known/jwks)`),
+		Severity:    types.SeverityMedium,
+		Quantum:     types.QuantumVulnerable,
+		Description: "JSON Web Key (JWK) format detected. Used in OAuth2/OIDC. RSA/EC keys are quantum-vulnerable.",
+		Remediation: "Audit JWK key types. Plan migration to PQC-compatible formats when JOSE PQC standards finalize.",
+		Tags:        []string{"key-format", "jwk", "oauth2", "quantum-vulnerable"},
 	})
 
 	// ============================================

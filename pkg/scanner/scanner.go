@@ -840,6 +840,119 @@ func isLowValueContext(line string) bool {
 		}
 	}
 
+	// URL patterns - algorithm names in URLs are typically documentation/API references
+	urlPatterns := []string{
+		"http://", "https://",
+		"/api/", "/v1/", "/v2/",
+		".html", ".htm", ".md",
+		"github.com", "gitlab.com", "bitbucket.org",
+		"docs.", "documentation.",
+		"/docs/", "/wiki/",
+	}
+	for _, pattern := range urlPatterns {
+		if strings.Contains(lineLower, pattern) {
+			return true
+		}
+	}
+
+	// Test data patterns - test vectors, example values
+	testDataPatterns := []string{
+		"test_vector",
+		"test_data",
+		"test_case",
+		"test_input",
+		"test_output",
+		"example_",
+		"sample_",
+		"mock_",
+		"fixture",
+		"golden",
+		"expected_hash",
+		"expected_signature",
+	}
+	for _, pattern := range testDataPatterns {
+		if strings.Contains(lineLower, pattern) {
+			return true
+		}
+	}
+
+	// Configuration key patterns - JSON/YAML keys mentioning algorithms
+	configKeyPatterns := []string{
+		`"algorithm":`,
+		`"cipher":`,
+		`"hash":`,
+		`'algorithm':`,
+		`'cipher':`,
+		`'hash':`,
+		"algorithm =",
+		"cipher =",
+		"supported_algorithms",
+		"allowed_algorithms",
+		"preferred_algorithm",
+	}
+	for _, pattern := range configKeyPatterns {
+		if strings.Contains(lineLower, pattern) {
+			return true
+		}
+	}
+
+	// Constant/enum definition patterns - naming, not usage
+	constPatterns := []string{
+		"algorithm_",
+		"cipher_",
+		"_algorithm",
+		"_cipher",
+		"alg_",
+		"_alg",
+		"const ",
+		"#define ",
+		"enum ",
+	}
+	for _, pattern := range constPatterns {
+		if strings.Contains(lineLower, pattern) {
+			return true
+		}
+	}
+
+	// String comparison patterns - checking algorithm names, not using them
+	comparisonPatterns := []string{
+		"== \"rsa",
+		"== \"aes",
+		"== \"sha",
+		"== \"ecdsa",
+		"== \"ed25519",
+		"=== \"rsa",
+		"=== \"aes",
+		"=== \"sha",
+		".equals(\"",
+		"strcmp(",
+		"strcasecmp(",
+		"string.compare",
+	}
+	for _, pattern := range comparisonPatterns {
+		if strings.Contains(lineLower, pattern) {
+			return true
+		}
+	}
+
+	// UI/Display patterns - algorithm names shown to users
+	uiPatterns := []string{
+		"label:",
+		"title:",
+		"header:",
+		"placeholder:",
+		"tooltip:",
+		"display_name",
+		"display name",
+		"show_algorithm",
+		"algorithm_display",
+	}
+	for _, pattern := range uiPatterns {
+		if strings.Contains(lineLower, pattern) {
+			return true
+		}
+	}
+
 	return false
 }
 

@@ -457,3 +457,174 @@ func TestFindingFields(t *testing.T) {
 		t.Error("Effort should not be empty")
 	}
 }
+
+func TestMatchCertificatePatterns(t *testing.T) {
+	m := NewMatcher()
+	tests := []struct {
+		name       string
+		content    string
+		expectID   string
+		shouldFind bool
+	}{
+		// X.509 Certificate
+		{"X.509 Certificate PEM", "-----BEGIN CERTIFICATE-----", "CERT-001", true},
+		{"X.509 Certificate in file", "cert := `-----BEGIN CERTIFICATE-----`", "CERT-001", true},
+
+		// Certificate Signing Request
+		{"CSR PEM", "-----BEGIN CERTIFICATE REQUEST-----", "CERT-CSR-001", true},
+		{"New CSR PEM", "-----BEGIN NEW CERTIFICATE REQUEST-----", "CERT-CSR-001", true},
+
+		// PKCS#12/PFX
+		{"PKCS12 file reference", "certFile := \"server.p12\"", "CERT-PKCS12-001", true},
+		{"PFX file reference", "loadCert(\"certificate.pfx\")", "CERT-PKCS12-001", true},
+		{"PKCS12 type", "keyStore := PKCS12.load(data)", "CERT-PKCS12-001", true},
+
+		// Certificate Chain
+		{"Cert chain reference", "ca_bundle := loadCertChain()", "CERT-CHAIN-001", true},
+		{"Root CA reference", "rootCA := getRootCA()", "CERT-CHAIN-001", true},
+		{"Intermediate CA", "intermediate_ca := loadIntermediateCA()", "CERT-CHAIN-001", true},
+		{"Trust anchor", "trust_anchor := getTrustAnchor()", "CERT-CHAIN-001", true},
+
+		// Trusted Certificate
+		{"Trusted cert PEM", "-----BEGIN TRUSTED CERTIFICATE-----", "CERT-TRUSTED-001", true},
+
+		// Certificate Validity/Expiration
+		{"NotAfter check", "if cert.NotAfter.Before(time.Now())", "CERT-EXPIRY-001", true},
+		{"Expiration check", "cert.expiration_date", "CERT-EXPIRY-001", true},
+		{"Valid until", "validUntil := cert.getValidUntil()", "CERT-EXPIRY-001", true},
+
+		// Certificate Subject/Issuer
+		{"Subject DN", "subjectDN := cert.getSubjectDN()", "CERT-SUBJECT-001", true},
+		{"Issuer DN", "issuerDN := cert.getIssuerDN()", "CERT-SUBJECT-001", true},
+		{"CN attribute", "CN=example.com, O=Example Inc", "CERT-SUBJECT-001", true},
+
+		// Certificate Signature Algorithm
+		{"SHA256 with RSA", "signatureAlgorithm: sha256WithRSA", "CERT-SIGALG-001", true},
+		{"ECDSA with SHA", "sigAlg := ecdsa-with-sha256", "CERT-SIGALG-001", true},
+
+		// Weak Certificate Signature
+		{"SHA1 with RSA (weak)", "signatureAlgorithm: sha1WithRSA", "CERT-SIGALG-WEAK-001", true},
+		{"MD5 with RSA (weak)", "md5WithRSA", "CERT-SIGALG-WEAK-001", true},
+
+		// Certificate Key Usage
+		{"Key usage extension", "keyUsage := digitalSignature | keyEncipherment", "CERT-KEYUSAGE-001", true},
+		{"Extended key usage", "extendedKeyUsage: serverAuth, clientAuth", "CERT-KEYUSAGE-001", true},
+
+		// Subject Alternative Name
+		{"SAN extension", "subjectAltName := []string{\"dns:example.com\"}", "CERT-SAN-001", true},
+		{"DNS names in SAN", "dnsNames: [\"*.example.com\"]", "CERT-SAN-001", true},
+
+		// Certificate Parsing
+		{"Go x509 parse", "cert, _ := x509.ParseCertificate(data)", "CERT-PARSE-001", true},
+		{"Python load cert", "cert = load_certificate(FILETYPE_PEM, data)", "CERT-PARSE-001", true},
+		{"Java X509", "X509Certificate cert = factory.generateCertificate()", "CERT-PARSE-001", true},
+
+		// Certificate Validation Bypass (CRITICAL)
+		{"Go InsecureSkipVerify", "InsecureSkipVerify: true", "CERT-VALIDATION-BYPASS-001", true},
+		{"Python verify false", "verify=false", "CERT-VALIDATION-BYPASS-001", true},
+		{"SSL VERIFY_NONE", "ssl.VERIFY_NONE", "CERT-VALIDATION-BYPASS-001", true},
+		{"CERT_NONE", "verify_mode = CERT_NONE", "CERT-VALIDATION-BYPASS-001", true},
+
+		// Self-Signed Certificate
+		{"Self signed gen", "cert := generateSelfSignedCert()", "CERT-SELFSIGNED-001", true},
+		{"Self-signed reference", "self_signed := true", "CERT-SELFSIGNED-001", true},
+
+		// mTLS
+		{"Mutual TLS config", "mutualTLS := true", "CERT-MTLS-001", true},
+		{"Client cert required", "requireClientCert: true", "CERT-MTLS-001", true},
+		{"mTLS enabled", "mtls_enabled := true", "CERT-MTLS-001", true},
+
+		// Certificate Revocation
+		{"OCSP stapling", "ocsp_stapling := true", "CERT-REVOCATION-001", true},
+		{"CRL distribution", "CRLDistributionPoints := []string{url}", "CERT-REVOCATION-001", true},
+		{"Revocation check", "checkRevocation(cert)", "CERT-REVOCATION-001", true},
+
+		// Certificate Pinning
+		{"Cert pinning", "cert_pin := sha256(cert.PublicKey)", "CERT-PINNING-001", true},
+		{"SSL pinning", "ssl_pin_set := [\"sha256/abc...\"]", "CERT-PINNING-001", true},
+		{"TrustManager", "TrustManagerFactory.getInstance()", "CERT-PINNING-001", true},
+
+		// ACME/Let's Encrypt
+		{"Let's Encrypt", "acmeProvider := \"letsencrypt\"", "CERT-ACME-001", true},
+		{"Certbot", "certbot certonly --webroot", "CERT-ACME-001", true},
+		{"ACME challenge", "acme_challenge := token", "CERT-ACME-001", true},
+
+		// JWK
+		{"JWK RSA key type", `{"kty": "RSA", "use": "sig"}`, "KEY-JWK-001", true},
+		{"JWK EC key type", `"kty":"EC"`, "KEY-JWK-001", true},
+		{"JWKS endpoint", "/.well-known/jwks.json", "KEY-JWK-001", true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			matches := m.Match(tt.content, "config.go", 1)
+			found := false
+			for _, match := range matches {
+				if strings.HasPrefix(match.ID, tt.expectID) {
+					found = true
+					break
+				}
+			}
+			if found != tt.shouldFind {
+				if tt.shouldFind {
+					t.Errorf("Expected to find pattern %s in: %s", tt.expectID, tt.content)
+					t.Errorf("Found patterns: %v", func() []string {
+						ids := make([]string, len(matches))
+						for i, m := range matches {
+							ids[i] = m.ID
+						}
+						return ids
+					}())
+				} else {
+					t.Errorf("Did not expect to find pattern %s in: %s", tt.expectID, tt.content)
+				}
+			}
+		})
+	}
+}
+
+func TestCertificateValidationBypassIsCritical(t *testing.T) {
+	m := NewMatcher()
+	testCases := []string{
+		"InsecureSkipVerify: true",
+		"verify = false",
+		"ssl.VERIFY_NONE",
+		"CERT_NONE",
+	}
+
+	for _, tc := range testCases {
+		matches := m.Match(tc, "tls_config.go", 1)
+		for _, match := range matches {
+			if strings.Contains(match.ID, "VALIDATION-BYPASS") {
+				if match.Severity != types.SeverityCritical {
+					t.Errorf("Certificate validation bypass should be CRITICAL severity, got %v for: %s", match.Severity, tc)
+				}
+			}
+		}
+	}
+}
+
+func TestWeakCertSignatureIsCritical(t *testing.T) {
+	m := NewMatcher()
+	testCases := []string{
+		"sha1WithRSA",
+		"md5WithRSA",
+		"ecdsa-with-sha1",
+	}
+
+	for _, tc := range testCases {
+		matches := m.Match(tc, "cert.go", 1)
+		foundWeakSig := false
+		for _, match := range matches {
+			if strings.Contains(match.ID, "SIGALG-WEAK") {
+				foundWeakSig = true
+				if match.Severity != types.SeverityCritical {
+					t.Errorf("Weak certificate signature should be CRITICAL severity, got %v for: %s", match.Severity, tc)
+				}
+			}
+		}
+		if !foundWeakSig {
+			t.Errorf("Expected to detect weak signature algorithm in: %s", tc)
+		}
+	}
+}

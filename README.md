@@ -98,7 +98,7 @@ Copy and paste this entire block:
 
 ```bash
 git clone https://github.com/csnp/cryptoscan.git
-cd qramm-cryptoscan
+cd cryptoscan
 go build -o cryptoscan ./cmd/cryptoscan
 sudo mv cryptoscan /usr/local/bin/
 cd ..

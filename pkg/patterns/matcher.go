@@ -700,7 +700,7 @@ func (m *Matcher) loadPatterns() {
 		ID:          "CERT-SUBJECT-001",
 		Name:        "Certificate Subject/Issuer",
 		Category:    "Certificate",
-		Regex:       regexp.MustCompile(`(?i)(subject[-_]?name|issuer[-_]?name|CN\s*=|O\s*=|OU\s*=|subjectDN|issuerDN|getSubject|getIssuer)`),
+		Regex:       regexp.MustCompile(`(?i)(subject[-_]?name|issuer[-_]?name|CN\s*=\s*[a-zA-Z]|OU\s*=\s*[a-zA-Z]|subjectDN|issuerDN|getSubject|getIssuer|\.Subject\.|\.Issuer\.)`),
 		Severity:    types.SeverityInfo,
 		Quantum:     types.QuantumUnknown,
 		Description: "Certificate subject or issuer information handling detected.",

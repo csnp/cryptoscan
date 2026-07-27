@@ -40,6 +40,13 @@ build/
 .env.local
 config.local.yaml
 
+# Credentials and key material
+secrets.json
+*.pem
+*.key
+*.p12
+*.pfx
+
 # AI assistant files
 CLAUDE.md
 .cursorrules

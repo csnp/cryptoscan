@@ -330,7 +330,9 @@ func TestCBOMCategoryToAssetType(t *testing.T) {
 		{"tls", "protocol"},
 		{"protocol", "protocol"},
 		{"certificate", "certificate"},
-		{"key", "certificate"},
+		// A key is key material, not a certificate. CycloneDX models it as
+		// related-crypto-material so the material's type and size survive.
+		{"key", "related-crypto-material"},
 		{"library", "related-crypto-material"},
 		{"unknown", "algorithm"},
 		{"", "algorithm"},
@@ -355,9 +357,12 @@ func TestCBOMAlgorithmToPrimitive(t *testing.T) {
 		{"ECDSA", "signature"},
 		{"DSA", "signature"},
 		{"Ed25519", "signature"},
-		{"DH", "key-agreement"},
-		{"ECDH", "key-agreement"},
-		{"X25519", "key-agreement"},
+		// CycloneDX 1.6 spells key agreement "key-agree". The previous
+		// expectation of "key-agreement" is not a member of the spec enum, so
+		// asserting it locked in output that failed schema validation.
+		{"DH", "key-agree"},
+		{"ECDH", "key-agree"},
+		{"X25519", "key-agree"},
 		{"AES", "block-cipher"},
 		{"DES", "block-cipher"},
 		{"3DES", "block-cipher"},

@@ -4,8 +4,11 @@
 package reporter
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -62,11 +65,21 @@ type cbomComponent struct {
 }
 
 type cbomCryptoProperties struct {
-	AssetType             string           `json:"assetType"`
-	AlgorithmProperties   *cbomAlgorithm   `json:"algorithmProperties,omitempty"`
-	CertificateProperties *cbomCertificate `json:"certificateProperties,omitempty"`
-	ProtocolProperties    *cbomProtocol    `json:"protocolProperties,omitempty"`
-	OID                   string           `json:"oid,omitempty"`
+	AssetType                       string                     `json:"assetType"`
+	AlgorithmProperties             *cbomAlgorithm             `json:"algorithmProperties,omitempty"`
+	CertificateProperties           *cbomCertificate           `json:"certificateProperties,omitempty"`
+	ProtocolProperties              *cbomProtocol              `json:"protocolProperties,omitempty"`
+	RelatedCryptoMaterialProperties *cbomRelatedCryptoMaterial `json:"relatedCryptoMaterialProperties,omitempty"`
+	OID                             string                     `json:"oid,omitempty"`
+}
+
+// cbomRelatedCryptoMaterial describes detected key material. CycloneDX models
+// keys, secrets and tokens this way rather than as algorithms, and an algorithm
+// component cannot express what kind of material was found or its state.
+type cbomRelatedCryptoMaterial struct {
+	Type  string `json:"type"`
+	State string `json:"state,omitempty"`
+	Size  int    `json:"size,omitempty"`
 }
 
 type cbomAlgorithm struct {
@@ -123,22 +136,102 @@ type cbomDependency struct {
 	DependsOn []string `json:"dependsOn,omitempty"`
 }
 
+// CycloneDX 1.6 constrains cryptoProperties.algorithmProperties.primitive to a
+// closed enum. Emitting any other value fails validation for the entire
+// document, so the values this reporter produces are named here and covered by
+// TestPrimitivesAreInCycloneDXEnum.
+const (
+	primitiveCombiner = "combiner"
+)
+
+// categoryToAssetType maps a pattern category onto a CycloneDX asset type.
+//
+// Matching was previously case-sensitive against lowercase names that no
+// pattern actually uses. The real categories are "Secret Detection",
+// "Certificate" and similar, so every finding fell through to the default and
+// was reported as an algorithm. A detected private key was emitted as
+// assetType "algorithm" named "Private Key Header", which is what the reporter
+// of issue #1 meant by incomplete key material representation.
 func categoryToAssetType(category string) string {
-	switch category {
-	case "asymmetric", "key-exchange":
+	switch strings.ToLower(strings.TrimSpace(category)) {
+	case "asymmetric", "key-exchange", "symmetric", "hash", "mac", "kdf",
+		"post-quantum", "signature", "random":
 		return "algorithm"
-	case "symmetric":
-		return "algorithm"
-	case "hash":
-		return "algorithm"
-	case "tls", "protocol":
+	case "tls", "protocol", "ssh", "ipsec":
 		return "protocol"
-	case "certificate", "key":
+	case "certificate":
 		return "certificate"
+	case "secret detection", "key", "key material", "secret":
+		return "related-crypto-material"
 	case "library":
 		return "related-crypto-material"
 	default:
 		return "algorithm"
+	}
+}
+
+// relativeLocation expresses a finding's file relative to the scan root.
+//
+// A CBOM is an artifact that gets committed, attached to releases and shared
+// with auditors and customers. Absolute paths embed the scanning machine's
+// directory layout and username into it, and they make otherwise identical
+// scans of the same source differ between machines and CI runners. The absolute
+// path is used only as a fallback when no relative path can be derived.
+func relativeLocation(scanTarget, file string) string {
+	if scanTarget == "" || file == "" {
+		return file
+	}
+
+	root := scanTarget
+	if info, err := os.Stat(root); err == nil && !info.IsDir() {
+		root = filepath.Dir(root)
+	}
+	if abs, err := filepath.Abs(root); err == nil {
+		root = abs
+	}
+
+	target := file
+	if abs, err := filepath.Abs(file); err == nil {
+		target = abs
+	}
+
+	rel, err := filepath.Rel(root, target)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return file
+	}
+	return filepath.ToSlash(rel)
+}
+
+// relatedCryptoMaterialType classifies detected key material for the CycloneDX
+// relatedCryptoMaterialProperties.type field. The value must come from the
+// spec's closed enum, so anything unrecognized is reported as "unknown" rather
+// than guessed.
+func relatedCryptoMaterialType(patternID, name string) string {
+	id := strings.ToUpper(patternID)
+	lowered := strings.ToLower(name)
+
+	switch {
+	case strings.Contains(lowered, "private key"), strings.HasPrefix(id, "KEY-"):
+		return "private-key"
+	case strings.Contains(lowered, "public key"):
+		return "public-key"
+	case strings.Contains(lowered, "certificate signing request"),
+		strings.Contains(lowered, "csr"):
+		return "unknown" // CycloneDX has no CSR member; do not invent one
+	case strings.Contains(lowered, "secret key"), strings.Contains(lowered, "symmetric key"):
+		return "secret-key"
+	case strings.Contains(lowered, "password"), strings.Contains(lowered, "passphrase"):
+		return "password"
+	case strings.Contains(lowered, "token"):
+		return "token"
+	case strings.Contains(lowered, "seed"):
+		return "seed"
+	case strings.Contains(lowered, "signature"):
+		return "signature"
+	case strings.Contains(lowered, "key"):
+		return "key"
+	default:
+		return "unknown"
 	}
 }
 
@@ -155,6 +248,13 @@ func algorithmToPrimitive(algo string) string {
 		strings.Contains(algoUpper, "ARGON"), strings.Contains(algoUpper, "SCRYPT"),
 		strings.Contains(algoUpper, "BCRYPT"):
 		return "kdf"
+	// Hybrid constructions combine a classical primitive with a post-quantum
+	// one. CycloneDX calls that a "combiner"; "hybrid" is not in the enum and
+	// made the whole document fail schema validation. Checked before the
+	// post-quantum cases so that a name carrying both, such as a hybrid
+	// ML-KEM construction, is reported as the combiner it is.
+	case strings.Contains(algoUpper, "HYBRID"), strings.Contains(algoUpper, "COMPOSITE"):
+		return primitiveCombiner
 	// Post-Quantum KEMs
 	case strings.Contains(algoUpper, "ML-KEM"), strings.Contains(algoUpper, "MLKEM"),
 		strings.Contains(algoUpper, "KYBER"):
@@ -168,16 +268,14 @@ func algorithmToPrimitive(algo string) string {
 		strings.Contains(algoUpper, "FALCON"),
 		strings.Contains(algoUpper, "XMSS"), strings.Contains(algoUpper, "LMS"):
 		return "signature"
-	// Hybrid
-	case strings.Contains(algoUpper, "HYBRID"), strings.Contains(algoUpper, "COMPOSITE"):
-		return "hybrid"
 	// Classical asymmetric
 	case algo == "RSA":
 		return "pke"
 	case algo == "ECDSA", algo == "DSA", algo == "Ed25519":
 		return "signature"
 	case algo == "DH", algo == "ECDH", algo == "X25519":
-		return "key-agreement"
+		// CycloneDX spells this "key-agree", not "key-agreement".
+		return "key-agree"
 	// Symmetric
 	case algo == "AES", algo == "DES", algo == "3DES", algo == "Blowfish", algo == "RC4":
 		return "block-cipher"
@@ -300,7 +398,7 @@ func (r *CBOMReporter) Generate(results *scanner.Results) (string, error) {
 			Evidence: &cbomEvidence{
 				Occurrences: []cbomOccurrence{
 					{
-						Location: f.File,
+						Location: relativeLocation(results.ScanTarget, f.File),
 						Line:     f.Line,
 						Symbol:   f.Match,
 					},
@@ -313,8 +411,19 @@ func (r *CBOMReporter) Generate(results *scanner.Results) (string, error) {
 			comp.CryptoProperties.OID = oid
 		}
 
-		// Add algorithm properties
-		if f.Algorithm != "" {
+		// Describe detected key material as material rather than as an
+		// algorithm, so a private key carries its type and size instead of
+		// being flattened into a component named after the PEM header.
+		if comp.CryptoProperties.AssetType == "related-crypto-material" {
+			comp.CryptoProperties.RelatedCryptoMaterialProperties = &cbomRelatedCryptoMaterial{
+				Type: relatedCryptoMaterialType(f.ID, compKey),
+				Size: f.KeySize,
+			}
+		}
+
+		// Add algorithm properties. These only apply to algorithm assets; a
+		// key or a certificate is described by its own properties block.
+		if f.Algorithm != "" && comp.CryptoProperties.AssetType == "algorithm" {
 			primitive := algorithmToPrimitive(f.Algorithm)
 			comp.CryptoProperties.AlgorithmProperties = &cbomAlgorithm{
 				Primitive: primitive,
@@ -340,7 +449,7 @@ func (r *CBOMReporter) Generate(results *scanner.Results) (string, error) {
 			}
 
 			// Track hybrid dependencies
-			if primitive == "hybrid" {
+			if primitive == primitiveCombiner {
 				classicalAlgo, pqcAlgo := extractHybridComponents(f.Algorithm)
 				if classicalAlgo != "" {
 					hybridComponents[bomRef] = append(hybridComponents[bomRef], classicalAlgo)
@@ -367,7 +476,7 @@ func (r *CBOMReporter) Generate(results *scanner.Results) (string, error) {
 			existing.Evidence.Occurrences = append(
 				existing.Evidence.Occurrences,
 				cbomOccurrence{
-					Location: f.File,
+					Location: relativeLocation(results.ScanTarget, f.File),
 					Line:     f.Line,
 					Symbol:   f.Match,
 				},
@@ -533,6 +642,17 @@ func extractTLSVersion(match string) string {
 }
 
 // Simple UUID generator for CBOM serial numbers
+// generateUUID returns a random RFC 4122 version 4 UUID. The previous
+// implementation formatted a timestamp, which is not a UUID and did not match
+// the CycloneDX serialNumber pattern
+// ^urn:uuid:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$,
+// so every generated CBOM failed schema validation on that field alone.
 func generateUUID() string {
-	return time.Now().Format("20060102-150405-000000000")
+	var b [16]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		panic("cbom: cannot read random bytes for serial number: " + err.Error())
+	}
+	b[6] = (b[6] & 0x0f) | 0x40 // version 4
+	b[8] = (b[8] & 0x3f) | 0x80 // RFC 4122 variant
+	return fmt.Sprintf("%x-%x-%x-%x-%x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }

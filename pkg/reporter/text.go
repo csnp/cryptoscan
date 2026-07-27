@@ -131,6 +131,16 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 				r.color(sev.color, bar)))
 		}
 	}
+
+	// Report what was withheld. A scanner may reduce noise, but it must never
+	// reduce it invisibly: the reader has to be able to tell the difference
+	// between "nothing was found" and "something was found and not shown".
+	if results.Summary.NarrativeSuppressed > 0 {
+		b.WriteString(r.color(colorCyan, fmt.Sprintf(
+			"\n  %d mention(s) withheld as documentation, log or configuration text.\n"+
+				"  Show them with: cryptoscan scan %s --include-narrative\n",
+			results.Summary.NarrativeSuppressed, results.ScanTarget)))
+	}
 	b.WriteString("\n")
 
 	// Quantum Risk Assessment with visual emphasis

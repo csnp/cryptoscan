@@ -35,6 +35,7 @@ var (
 	streamFindings     bool
 	includeImports     bool
 	includeQuantumSafe bool
+	includeNarrative   bool
 	verbose            bool
 
 	// CI/CD flexibility flags
@@ -108,7 +109,8 @@ func init() {
 	scanCmd.Flags().BoolVar(&streamFindings, "stream", true, "Show findings as they are discovered")
 	scanCmd.Flags().BoolVar(&includeImports, "include-imports", false, "Include library import findings (normally suppressed as low-value)")
 	scanCmd.Flags().BoolVar(&includeQuantumSafe, "include-quantum-safe", false, "Include quantum-safe algorithm findings (SHA-256, AES-256)")
-	scanCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show all findings including imports and quantum-safe algorithms")
+	scanCmd.Flags().BoolVar(&includeNarrative, "include-narrative", false, "Include algorithms named in prose, log messages, documentation and config keys")
+	scanCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show all findings including imports, quantum-safe algorithms and narrative mentions")
 
 	// CI/CD flexibility flags
 	scanCmd.Flags().StringVar(&ignorePatterns, "ignore", "", "Pattern IDs to ignore (comma-separated, e.g., \"RSA-001,CERT-*\")")
@@ -222,6 +224,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		MinSeverity:        parseSeverity(effectiveMinSeverity),
 		IncludeImports:     includeImports || verbose,     // Include if explicitly set or verbose mode
 		IncludeQuantumSafe: includeQuantumSafe || verbose, // Include if explicitly set or verbose mode
+		IncludeNarrative:   includeNarrative || verbose,   // Include if explicitly set or verbose mode
 		IgnoreIDs:          ignoreIDs,
 		IgnoreCategories:   ignoreCats,
 	}

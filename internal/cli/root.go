@@ -7,10 +7,11 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+
+	"github.com/csnp/cryptoscan/pkg/version"
 )
 
 var (
-	version   = "dev"
 	commit    = "none"
 	buildDate = "unknown"
 )
@@ -47,8 +48,11 @@ Examples:
 Learn more at https://qramm.org`,
 }
 
+// SetVersionInfo records the build metadata injected by GoReleaser. The version
+// string is stored in pkg/version so that every output surface reports the same
+// value; commit and build date are only shown by the version command.
 func SetVersionInfo(v, c, d string) {
-	version = v
+	version.Set(v)
 	commit = c
 	buildDate = d
 }
@@ -66,7 +70,7 @@ var versionCmd = &cobra.Command{
 	Use:   "version",
 	Short: "Print version information",
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Printf("cryptoscan %s\n", version)
+		fmt.Printf("cryptoscan %s\n", version.Get())
 		if commit != "none" {
 			fmt.Printf("  commit: %s\n", commit)
 		}

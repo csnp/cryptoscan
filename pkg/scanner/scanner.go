@@ -20,6 +20,7 @@ import (
 	"github.com/csnp/cryptoscan/pkg/config"
 	"github.com/csnp/cryptoscan/pkg/patterns"
 	"github.com/csnp/cryptoscan/pkg/types"
+	"github.com/csnp/cryptoscan/pkg/version"
 )
 
 // Re-export types for convenience
@@ -60,6 +61,7 @@ type Config struct {
 	IncludeDocs        bool              // Whether to include documentation files
 	IncludeImports     bool              // Whether to include library import findings (low-value, default false)
 	IncludeQuantumSafe bool              // Whether to include quantum-safe findings like SHA-256, AES-256 (default false)
+	IncludeNarrative   bool              // Whether to include algorithms named in prose, logs, docs and config keys (default false)
 	OnFinding          func(Finding)     // Callback when a finding is discovered (for streaming output)
 	OnFileScanned      func(path string) // Callback when a file is scanned (for progress)
 
@@ -69,8 +71,19 @@ type Config struct {
 	IgnoreFiles      []string // File patterns to ignore (e.g., "vendor/*", "test/*")
 }
 
+// ToolInfo identifies the scanner build that produced a set of results.
+//
+// JSON reports previously carried no tool identity at all, so a stored report
+// could not be attributed to a scanner version. The value comes from
+// pkg/version, the same source the version command, SARIF and CBOM read.
+type ToolInfo struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+}
+
 // Results contains all scan results
 type Results struct {
+	Tool           ToolInfo              `json:"tool"`
 	Findings       []Finding             `json:"findings"`
 	Summary        Summary               `json:"summary"`
 	MigrationScore *types.MigrationScore `json:"migrationScore,omitempty"`
@@ -108,6 +121,11 @@ type Summary struct {
 	QuantumVulnCount int            `json:"quantumVulnerableCount"`
 	HighConfidence   int            `json:"highConfidenceCount"`
 	ActionableCount  int            `json:"actionableCount"` // High confidence + code files
+
+	// NarrativeSuppressed counts matches withheld because the algorithm was
+	// named in text rather than used. Reported so that the reduction is
+	// visible and recoverable with --include-narrative.
+	NarrativeSuppressed int `json:"narrativeSuppressedCount"`
 }
 
 // HasCritical returns true if any critical findings exist
@@ -138,6 +156,11 @@ type Scanner struct {
 		bytesScanned  int64
 		languageStats map[string]int
 	}
+
+	// narrativeSuppressed counts matches withheld because the algorithm was
+	// named in prose, a log message, a documentation or configuration key, or
+	// a URL. It is reported so that a suppression is never invisible.
+	narrativeSuppressed int
 }
 
 // New creates a new Scanner instance
@@ -198,9 +221,24 @@ func (s *Scanner) Scan() (*Results, error) {
 	// Deduplicate findings (same file+line+category = keep highest priority)
 	s.findings = s.deduplicateFindings(s.findings)
 
-	// Sort findings by priority
-	sort.Slice(s.findings, func(i, j int) bool {
-		return s.findings[i].Priority() > s.findings[j].Priority()
+	// Sort findings by priority, breaking ties on location so that the order
+	// is fully determined by the scanned content rather than by the order
+	// files happened to be walked.
+	sort.SliceStable(s.findings, func(i, j int) bool {
+		a, b := s.findings[i], s.findings[j]
+		if a.Priority() != b.Priority() {
+			return a.Priority() > b.Priority()
+		}
+		if a.File != b.File {
+			return a.File < b.File
+		}
+		if a.Line != b.Line {
+			return a.Line < b.Line
+		}
+		if a.Column != b.Column {
+			return a.Column < b.Column
+		}
+		return a.ID < b.ID
 	})
 
 	// Calculate migration score and enhance findings with QRAMM mapping
@@ -208,6 +246,7 @@ func (s *Scanner) Scan() (*Results, error) {
 
 	// Build results
 	results := &Results{
+		Tool:           ToolInfo{Name: "CryptoScan", Version: version.Get()},
 		Findings:       s.findings,
 		MigrationScore: migrationScore,
 		FilesScanned:   s.stats.filesScanned,
@@ -551,7 +590,7 @@ func (s *Scanner) scanFile(path string) error {
 			}
 
 			// Apply noise reduction filters
-			if !s.shouldIncludeFinding(m) {
+			if !s.shouldIncludeFinding(m, line) {
 				continue
 			}
 
@@ -626,21 +665,29 @@ func (s *Scanner) hasIgnoreComment(line string, allLines []string, lineNum int) 
 		}
 	}
 
-	// Check previous line for ignore directive
+	// Check the previous line, but only for the explicit next-line form.
+	//
+	// This used to accept any ignore directive on the previous line, so a
+	// trailing `# cryptoscan:ignore` also blinded the line below it. One
+	// suppression comment silently hid an adjacent line the author never asked
+	// to hide, which in a security scanner is a false negative the user cannot
+	// see. A directive now applies to its own line unless it says -next-line.
 	if lineNum >= 2 && lineNum-2 < len(allLines) {
 		prevLine := allLines[lineNum-2]
-		prevLower := strings.ToLower(prevLine)
-		if strings.Contains(prevLower, "cryptoscan:ignore") ||
-			strings.Contains(prevLower, "crypto-scan:ignore") ||
-			strings.Contains(prevLower, "cryptoscan:ignore-next-line") {
-			// Check if it's a blanket ignore
-			if s.isBlanketIgnore(prevLine) {
-				return true
-			}
+		if isNextLineDirective(prevLine) && s.isBlanketIgnore(prevLine) {
+			return true
 		}
 	}
 
 	return false
+}
+
+// isNextLineDirective reports whether a line carries an ignore directive that
+// explicitly applies to the following line.
+func isNextLineDirective(line string) bool {
+	lower := strings.ToLower(line)
+	return strings.Contains(lower, "cryptoscan:ignore-next-line") ||
+		strings.Contains(lower, "crypto-scan:ignore-next-line")
 }
 
 // isBlanketIgnore checks if an ignore directive is a blanket ignore (no specific pattern)
@@ -682,13 +729,17 @@ func (s *Scanner) hasPatternSpecificIgnore(line string, allLines []string, lineN
 		}
 	}
 
-	// Check previous line
+	// Check the previous line, but only for the explicit next-line form, for
+	// the same reason as hasIgnoreComment: an ignore directive applies to the
+	// line it sits on unless it says otherwise.
 	if lineNum >= 2 && lineNum-2 < len(allLines) {
 		prevLine := allLines[lineNum-2]
-		if patterns := s.extractIgnorePatterns(prevLine); len(patterns) > 0 {
-			for _, p := range patterns {
-				if config.MatchesPattern(patternID, p) {
-					return true
+		if isNextLineDirective(prevLine) {
+			if patterns := s.extractIgnorePatterns(prevLine); len(patterns) > 0 {
+				for _, p := range patterns {
+					if config.MatchesPattern(patternID, p) {
+						return true
+					}
 				}
 			}
 		}
@@ -845,9 +896,12 @@ func (s *Scanner) meetsConfidenceThreshold(conf types.Confidence) bool {
 	}
 }
 
-// shouldIncludeFinding applies noise reduction filters
-// Returns false if the finding should be suppressed based on config
-func (s *Scanner) shouldIncludeFinding(f types.Finding) bool {
+// shouldIncludeFinding applies noise reduction filters.
+// Returns false if the finding should be suppressed based on config.
+//
+// line is the full source line the match came from; f.Context is truncated for
+// display and must not be used for classification.
+func (s *Scanner) shouldIncludeFinding(f types.Finding, line string) bool {
 	// Skip library import findings unless explicitly included
 	// These are low-value (just import statements, not actual crypto usage)
 	if !s.config.IncludeImports && f.Category == "Library Import" {
@@ -867,10 +921,23 @@ func (s *Scanner) shouldIncludeFinding(f types.Finding) bool {
 		}
 	}
 
-	// Skip findings in low-value contexts (logs, labels, error messages, docstrings)
-	// These mention algorithms but aren't actual cryptographic operations
-	if isLowValueContext(f.Context) {
-		return false
+	// Withhold matches where the algorithm is named in narrative text rather
+	// than used: prose, log output, a documentation or configuration key's
+	// value, a URL or a file path. Operational constructs are never withheld,
+	// however the surrounding line reads.
+	//
+	// Detected key material is exempt: a private key pasted into a comment is
+	// still an exposed private key, and that is the reason the scan loop reads
+	// comments containing "key" or "secret" in the first place.
+	if !s.config.IncludeNarrative && f.FindingType != types.FindingTypeSecret {
+		start := f.Column - 1
+		end := start + len(f.Match)
+		if class, _ := classifyMatch(line, start, end); class == evidenceNarrative {
+			s.mu.Lock()
+			s.narrativeSuppressed++
+			s.mu.Unlock()
+			return false
+		}
 	}
 
 	// Skip findings in files whose names indicate API docs or documentation
@@ -903,234 +970,16 @@ func (s *Scanner) shouldIgnorePattern(id, category string) bool {
 	return false
 }
 
-// isLowValueContext checks if a line contains algorithm mentions in contexts
-// that are not actual cryptographic operations (logs, labels, error messages, docstrings)
-func isLowValueContext(line string) bool {
-	lineLower := strings.ToLower(line)
-
-	// Log/print statements - algorithm mentioned in output, not usage
-	logPatterns := []string{
-		"fmt.print", "fmt.sprint", "fmt.fprint",
-		"log.", "logger.", "logging.",
-		"console.log", "console.error", "console.warn",
-		"print(", "println(",
-		"debug(", "info(", "warn(", "error(",
-	}
-	for _, pattern := range logPatterns {
-		if strings.Contains(lineLower, pattern) {
-			return true
-		}
-	}
-
-	// String labels/metadata - algorithm name as a value, not usage
-	// e.g., "auth_method": "ed25519", c.Locals("authenticated_via", "ed25519")
-	labelPatterns := []string{
-		"auth_method",
-		"authenticated_via",
-		"authentication_type",
-		"signing_algorithm",
-		"encryption_algorithm",
-		"key_type",
-		"algorithm_name",
-		"crypto_type",
-		`"type":`,
-		`"method":`,
-	}
-	for _, pattern := range labelPatterns {
-		if strings.Contains(lineLower, pattern) {
-			return true
-		}
-	}
-
-	// Error message strings - validation messages mentioning algorithms
-	// e.g., "publicKey must be a valid Ed25519 public key"
-	errorPatterns := []string{
-		"must be a valid",
-		"invalid.*key",
-		"failed to",
-		"error:",
-		"expected.*got",
-		"cannot be empty",
-	}
-	for _, pattern := range errorPatterns {
-		if strings.Contains(lineLower, pattern) {
-			return true
-		}
-	}
-
-	// Docstrings - documentation inside code
-	// e.g., """Sign a message using Ed25519""", // Sign using Ed25519
-	docstringPatterns := []string{
-		`"""`, // Python docstring
-		"'''", // Python docstring
-		"sign a message using",
-		"verify a message using",
-		"encrypt using",
-		"decrypt using",
-		"generated.*key",
-	}
-	for _, pattern := range docstringPatterns {
-		if strings.Contains(lineLower, pattern) {
-			return true
-		}
-	}
-
-	// Common documentation patterns
-	docPatterns := []string{
-		"description:",
-		"description\":",
-		"summary:",
-		"summary\":",
-		" - ",           // Markdown list item
-		"* ",            // Markdown list item
-		"fingerprint",   // UI label like "Public Key Fingerprint (SHA-256)"
-		"hashed before", // API doc like "SHA-256 hashed before storage"
-		"uses sha",      // Description like "Uses SHA-256 for..."
-		"uses aes",
-		"encrypted with",
-		"algorithm:",
-		// API documentation object patterns
-		"auth:",              // API auth method description
-		"auth\":",            // JSON style
-		"authentication:",    // Auth description
-		"verification using", // API doc like "verification using Ed25519"
-		"signing using",      // API doc about signing
-		"cryptographic",      // Description of cryptographic features
-		"zero-effort",        // Feature description
-		"attestation",        // Security attestation descriptions
-		"capabilities",       // Capability descriptions
-	}
-	for _, pattern := range docPatterns {
-		if strings.Contains(lineLower, pattern) {
-			return true
-		}
-	}
-
-	// URL patterns - algorithm names in URLs are typically documentation/API references
-	urlPatterns := []string{
-		"http://", "https://",
-		"/api/", "/v1/", "/v2/",
-		".html", ".htm", ".md",
-		"github.com", "gitlab.com", "bitbucket.org",
-		"docs.", "documentation.",
-		"/docs/", "/wiki/",
-	}
-	for _, pattern := range urlPatterns {
-		if strings.Contains(lineLower, pattern) {
-			return true
-		}
-	}
-
-	// Test data patterns - test vectors, example values
-	testDataPatterns := []string{
-		"test_vector",
-		"test_data",
-		"test_case",
-		"test_input",
-		"test_output",
-		"example_",
-		"sample_",
-		"mock_",
-		"fixture",
-		"golden",
-		"expected_hash",
-		"expected_signature",
-	}
-	for _, pattern := range testDataPatterns {
-		if strings.Contains(lineLower, pattern) {
-			return true
-		}
-	}
-
-	// Configuration key patterns - JSON/YAML keys mentioning algorithms
-	configKeyPatterns := []string{
-		`"algorithm":`,
-		`"cipher":`,
-		`"hash":`,
-		`'algorithm':`,
-		`'cipher':`,
-		`'hash':`,
-		"algorithm =",
-		"cipher =",
-		"supported_algorithms",
-		"allowed_algorithms",
-		"preferred_algorithm",
-	}
-	for _, pattern := range configKeyPatterns {
-		if strings.Contains(lineLower, pattern) {
-			return true
-		}
-	}
-
-	// Constant/enum definition patterns - naming, not usage
-	constPatterns := []string{
-		"algorithm_",
-		"cipher_",
-		"_algorithm",
-		"_cipher",
-		"alg_",
-		"_alg",
-		"const ",
-		"#define ",
-		"enum ",
-	}
-	for _, pattern := range constPatterns {
-		if strings.Contains(lineLower, pattern) {
-			return true
-		}
-	}
-
-	// String comparison patterns - checking algorithm names, not using them
-	comparisonPatterns := []string{
-		"== \"rsa",
-		"== \"aes",
-		"== \"sha",
-		"== \"ecdsa",
-		"== \"ed25519",
-		"=== \"rsa",
-		"=== \"aes",
-		"=== \"sha",
-		".equals(\"",
-		"strcmp(",
-		"strcasecmp(",
-		"string.compare",
-	}
-	for _, pattern := range comparisonPatterns {
-		if strings.Contains(lineLower, pattern) {
-			return true
-		}
-	}
-
-	// UI/Display patterns - algorithm names shown to users
-	uiPatterns := []string{
-		"label:",
-		"title:",
-		"header:",
-		"placeholder:",
-		"tooltip:",
-		"display_name",
-		"display name",
-		"show_algorithm",
-		"algorithm_display",
-	}
-	for _, pattern := range uiPatterns {
-		if strings.Contains(lineLower, pattern) {
-			return true
-		}
-	}
-
-	return false
-}
-
 func (s *Scanner) calculateSummary() Summary {
 	summary := Summary{
-		TotalFindings: len(s.findings),
-		BySeverity:    make(map[string]int),
-		ByCategory:    make(map[string]int),
-		ByQuantumRisk: make(map[string]int),
-		ByConfidence:  make(map[string]int),
-		ByFileType:    make(map[string]int),
-		ByLanguage:    make(map[string]int),
+		TotalFindings:       len(s.findings),
+		NarrativeSuppressed: s.narrativeSuppressed,
+		BySeverity:          make(map[string]int),
+		ByCategory:          make(map[string]int),
+		ByQuantumRisk:       make(map[string]int),
+		ByConfidence:        make(map[string]int),
+		ByFileType:          make(map[string]int),
+		ByLanguage:          make(map[string]int),
 	}
 
 	for _, f := range s.findings {
@@ -1272,28 +1121,32 @@ func (s *Scanner) deduplicateFindings(findings []Finding) []Finding {
 		return findings
 	}
 
-	// Key: file:line:category -> best finding
+	// Key: file:line:category -> best finding.
+	//
+	// The result used to be built by ranging over this map, and Go randomises
+	// map iteration order, so two scans of an unchanged tree emitted the same
+	// findings in a different order every time. That breaks diffable CI output,
+	// golden-file tests and reproducible CBOMs, and it made the text report's
+	// "#N" numbering meaningless. Insertion order is recorded separately and
+	// used to rebuild the slice.
 	seen := make(map[string]Finding)
+	order := make([]string, 0, len(findings))
 
 	for _, f := range findings {
-		// Create a key for grouping similar findings
 		key := fmt.Sprintf("%s:%d:%s", f.File, f.Line, f.Category)
 
 		existing, exists := seen[key]
 		if !exists {
 			seen[key] = f
-		} else {
-			// Keep the higher priority finding
-			if f.Priority() > existing.Priority() {
-				seen[key] = f
-			}
+			order = append(order, key)
+		} else if f.Priority() > existing.Priority() {
+			seen[key] = f
 		}
 	}
 
-	// Convert map back to slice
-	deduped := make([]Finding, 0, len(seen))
-	for _, f := range seen {
-		deduped = append(deduped, f)
+	deduped := make([]Finding, 0, len(order))
+	for _, key := range order {
+		deduped = append(deduped, seen[key])
 	}
 
 	return deduped

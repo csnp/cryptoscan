@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/csnp/cryptoscan/pkg/scanner"
+	"github.com/csnp/cryptoscan/pkg/version"
 	"github.com/spf13/cobra"
 )
 
@@ -89,8 +90,8 @@ func TestRootCmdExists(t *testing.T) {
 
 func TestSetVersionInfo(t *testing.T) {
 	SetVersionInfo("1.0.0", "abc123", "2025-01-01")
-	if version != "1.0.0" {
-		t.Errorf("version = %q, want %q", version, "1.0.0")
+	if got := version.Get(); got != "1.0.0" {
+		t.Errorf("version.Get() = %q, want %q", got, "1.0.0")
 	}
 	if commit != "abc123" {
 		t.Errorf("commit = %q, want %q", commit, "abc123")

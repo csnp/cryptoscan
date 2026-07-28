@@ -35,6 +35,7 @@ var (
 	streamFindings     bool
 	includeImports     bool
 	includeQuantumSafe bool
+	includeNarrative   bool
 	verbose            bool
 
 	// CI/CD flexibility flags
@@ -108,7 +109,8 @@ func init() {
 	scanCmd.Flags().BoolVar(&streamFindings, "stream", true, "Show findings as they are discovered")
 	scanCmd.Flags().BoolVar(&includeImports, "include-imports", false, "Include library import findings (normally suppressed as low-value)")
 	scanCmd.Flags().BoolVar(&includeQuantumSafe, "include-quantum-safe", false, "Include quantum-safe algorithm findings (SHA-256, AES-256)")
-	scanCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show all findings including imports and quantum-safe algorithms")
+	scanCmd.Flags().BoolVar(&includeNarrative, "include-narrative", false, "Include algorithms named in prose, log messages, documentation and config keys")
+	scanCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show all findings including imports, quantum-safe algorithms and narrative mentions")
 
 	// CI/CD flexibility flags
 	scanCmd.Flags().StringVar(&ignorePatterns, "ignore", "", "Pattern IDs to ignore (comma-separated, e.g., \"RSA-001,CERT-*\")")
@@ -120,6 +122,16 @@ func init() {
 
 func runScan(cmd *cobra.Command, args []string) error {
 	target := args[0]
+
+	// Disable colour when the output is not a terminal, so that redirecting to
+	// a file or piping into another tool produces clean text rather than ANSI
+	// escape sequences. An explicit --no-color still wins, and NO_COLOR is
+	// honoured per https://no-color.org.
+	if !cmd.Flags().Changed("no-color") {
+		if os.Getenv("NO_COLOR") != "" || !isTerminal(os.Stdout) {
+			noColor = true
+		}
+	}
 
 	// Load config file (explicit or auto-detected)
 	var cfgFile *config.Config
@@ -222,6 +234,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		MinSeverity:        parseSeverity(effectiveMinSeverity),
 		IncludeImports:     includeImports || verbose,     // Include if explicitly set or verbose mode
 		IncludeQuantumSafe: includeQuantumSafe || verbose, // Include if explicitly set or verbose mode
+		IncludeNarrative:   includeNarrative || verbose,   // Include if explicitly set or verbose mode
 		IgnoreIDs:          ignoreIDs,
 		IgnoreCategories:   ignoreCats,
 	}
@@ -236,7 +249,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 			findingCount++
 			num := findingCount
 			// Clear the progress line before printing finding
-			fmt.Print("\r\033[K")
+			clearProgressLine()
 			printStreamFinding(f, num, !noColor)
 			outputMu.Unlock()
 		}
@@ -246,13 +259,16 @@ func runScan(cmd *cobra.Command, args []string) error {
 			count := fileCount
 			outputMu.Unlock()
 			// Show progress every 50 files (less frequent for parallel scanning)
-			if count%50 == 0 {
+			// The progress line rewrites itself in place, which only makes
+			// sense on a terminal. Piped output would otherwise collect a
+			// carriage return and an erase-line sequence per update.
+			if count%50 == 0 && !noColor {
 				shortPath := path
 				if len(shortPath) > 50 {
 					shortPath = "..." + shortPath[len(shortPath)-47:]
 				}
 				outputMu.Lock()
-				fmt.Printf("\r\033[K  \033[2m📂 %d files scanned | %s\033[0m", count, shortPath)
+				fmt.Printf("\r\033[K  \033[2m%d files scanned | %s\033[0m", count, shortPath)
 				outputMu.Unlock()
 			}
 		}
@@ -289,7 +305,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 	// Print streaming footer with summary
 	if streamFindings && outputFormat == "text" {
 		// Clear any remaining progress line
-		fmt.Print("\r\033[K")
+		clearProgressLine()
 		printScanningFooter(findingCount, fileCount, duration, !noColor)
 	}
 
@@ -391,7 +407,7 @@ func printBanner() {
 	fmt.Println("  ║                                                                 ║")
 	fmt.Println("  ╚═══════════════════════════════════════════════════════════════╝" + colorReset)
 	fmt.Println()
-	fmt.Println(colorBlue + "  Crypto Scan — QRAMM Cryptographic Discovery" + colorReset)
+	fmt.Println(colorBlue + "  Crypto Scan: QRAMM Cryptographic Discovery" + colorReset)
 	fmt.Println(colorDim + "  Quantum Readiness Assurance & Migration Tool" + colorReset)
 	fmt.Println()
 	fmt.Println(colorGreen + "  ┌─────────────────────────────────────────────────────────────┐")
@@ -435,10 +451,10 @@ func printScanningFooter(findingCount, fileCount int, duration time.Duration, us
 
 	fmt.Println()
 	if useColor {
-		fmt.Printf("%s%s  ✓ Scan complete%s — %d findings in %d files (%s)\n\n",
+		fmt.Printf("%s%s  \u2713 Scan complete%s: %d findings in %d files (%s)\n\n",
 			colorGreen, colorBold, colorReset, findingCount, fileCount, duration.Round(time.Millisecond))
 	} else {
-		fmt.Printf("  Scan complete — %d findings in %d files (%s)\n\n", findingCount, fileCount, duration.Round(time.Millisecond))
+		fmt.Printf("  Scan complete: %d findings in %d files (%s)\n\n", findingCount, fileCount, duration.Round(time.Millisecond))
 	}
 }
 
@@ -459,24 +475,24 @@ func printStreamFinding(f scanner.Finding, num int, useColor bool) {
 	var sevIcon, sevColor string
 	switch f.Severity {
 	case scanner.SeverityCritical:
-		sevIcon, sevColor = "🔴", colorRed+colorBold
+		sevIcon, sevColor = "●", colorRed+colorBold
 	case scanner.SeverityHigh:
-		sevIcon, sevColor = "🟠", colorRed
+		sevIcon, sevColor = "●", colorRed
 	case scanner.SeverityMedium:
-		sevIcon, sevColor = "🟡", colorYellow
+		sevIcon, sevColor = "●", colorYellow
 	case scanner.SeverityLow:
-		sevIcon, sevColor = "🔵", colorBlue
+		sevIcon, sevColor = "●", colorBlue
 	default:
-		sevIcon, sevColor = "⚪", colorCyan
+		sevIcon, sevColor = "●", colorCyan
 	}
 
 	// Quantum risk indicator
 	var qIcon string
 	switch f.Quantum {
 	case scanner.QuantumVulnerable:
-		qIcon = "⚠️ "
+		qIcon = "[!]"
 	case scanner.QuantumPartial:
-		qIcon = "⚡"
+		qIcon = "[~]"
 	default:
 		qIcon = "  "
 	}
@@ -629,4 +645,24 @@ func calculateSummary(findings []scanner.Finding) scanner.Summary {
 	}
 
 	return summary
+}
+
+// clearProgressLine erases the in-place progress line. It is a no-op when
+// colour is off, since a redirected stream has no cursor to move.
+func clearProgressLine() {
+	if noColor {
+		return
+	}
+	fmt.Print("\r\033[K")
+}
+
+// isTerminal reports whether f is attached to a terminal. A redirected or
+// piped stream is a character device only when it is a terminal, so this
+// distinguishes interactive output from output being captured.
+func isTerminal(f *os.File) bool {
+	info, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return info.Mode()&os.ModeCharDevice != 0
 }

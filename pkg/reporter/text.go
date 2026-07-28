@@ -63,9 +63,9 @@ func (r *TextReporter) severityColor(s scanner.Severity) string {
 func (r *TextReporter) quantumIcon(q scanner.QuantumRisk) string {
 	switch q {
 	case scanner.QuantumVulnerable:
-		return "⚠️  QUANTUM VULNERABLE"
+		return "[!] QUANTUM VULNERABLE"
 	case scanner.QuantumPartial:
-		return "⚡ QUANTUM WEAKENED"
+		return "[~] QUANTUM WEAKENED"
 	case scanner.QuantumSafe:
 		return "✓  QUANTUM SAFE"
 	default:
@@ -131,12 +131,22 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 				r.color(sev.color, bar)))
 		}
 	}
+
+	// Report what was withheld. A scanner may reduce noise, but it must never
+	// reduce it invisibly: the reader has to be able to tell the difference
+	// between "nothing was found" and "something was found and not shown".
+	if results.Summary.NarrativeSuppressed > 0 {
+		b.WriteString(r.color(colorCyan, fmt.Sprintf(
+			"\n  %d finding(s) withheld as documentation, log or comment text.\n"+
+				"  Show them with: cryptoscan scan %s --include-narrative\n",
+			results.Summary.NarrativeSuppressed, results.ScanTarget)))
+	}
 	b.WriteString("\n")
 
 	// Quantum Risk Assessment with visual emphasis
 	b.WriteString(r.color(colorBold, "  Quantum Risk Assessment:\n"))
 	if results.Summary.QuantumVulnCount > 0 {
-		b.WriteString(r.color(colorRed+colorBold, fmt.Sprintf("    ⚠️  %d quantum-vulnerable findings require migration planning\n", results.Summary.QuantumVulnCount)))
+		b.WriteString(r.color(colorRed+colorBold, fmt.Sprintf("    [!] %d quantum-vulnerable findings require migration planning\n", results.Summary.QuantumVulnCount)))
 	}
 	quantumRisks := []struct {
 		name  string
@@ -418,7 +428,7 @@ func (r *TextReporter) writeMigrationScore(b *strings.Builder, score *scanner.Mi
 	// Status breakdown
 	b.WriteString(r.color(colorCyan, "│") + r.color(colorBold, "  INVENTORY                                                     ") + r.color(colorCyan, "│\n"))
 	b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    %s Safe (PQC):        %-5d", r.color(colorGreen, "✓"), score.SafeCount) + fmt.Sprintf("    %s Vulnerable:    %-5d", r.color(colorRed, "✗"), score.VulnerableCount) + r.color(colorCyan, "   │\n"))
-	b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    %s Hybrid:            %-5d", r.color(colorGreen, "◐"), score.HybridCount) + fmt.Sprintf("    %s Critical:      %-5d", r.color(colorRed+colorBold, "⚠"), score.CriticalCount) + r.color(colorCyan, "   │\n"))
+	b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    %s Hybrid:            %-5d", r.color(colorGreen, "◐"), score.HybridCount) + fmt.Sprintf("    %s Critical:      %-5d", r.color(colorRed+colorBold, "[!]"), score.CriticalCount) + r.color(colorCyan, "   │\n"))
 	b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    %s Partial:           %-5d", r.color(colorYellow, "◑"), score.PartialCount) + fmt.Sprintf("    Total:          %-5d", score.TotalCount) + r.color(colorCyan, "   │\n"))
 
 	// QRAMM Readiness

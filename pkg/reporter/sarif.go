@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/csnp/cryptoscan/pkg/scanner"
+	"github.com/csnp/cryptoscan/pkg/version"
 )
 
 // SARIFReporter generates SARIF 2.1.0 format output
@@ -196,8 +197,8 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 				Tool: sarifTool{
 					Driver: sarifDriver{
 						Name:            "CryptoScan",
-						Version:         "1.0.0",
-						SemanticVersion: "1.0.0",
+						Version:         version.Get(),
+						SemanticVersion: version.Get(),
 						InformationURI:  "https://qramm.org",
 						Rules:           rules,
 					},

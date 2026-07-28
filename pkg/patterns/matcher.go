@@ -423,7 +423,11 @@ func (m *Matcher) loadPatterns() {
 		ID:          "DES-001",
 		Name:        "DES Algorithm",
 		Category:    "Deprecated Algorithm",
-		Regex:       regexp.MustCompile(`(?i)\bDES[-_](CBC|ECB|CFB|OFB)\b|\bDESede\b|Cipher\.getInstance\s*\(\s*["']DES["']|createCipher\s*\(\s*["']des|crypto\.createCipher.*["']des|\bDES\.(new|encrypt|decrypt)\b|\bDES\.MODE_`),
+		// des.NewCipher is the Go standard library's only way to construct a
+		// DES cipher, and it was not covered: \bDES\.(new|...)\b cannot match
+		// "des.NewCipher" because the \b after "new" requires a non-word
+		// character. Go DES usage was therefore invisible to the scanner.
+		Regex:       regexp.MustCompile(`(?i)\bDES[-_](CBC|ECB|CFB|OFB)\b|\bDESede\b|Cipher\.getInstance\s*\(\s*["']DES["']|createCipher\s*\(\s*["']des|crypto\.createCipher.*["']des|\bDES\.(new|encrypt|decrypt)\b|\bDES\.MODE_|\bdes\.NewCipher\s*\(`),
 		Severity:    types.SeverityCritical,
 		Quantum:     types.QuantumVulnerable,
 		Algorithm:   "DES",
@@ -436,7 +440,9 @@ func (m *Matcher) loadPatterns() {
 		ID:          "3DES-001",
 		Name:        "Triple DES Algorithm",
 		Category:    "Deprecated Algorithm",
-		Regex:       regexp.MustCompile(`(?i)\b(3DES|Triple[-_]?DES|DESede|TDEA)\b`),
+		// des.NewTripleDESCipher is the Go standard library constructor; the
+		// \b(3DES|...)\b alternation cannot reach it.
+		Regex:       regexp.MustCompile(`(?i)\b(3DES|Triple[-_]?DES|DESede|TDEA)\b|\bdes\.NewTripleDESCipher\s*\(`),
 		Severity:    types.SeverityHigh,
 		Quantum:     types.QuantumVulnerable,
 		Algorithm:   "3DES",

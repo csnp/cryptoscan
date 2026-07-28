@@ -301,6 +301,10 @@ Flags:
   -c, --context int             Lines of source context to show (default 3)
   -p, --progress                Show scan progress indicator
       --min-severity string     Minimum severity to report: info, low, medium, high, critical
+      --include-imports         Include library import findings
+      --include-quantum-safe    Include quantum-safe algorithm findings (SHA-256, AES-256)
+      --include-narrative       Include algorithms named in prose, logs, docs and config keys
+  -v, --verbose                 Show all findings, including all three categories above
       --no-color                Disable colored output
       --pretty                  Pretty print JSON output
   -h, --help                    Show help
@@ -332,6 +336,44 @@ cryptoscan scan . --exclude "vendor/*,node_modules/*,*_test.go"
 cryptoscan scan . --min-severity critical --format json | jq '.findings | length'
 ```
 
+### What is reported, and what is held back
+
+CryptoScan asks one question first: is the matched token part of an operation?
+A call, an instantiation, a member access, an import, or an algorithm name
+passed to a crypto factory is always reported, whatever else appears on the
+line. So all of these produce findings:
+
+```
+hashlib.md5(data)
+des.NewCipher(key)
+const cipher = crypto.createCipheriv('des-ede3-cbc', k, iv)
+Cipher.getInstance("RC4")
+```
+
+Declared configuration is also reported. For a cryptographic inventory, an
+algorithm named in a config file is the inventory:
+
+```
+cipher: DES-CBC
+MACs hmac-md5 hmac-sha1 umac-64
+SSLProtocol -all +SSLv3 +TLSv1
+ssh-keygen -t rsa -b 1024 -f id_rsa
+```
+
+Only mentions in *text* are held back: prose, log and error messages, comments,
+URLs, and the values of documentation labels such as `description:` and
+`title:`. The scan summary always says how many were held back, and the number
+is exactly what the flag returns:
+
+```
+  14 finding(s) withheld as documentation, log or comment text.
+  Show them with: cryptoscan scan . --include-narrative
+```
+
+Scanning a repository that ships cryptographic reference data (a database of
+packages and the algorithms they use, for example) will report a finding per
+row. Use `--exclude` to skip those paths.
+
 ### Suppressing False Positives
 
 Use inline comments to suppress findings that are intentional or not applicable:
@@ -352,7 +394,7 @@ legacyKey := oldCrypto.NewKey()
 ```
 
 Supported directives:
-- `cryptoscan:ignore` — Ignore all findings on this line
+- `cryptoscan:ignore` — Ignore all findings on this line, and only this line
 - `cryptoscan:ignore RSA-001` — Ignore specific pattern ID
 - `cryptoscan:ignore RSA-*` — Ignore pattern family (wildcard)
 - `cryptoscan:ignore-next-line` — Ignore finding on the following line

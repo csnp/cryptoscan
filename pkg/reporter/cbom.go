@@ -15,6 +15,7 @@ import (
 	"github.com/csnp/cryptoscan/pkg/analyzer"
 	"github.com/csnp/cryptoscan/pkg/scanner"
 	"github.com/csnp/cryptoscan/pkg/types"
+	"github.com/csnp/cryptoscan/pkg/version"
 )
 
 // CBOMReporter generates Cryptographic Bill of Materials output
@@ -529,7 +530,7 @@ func (r *CBOMReporter) Generate(results *scanner.Results) (string, error) {
 				{
 					Vendor:  "CSNP",
 					Name:    "CryptoScan",
-					Version: "1.1.0",
+					Version: version.Get(),
 				},
 			},
 			Component: summaryComponent,

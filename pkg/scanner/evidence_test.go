@@ -90,6 +90,31 @@ func TestOperationalCryptoIsNeverSuppressed(t *testing.T) {
 		{"go exec of openssl", "a.go", `exec.Command("sh", "-c", "openssl dgst -md5 file.bin")`, "md5"},
 		{"shell variable holding command", "run.sh", `CMD="openssl enc -rc4 -in a -out b"`, "rc4"},
 
+		// Configuration inside a quoted string. A quoted string used to count
+		// as prose if it had three words and one ordinary English word, which
+		// hid a dozen real settings. Postgres and the JDK put their whole
+		// crypto configuration in strings like these.
+		{"postgres password encryption", "db.go", `db.Exec("ALTER SYSTEM SET password_encryption TO 'md5'")`, "md5"},
+		{"jdk cipher suites", "Sec.java", `props.put("jdk.tls.client.cipherSuites", "RC4 and DES are not supported here")`, "RC4"},
+		{"jdk protocols", "Sec.java", `System.setProperty("https.protocols", "TLSv1 SSLv3 and TLSv1.1 are enabled")`, "SSLv3"},
+		{"sql literal", "app.go", `q := "SELECT alg FROM certs WHERE alg = 'RSA-1024' AND revoked = 0"`, "RSA"},
+		{"hive ssl ciphers", "Main.java", `conf.set("hive.ssl.ciphers", "DES-CBC3-SHA and RC4-MD5 for all peers")`, "RC4"},
+		{"openvpn invocation", "deploy.py", `os.system("openvpn config.ovpn cipher DES-CBC auth SHA1 in tls mode")`, "DES"},
+		{"php pdo exec", "app.php", `$pdo->exec("UPDATE users SET pw = 'RC4' WHERE id IN (1,2)");`, "RC4"},
+
+		// Documentation labels used to own the rest of their line.
+		{"json title", "schema.json", `  "title": "RSA-1024",`, "RSA"},
+		{"json spaced separator", "conf.json", `  "description" : "DES-CBC",`, "DES"},
+		{"ruby hash rocket", "site.rb", `  :title => "DES-CBC",`, "DES"},
+		{"key ending in a label", "c.yaml", `ssl-title: DES-CBC`, "DES"},
+
+		// A "#" mid-token is a URL fragment, not a comment.
+		{"jdbc url fragment", "c.yaml", `jdbcUrl: jdbc:mysql://h/db?cipher=DES-CBC#legacy`, "DES"},
+
+		// An assignment ends a token, and a document reference must not be the
+		// algorithm name itself.
+		{"checksum filename", "b.sh", `CHECKSUM=md5.txt`, "md5"},
+
 		// A Go selector expression indexing a crypto path key.
 		{"go map key with import path", "a.go", `a.graph.Nodes["crypto/rsa.GenerateKey"] = &CallNode{}`, "rsa"},
 	}
@@ -110,10 +135,16 @@ func TestOperationalCryptoIsNeverSuppressed(t *testing.T) {
 // classifier reported everything, the fix would trade false negatives for an
 // unusable amount of noise.
 //
-// Note what is deliberately absent: configuration keys naming an algorithm.
-// `cipher: DES-CBC` is covered by the suite above as something that MUST be
-// reported, because for a cryptographic inventory a declared algorithm is the
-// inventory.
+// Every rule left is structural: it asks what the match belongs to (a logging
+// call, a comment, a URL) rather than which words surround it.
+//
+// Note what is deliberately absent. `description: uses SHA-1 ...` and
+// `"summary": "... accepts SHA-1 signatures"` are now REPORTED. Suppressing
+// them needs a rule that classifies by vocabulary, and three revisions of that
+// idea each lost a CRITICAL finding: a quoted-prose rule hid
+// `password_encryption TO 'md5'`, and a leading-label rule hid `note: DES-CBC`.
+// Configuration is where algorithm names legitimately live, so an extra
+// finding on a description field is the cheaper error.
 func TestNarrativeMentionsAreStillWithheld(t *testing.T) {
 	cases := []struct {
 		name string
@@ -124,8 +155,6 @@ func TestNarrativeMentionsAreStillWithheld(t *testing.T) {
 		{"error string", "a.go", `return errors.New("publicKey must be a valid Ed25519 public key")`},
 		{"go comment", "a.go", `// Remediation: migrate this RSA key to ML-KEM before 2030`},
 		{"python comment", "a.py", `# the old RSA key path is deprecated, use ML-KEM`},
-		{"doc label", "a.yaml", `  description: uses SHA-1 for backwards compatibility`},
-		{"doc label in json", "a.json", `  "summary": "this service still accepts SHA-1 signatures",`},
 		{"markdown link", "a.go", `x := loadDoc("docs/legacy-md5.md")`},
 		{"url", "a.go", `const ref = "https://example.test/wiki/md5.html"`},
 	}

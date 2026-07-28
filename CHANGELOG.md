@@ -34,6 +34,25 @@ All notable changes to CryptoScan are recorded here. This project follows
   `sshd_config` `MACs` line took the file from three findings to zero. All of
   those are now regression tests.
 
+- **No rule classifies by vocabulary any more.** Two heuristics judged a match
+  by the words around it, and both were false-negative generators that took
+  three revisions to stop tuning and simply remove:
+
+  - A quoted string of three or more words counted as prose. A quoted string is
+    where configuration lives, so this hid
+    `db.Exec("ALTER SYSTEM SET password_encryption TO 'md5'")`,
+    `props.put("jdk.tls.client.cipherSuites", "RC4 and DES ...")`,
+    `conf.set("hive.ssl.ciphers", "DES-CBC3-SHA and RC4-MD5 for all peers")`
+    and nine other real settings.
+  - A leading `description:` or `title:` owned the rest of its line, losing a
+    CRITICAL finding to every key that was not on the list: `note:`, then
+    `"title" :` with a space, then `:title =>`, then `ssl-title:`.
+
+  What remains is structural. A match is withheld only when it belongs to a
+  logging or error call, sits in a comment in a language that has that comment
+  marker, or is inside a URL or document path. Suppressing a description field
+  now needs no rule at all, because it is simply reported.
+
 - **Declared cryptographic configuration is reported, whatever the key is
   called.** `cipher: DES-CBC`, `note: DES-CBC` and `usage: DES-CBC` are the
   same finding. An intermediate version treated `note`, `remarks`, `comment`,

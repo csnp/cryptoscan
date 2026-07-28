@@ -43,18 +43,24 @@ import "strings"
 // Narrative rules are deliberately narrow, because a missed finding in a
 // security scanner costs far more than an extra line of output:
 //
-//   - Whole-line prose detection applies only to documentation files. It used
-//     to apply everywhere, which deleted crypto out of sshd_config, httpd.conf,
-//     shell scripts and CI YAML: adding a fifth cipher to an sshd "MACs" line
-//     took the file from three findings to zero, and an Apache config enabling
-//     SSLv3 stopped failing `--fail-on critical`.
-//   - Comment markers are language-specific. "#" is a comment in Python and a
-//     private field in JavaScript; "--" is a comment in SQL and a decrement in
-//     Java. Treating them as universal hid `z--; Cipher.getInstance("DES")`
-//     and `gpg --cipher-algo 3DES`.
-//   - Call prefixes are matched on identifier boundaries, never as substrings.
-//   - Configuration keys naming an algorithm are NOT narrative. `cipher:
-//     DES-CBC` is exactly the inventory this tool exists to produce.
+// Only three narrative rules survive, and all three are structural. They ask
+// what the match belongs to, never which words surround it:
+//
+//   - The match is inside a string owned by a logging or error call. The callee
+//     is matched on identifier boundaries, so "puts" does not match "outputs".
+//   - The match is inside a comment, in a language that actually has that
+//     comment marker. "#" is a comment in Python and a private field in
+//     JavaScript; "--" is a comment in SQL and a decrement in Java.
+//   - The match is inside a URL or a document path, tested on the token's real
+//     suffix rather than by substring.
+//
+// Rules that classified by vocabulary were tried and removed. A quoted string
+// of three or more words was treated as prose, which hid
+// `password_encryption TO 'md5'` and a dozen other real settings; a leading
+// `description:` or `title:` owned the rest of its line, which lost a CRITICAL
+// finding to every key that was not on the list. Configuration is where
+// algorithm names legitimately live, so no rule may key off the words in a
+// value.
 //
 // Everything the classifier does withhold is counted and recoverable with
 // --include-narrative.
@@ -98,7 +104,7 @@ func classifyMatch(mc matchContext) (evidenceClass, string) {
 		return evidenceOperational, "unclassifiable"
 	}
 
-	quoteStart, quoteEnd, inString := stringLiteralAt(line, mc.Start, mc.End)
+	quoteStart, _, inString := stringLiteralAt(line, mc.Start, mc.End)
 
 	// An import names a library the codebase depends on. Evidence of use, even
 	// though a module path looks like a file path.
@@ -125,25 +131,29 @@ func classifyMatch(mc matchContext) (evidenceClass, string) {
 		return evidenceNarrative, "url-or-path"
 	}
 
-	// Prose inside a string literal. Word count alone is not enough: a shelled
-	// out command such as "openssl dgst -md5 file.bin" is three words and is
-	// not prose, so at least one ordinary English word is also required.
-	if inString && isProse(line[quoteStart+1:quoteEnd]) {
-		return evidenceNarrative, "prose"
-	}
-
-	if key, ok := precedingLabel(line, mc.Start); ok {
-		return evidenceNarrative, "label:" + key
-	}
-
-	// Whole-line prose, for body text in documentation where the sentence is
-	// the line rather than a quoted argument. Restricted to documentation
-	// files: in a config file or a shell script, a long line with few braces
-	// is a directive, not a sentence.
-	if isDocumentationFile(mc.Language, mc.FileType) && !inString && isProseLine(line) {
-		return evidenceNarrative, "prose-line"
-	}
-
+	// Everything else is reported.
+	//
+	// There used to be two more rules here and both were false-negative
+	// generators, so they are gone rather than tuned:
+	//
+	//   - A quoted string of three or more words counted as prose. A quoted
+	//     string is the single most common place an algorithm name legitimately
+	//     appears as configuration, so this hid
+	//     `db.Exec("ALTER SYSTEM SET password_encryption TO 'md5'")`,
+	//     `props.put("jdk.tls.client.cipherSuites", "RC4 and DES ...")` and ten
+	//     other real settings. Log and error strings are still withheld, but by
+	//     the structural rule above, which asks what call the string belongs to
+	//     rather than what words are in it.
+	//   - A leading documentation label (`description:`, `title:`) owned the
+	//     rest of the line. Every revision of that rule lost a CRITICAL finding
+	//     to a key that was not on the list: first `note:`, then `"title" :`
+	//     with a space, then `:title =>`, then any key ending in a label such
+	//     as `ssl-title:`. The word list was never the problem; handing a label
+	//     the rest of the line is.
+	//
+	// What remains is structural: a string belonging to a logging call, a
+	// comment in a language that has that comment marker, and a URL or document
+	// path. None of those depend on which words a value happens to contain.
 	return evidenceOperational, "default"
 }
 
@@ -279,137 +289,6 @@ func hasCalleeSuffix(prefix string, callees []string) bool {
 	return false
 }
 
-// narrativeLabels are field names whose value is descriptive text, not
-// configuration.
-//
-// The list is deliberately short, and every entry has to be a word that is
-// never a configuration key. Keys that name an algorithm as configuration
-// (algorithm, cipher, hash, digest, key_type) are absent because
-// `cipher: DES-CBC` is precisely the inventory this tool produces.
-//
-// So are note, remarks, comment, help, usage and example, which were here
-// once. They are ordinary keys in Kubernetes annotations, GPG batch files and
-// inventory YAML, and because the line-anchored branch below hands a leading
-// label the whole rest of the line, `note: DES-CBC` silently lost a CRITICAL
-// finding and flipped `--fail-on critical` from exit 1 to exit 0. Renaming a
-// key from "cipher" to "note" must not hide anything.
-var narrativeLabels = []string{
-	"description", "summary", "title", "placeholder", "tooltip", "display_name",
-	"test_vector", "test_data", "test_case", "test_input", "test_output",
-	"expected_hash", "expected_signature",
-}
-
-// precedingLabel reports whether the match at start is the value of a
-// descriptive label, returning the label that matched.
-//
-// The label must sit immediately before the match, separated only by quotes,
-// whitespace and one key/value separator. An earlier revision searched the
-// whole prefix, so a "label:" anywhere on the line suppressed a match thirty
-// characters later.
-func precedingLabel(line string, start int) (string, bool) {
-	prefix := strings.ToLower(line[:start])
-
-	// A label that opens the line owns the rest of it, so that
-	// `description: uses SHA-1 for backwards compatibility` is narrative even
-	// though the label is not adjacent to the match. Anchoring to the start of
-	// the line is what keeps this from matching a "label:" that happens to
-	// appear later on a line of code.
-	opening := strings.TrimLeft(prefix, " \t-\"'")
-	for _, label := range narrativeLabels {
-		if !strings.HasPrefix(opening, label) {
-			continue
-		}
-		rest := strings.TrimLeft(opening[len(label):], "\"' \t")
-		if strings.HasPrefix(rest, ":") {
-			return label, true
-		}
-	}
-
-	// Step back over the value side: quotes and whitespace only.
-	head := strings.TrimRight(prefix, " \t\"'")
-
-	// Exactly one separator.
-	switch {
-	case strings.HasSuffix(head, "=>"):
-		head = head[:len(head)-2]
-	case strings.HasSuffix(head, ":"):
-		head = head[:len(head)-1]
-	default:
-		return "", false
-	}
-
-	// Step back over the key's own quotes and whitespace.
-	head = strings.TrimRight(head, " \t\"'")
-
-	for _, label := range narrativeLabels {
-		if !strings.HasSuffix(head, label) {
-			continue
-		}
-		if at := len(head) - len(label); at == 0 || !isIdentChar(head[at-1]) {
-			return label, true
-		}
-	}
-	return "", false
-}
-
-// proseWords are ordinary English words that appear in sentences and not in
-// command lines or configuration directives. Requiring one of these is what
-// separates "publicKey must be a valid Ed25519 public key" from
-// "openssl dgst -md5 file.bin".
-var proseWords = map[string]bool{
-	"a": true, "an": true, "the": true, "is": true, "are": true, "was": true,
-	"were": true, "be": true, "been": true, "must": true, "should": true,
-	"can": true, "could": true, "would": true, "will": true, "may": true,
-	"to": true, "of": true, "for": true, "with": true, "without": true,
-	"from": true, "in": true, "into": true, "on": true, "at": true, "by": true,
-	"and": true, "or": true, "not": true, "no": true, "this": true,
-	"that": true, "these": true, "those": true, "it": true, "its": true,
-	"you": true, "your": true, "we": true, "our": true, "using": true,
-	"used": true, "use": true, "uses": true, "before": true, "after": true,
-	"instead": true, "because": true, "when": true, "while": true,
-	"which": true, "than": true, "then": true, "but": true, "all": true,
-	"any": true, "only": true, "also": true, "still": true, "valid": true,
-	"invalid": true, "supported": true, "deprecated": true, "broken": true,
-	"failed": true, "unable": true, "please": true, "does": true, "do": true,
-	"has": true, "have": true,
-}
-
-// isProse reports whether s reads as a sentence rather than as a token, a
-// command line or a configuration value.
-func isProse(s string) bool {
-	fields := strings.Fields(s)
-	if len(fields) < 3 {
-		return false
-	}
-	// A command line carries flags. Sentences do not, and treating
-	// "openssl enc -rc4 -in a -out b" as prose hid a real invocation.
-	for _, f := range fields {
-		if len(f) > 1 && f[0] == '-' {
-			return false
-		}
-	}
-	for _, f := range fields {
-		word := strings.ToLower(strings.Trim(f, ".,;:!?()[]{}\"'`"))
-		if proseWords[word] {
-			return true
-		}
-	}
-	return false
-}
-
-// isDocumentationFile reports whether whole-line prose detection applies.
-//
-// Restricting it to documentation is the difference between removing HTML body
-// text and removing an sshd_config directive. Config files, shell scripts and
-// CI YAML all have long lines with almost no code punctuation, and they are
-// where a migration inventory most needs to see weak algorithms.
-func isDocumentationFile(language, fileType string) bool {
-	// "html" and "xml" are deliberately absent. detectLanguage never returns
-	// "html", and every .xml is "xml" including pom.xml and Spring configs,
-	// which are configuration rather than prose.
-	return language == "markdown" || fileType == "documentation"
-}
-
 // commentMarkers returns the line-comment and block-comment openers for a
 // language.
 //
@@ -452,9 +331,16 @@ func commentStartsAt(line, language string) int {
 			continue
 		}
 		for _, m := range markers {
-			if strings.HasPrefix(line[i:], m) {
-				return i
+			if !strings.HasPrefix(line[i:], m) {
+				continue
 			}
+			// "#" opens a comment only at the start of a line or after
+			// whitespace. Mid-token it is a URL fragment:
+			// "jdbcUrl: jdbc:mysql://h/db?cipher=DES-CBC#legacy" is one value.
+			if m == "#" && i > 0 && !isSpaceByte(line[i-1]) {
+				continue
+			}
+			return i
 		}
 	}
 
@@ -467,50 +353,6 @@ func commentStartsAt(line, language string) int {
 		}
 	}
 	return -1
-}
-
-// isProseLine reports whether a documentation line is natural-language text.
-//
-// Only called for documentation files. The test is word count and an ordinary
-// English word, against code-punctuation density.
-func isProseLine(line string) bool {
-	stripped := stripMarkup(line)
-	if len(strings.Fields(stripped)) < 6 || !isProse(stripped) {
-		return false
-	}
-
-	code := 0
-	for i := 0; i < len(stripped); i++ {
-		switch stripped[i] {
-		case '{', '}', ';', '=', '[', ']', '|', '&', '(', ')':
-			code++
-		}
-	}
-	return code <= 2
-}
-
-// stripMarkup removes HTML tags so the words of a sentence can be counted
-// without the surrounding markup.
-func stripMarkup(line string) string {
-	var b strings.Builder
-	depth := 0
-	for i := 0; i < len(line); i++ {
-		switch line[i] {
-		case '<':
-			depth++
-		case '>':
-			if depth > 0 {
-				depth--
-				continue
-			}
-			b.WriteByte(line[i])
-		default:
-			if depth == 0 {
-				b.WriteByte(line[i])
-			}
-		}
-	}
-	return b.String()
 }
 
 // isImportLine reports whether a line brings a module into scope.
@@ -548,8 +390,7 @@ func isImportLine(line string) bool {
 
 // documentExtensions are file suffixes whose contents are prose about code.
 var documentExtensions = map[string]bool{
-	"md": true, "markdown": true, "html": true, "htm": true, "rst": true,
-	"txt": true, "adoc": true, "pdf": true,
+	"md": true, "markdown": true, "html": true, "htm": true, "rst": true, "adoc": true,
 }
 
 // isPathLikeToken reports whether a token is a URL or a file path.
@@ -597,7 +438,7 @@ func isPathLikeToken(token string) bool {
 func tokenAround(line string, start, end int) string {
 	isBoundary := func(c byte) bool {
 		switch c {
-		case ' ', '\t', '"', '\'', '`', '(', ')', '[', ']', '{', '}', ',', ';', '<', '>':
+		case ' ', '\t', '"', '\'', '`', '(', ')', '[', ']', '{', '}', ',', ';', '<', '>', '=':
 			return true
 		}
 		return false
@@ -651,6 +492,10 @@ func skipSpaces(line string, i int) int {
 		i++
 	}
 	return i
+}
+
+func isSpaceByte(c byte) bool {
+	return c == ' ' || c == '\t'
 }
 
 func isIdentChar(c byte) bool {

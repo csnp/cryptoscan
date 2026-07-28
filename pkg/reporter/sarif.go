@@ -1,4 +1,4 @@
-// Copyright 2025 CyberSecurity NonProfit (CSNP)
+// Copyright 2025-2026 CyberSecurity NonProfit (CSNP)
 // SPDX-License-Identifier: Apache-2.0
 
 package reporter

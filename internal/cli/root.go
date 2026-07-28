@@ -1,4 +1,4 @@
-// Copyright 2025 CyberSecurity NonProfit (CSNP)
+// Copyright 2025-2026 CyberSecurity NonProfit (CSNP)
 // SPDX-License-Identifier: Apache-2.0
 
 package cli
@@ -78,6 +78,6 @@ var versionCmd = &cobra.Command{
 			fmt.Printf("  built:  %s\n", buildDate)
 		}
 		fmt.Printf("\nPart of QRAMM - https://qramm.org\n")
-		fmt.Printf("Copyright 2025 CSNP - https://csnp.org\n")
+		fmt.Printf("Copyright 2025-2026 CSNP - https://csnp.org\n")
 	},
 }

@@ -4,6 +4,7 @@
 package scanner
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,8 +63,23 @@ func TestOperationalCryptoIsNeverSuppressed(t *testing.T) {
 		{"shell long flag", "run.sh", `gpg --cipher-algo 3DES --symmetric secrets.tar`, "3DES"},
 		{"js private field", "a.js", `class V { #c = crypto.createCipheriv("des-ede3-cbc", k, iv); }`, "des"},
 
-		// Configuration is inventory, not narrative.
+		// Configuration is inventory, not narrative. Every one of these keys
+		// was on the narrative-label list at some point, and each one hid a
+		// CRITICAL DES finding that `main` reported. Renaming a config key
+		// from "cipher" to "note" must not change what the scanner sees.
 		{"yaml cipher key", "c.yaml", `cipher: DES-CBC`, "DES"},
+		{"yaml note key", "c.yaml", `note: DES-CBC`, "DES"},
+		{"yaml remarks key", "c.yaml", `remarks: DES-CBC`, "DES"},
+		{"yaml comment key", "c.yaml", `comment: DES-CBC`, "DES"},
+		{"yaml help key", "c.yaml", `help: DES-CBC`, "DES"},
+		{"yaml usage key", "c.yaml", `usage: DES-CBC`, "DES"},
+		{"yaml example key", "c.yaml", `example: DES-CBC`, "DES"},
+		{"json usage key", "c.json", `{"usage": "DES-CBC"}`, "DES"},
+		{"kebab case key", "c.yaml", `key-usage: DES-CBC`, "DES"},
+
+		// A comma is not a key/value separator: a neighbouring list element
+		// ending in a label word must not suppress the next one.
+		{"list neighbour", "a.go", `var t = []string{"key usage", "DES-CBC"}`, "DES"},
 		{"ruby keyword argument", "a.rb", `c = OpenSSL::Cipher.new(cipher: 'DES-CBC')`, "DES"},
 		{"sshd macs directive", "sshd_config", `MACs hmac-md5 hmac-sha1 umac-64 hmac-ripemd160 hmac-sha1-96`, "md5"},
 		{"sshd host key algorithms", "sshd_config", `HostKeyAlgorithms ssh-rsa ssh-dss ecdsa-sha2-nistp256 ssh-ed25519 rsa-sha2-256`, "rsa"},
@@ -109,8 +125,9 @@ func TestNarrativeMentionsAreStillWithheld(t *testing.T) {
 		{"go comment", "a.go", `// Remediation: migrate this RSA key to ML-KEM before 2030`},
 		{"python comment", "a.py", `# the old RSA key path is deprecated, use ML-KEM`},
 		{"doc label", "a.yaml", `  description: uses SHA-1 for backwards compatibility`},
+		{"doc label in json", "a.json", `  "summary": "this service still accepts SHA-1 signatures",`},
 		{"markdown link", "a.go", `x := loadDoc("docs/legacy-md5.md")`},
-		{"url", "a.go", `const ref = "https://example.test/wiki/RC4_considered_harmful"`},
+		{"url", "a.go", `const ref = "https://example.test/wiki/md5.html"`},
 	}
 
 	for _, tc := range cases {
@@ -154,6 +171,24 @@ func main() {
 		t.Errorf("summary reports %d withheld, but --include-narrative adds %d (%d vs %d findings)",
 			got, want, len(shown.Findings), len(withheld.Findings))
 	}
+
+	// A count alone cannot see a finding being replaced rather than added.
+	// Deduplication keys on file:line:category, so a withheld match with a
+	// higher priority used to displace the reported one and the totals still
+	// balanced. Assert containment on the identity of each finding.
+	shownKeys := map[string]bool{}
+	for _, f := range shown.Findings {
+		shownKeys[findingKey(f)] = true
+	}
+	for _, f := range withheld.Findings {
+		if !shownKeys[findingKey(f)] {
+			t.Errorf("--include-narrative dropped a finding the default report shows: %s", findingKey(f))
+		}
+	}
+}
+
+func findingKey(f Finding) string {
+	return fmt.Sprintf("%s:%d:%d:%s:%s", f.File, f.Line, f.Column, f.Match, f.Category)
 }
 
 // TestIgnoreCommentAppliesToItsOwnLineOnly covers the off-by-one where a

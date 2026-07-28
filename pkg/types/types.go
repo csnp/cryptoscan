@@ -170,6 +170,13 @@ type Finding struct {
 	Tags            []string           `json:"tags,omitempty"`
 	Metadata        map[string]string  `json:"metadata,omitempty"`
 	Ignored         bool               `json:"ignored,omitempty"` // True if cryptoscan:ignore comment found
+
+	// Narrative marks a match where the algorithm was named in text (prose, a
+	// log message, a comment, a URL, a documentation label) rather than used.
+	// It is not serialized: it exists so that deduplication can prefer an
+	// operational match over a narrative one at the same location, which is
+	// what makes the default report a subset of --include-narrative.
+	Narrative bool `json:"-"`
 }
 
 // Priority calculates a priority score for sorting (higher = more urgent)

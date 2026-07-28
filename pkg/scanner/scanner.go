@@ -234,9 +234,6 @@ func (s *Scanner) Scan() (*Results, error) {
 		combined = append(combined, raw...)
 		combined = append(combined, s.narrativeWithheld...)
 		narrativeCount = len(s.deduplicateFindings(combined)) - len(s.findings)
-		if narrativeCount < 0 {
-			narrativeCount = 0
-		}
 	}
 
 	// Sort findings by priority, breaking ties on location so that the order
@@ -635,7 +632,12 @@ func (s *Scanner) scanFile(path string) error {
 			// the withheld set contains only matches that would otherwise have
 			// been reported. Anything else makes the "N withheld" count larger
 			// than what --include-narrative actually returns.
-			if s.isNarrativeMention(m, line, fileCtx) {
+			//
+			// The classification is recorded on the finding even when it is
+			// reported, so that deduplication can prefer an operational match
+			// over a narrative one at the same location.
+			m.Narrative = s.isNarrativeMention(m, line, fileCtx)
+			if m.Narrative && !s.config.IncludeNarrative {
 				s.mu.Lock()
 				s.narrativeWithheld = append(s.narrativeWithheld, m)
 				s.mu.Unlock()
@@ -939,7 +941,7 @@ func (s *Scanner) meetsConfidenceThreshold(conf types.Confidence) bool {
 // still an exposed private key, and that is why the scan loop reads comments
 // containing "key" or "secret" at all.
 func (s *Scanner) isNarrativeMention(f types.Finding, line string, fileCtx *analyzer.FileContext) bool {
-	if s.config.IncludeNarrative || f.FindingType == types.FindingTypeSecret {
+	if f.FindingType == types.FindingTypeSecret {
 		return false
 	}
 
@@ -1177,7 +1179,7 @@ func (s *Scanner) deduplicateFindings(findings []Finding) []Finding {
 		if !exists {
 			seen[key] = f
 			order = append(order, key)
-		} else if f.Priority() > existing.Priority() {
+		} else if betterRepresentative(f, existing) {
 			seen[key] = f
 		}
 	}
@@ -1188,6 +1190,21 @@ func (s *Scanner) deduplicateFindings(findings []Finding) []Finding {
 	}
 
 	return deduped
+}
+
+// betterRepresentative reports whether a should represent a location instead
+// of b, when both matched the same file, line and category.
+//
+// An operational match always wins over a narrative one, regardless of
+// severity. Without that rule, running --include-narrative could REPLACE a
+// finding the default report showed with a higher-priority narrative match at
+// the same location, so the flag that claims to show more showed something
+// different. The default report must be a subset of it.
+func betterRepresentative(a, b Finding) bool {
+	if a.Narrative != b.Narrative {
+		return !a.Narrative
+	}
+	return a.Priority() > b.Priority()
 }
 
 // isMinifiedFile detects minified code by checking line characteristics

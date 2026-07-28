@@ -34,7 +34,12 @@ All notable changes to CryptoScan are recorded here. This project follows
   `sshd_config` `MACs` line took the file from three findings to zero. All of
   those are now regression tests.
 
-- **Declared cryptographic configuration is reported.** `cipher: DES-CBC`,
+- **Declared cryptographic configuration is reported, whatever the key is
+  called.** `cipher: DES-CBC`, `note: DES-CBC` and `usage: DES-CBC` are the
+  same finding. An intermediate version treated `note`, `remarks`, `comment`,
+  `help`, `usage` and `example` as documentation labels, which meant renaming
+  a config key by one word hid a CRITICAL DES finding and flipped
+  `--fail-on critical` from exit 1 to exit 0. Also `cipher: DES-CBC`,
   `MACs hmac-md5 ...`, `SSLProtocol +SSLv3` and `ssh-keygen -t rsa -b 1024`
   are findings. For a cryptographic inventory a declared algorithm *is* the
   inventory, and an Apache config enabling SSLv3 must fail
@@ -45,8 +50,11 @@ All notable changes to CryptoScan are recorded here. This project follows
   output, comments, URLs or documentation labels are reported as a count in the
   scan summary, and `--include-narrative` (also covered by `--verbose`) shows
   them. The count is computed after deduplication, so it is exactly the number
-  of findings the flag adds. Detected key material is never held back, since a
-  private key in a comment is still an exposed private key.
+  of findings the flag adds, and the default report is a strict subset of what
+  the flag shows: deduplication now prefers an operational match over a
+  narrative one at the same location, so enabling the flag can only add.
+  Detected key material is never held back, since a private key in a comment is
+  still an exposed private key.
 
 - **`cryptoscan:ignore` no longer blinds the following line.** A trailing
   directive suppressed both its own line and the next one. A directive now

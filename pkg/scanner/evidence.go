@@ -282,14 +282,19 @@ func hasCalleeSuffix(prefix string, callees []string) bool {
 // narrativeLabels are field names whose value is descriptive text, not
 // configuration.
 //
-// Keys that name an algorithm as configuration (algorithm, cipher, hash,
-// digest, key_type and friends) are deliberately absent. `cipher: DES-CBC` in
-// a YAML file and `"algorithm": "RSA-2048"` in a JSON file are precisely the
-// cryptographic inventory this tool is asked to produce; suppressing them
-// produced a clean verdict that was never earned.
+// The list is deliberately short, and every entry has to be a word that is
+// never a configuration key. Keys that name an algorithm as configuration
+// (algorithm, cipher, hash, digest, key_type) are absent because
+// `cipher: DES-CBC` is precisely the inventory this tool produces.
+//
+// So are note, remarks, comment, help, usage and example, which were here
+// once. They are ordinary keys in Kubernetes annotations, GPG batch files and
+// inventory YAML, and because the line-anchored branch below hands a leading
+// label the whole rest of the line, `note: DES-CBC` silently lost a CRITICAL
+// finding and flipped `--fail-on critical` from exit 1 to exit 0. Renaming a
+// key from "cipher" to "note" must not hide anything.
 var narrativeLabels = []string{
-	"description", "summary", "title", "label", "placeholder", "tooltip",
-	"help", "note", "remarks", "usage", "example", "comment", "display_name",
+	"description", "summary", "title", "placeholder", "tooltip", "display_name",
 	"test_vector", "test_data", "test_case", "test_input", "test_output",
 	"expected_hash", "expected_signature",
 }
@@ -327,7 +332,7 @@ func precedingLabel(line string, start int) (string, bool) {
 	switch {
 	case strings.HasSuffix(head, "=>"):
 		head = head[:len(head)-2]
-	case strings.HasSuffix(head, ":"), strings.HasSuffix(head, ","):
+	case strings.HasSuffix(head, ":"):
 		head = head[:len(head)-1]
 	default:
 		return "", false
@@ -399,11 +404,10 @@ func isProse(s string) bool {
 // CI YAML all have long lines with almost no code punctuation, and they are
 // where a migration inventory most needs to see weak algorithms.
 func isDocumentationFile(language, fileType string) bool {
-	switch language {
-	case "markdown", "html", "xml":
-		return true
-	}
-	return fileType == "documentation"
+	// "html" and "xml" are deliberately absent. detectLanguage never returns
+	// "html", and every .xml is "xml" including pom.xml and Spring configs,
+	// which are configuration rather than prose.
+	return language == "markdown" || fileType == "documentation"
 }
 
 // commentMarkers returns the line-comment and block-comment openers for a
@@ -415,13 +419,11 @@ func isDocumentationFile(language, fileType string) bool {
 func commentMarkers(language string) []string {
 	switch language {
 	case "go", "java", "javascript", "typescript", "c", "cpp", "csharp",
-		"swift", "kotlin", "rust", "php", "scala":
+		"swift", "kotlin", "rust", "php":
 		return []string{"//", "/*"}
-	case "python", "ruby", "shell", "yaml", "toml", "perl", "r", "makefile":
+	case "python", "ruby", "shell", "yaml", "toml":
 		return []string{"#"}
-	case "sql", "lua", "haskell", "ada":
-		return []string{"--"}
-	case "markdown", "html", "xml":
+	case "markdown", "xml":
 		return []string{"<!--"}
 	default:
 		return nil

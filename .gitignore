@@ -47,11 +47,5 @@ secrets.json
 *.p12
 *.pfx
 
-# AI assistant files
-CLAUDE.md
-.cursorrules
-.aider*
-.copilot/
-
 # Private/internal files
 .private/

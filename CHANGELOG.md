@@ -3,7 +3,7 @@
 All notable changes to CryptoScan are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.4.0] - 2026-07-28
 
 ### Fixed
 
@@ -99,6 +99,32 @@ All notable changes to CryptoScan are recorded here. This project follows
 - `--include-narrative` flag to show algorithm mentions held back as text.
 - `tool` object in JSON output, carrying the scanner name and version.
 - `narrativeSuppressedCount` in the scan summary.
+
+### Known limitations
+
+- **A `docs` directory anywhere in the absolute path of the scan target
+  suppresses the scan.** The file filter tests the absolute path rather than
+  the path relative to the scan target, so a checkout under, for example,
+  `~/work/docs/myproject` reports `Scanned: 0 files` and exits 0. A `-docs`
+  suffix anywhere in the path (`api-docs`, `user-docs`) is a second, separate
+  case: the files are read, and every finding is then discarded. Both are
+  present in 1.3.0 as well and are not introduced by this release. Until this
+  is fixed, check the `Scanned:` line, or the `filesScanned` field in JSON
+  output, against the number of files you expect. A fix is planned for 1.4.1.
+
+- Invalid values for `--format`, `--min-severity` and `--fail-on` are accepted
+  silently and the scan falls back to the text report. A typo in a CI pipeline
+  therefore uploads a text file where a machine format was intended, and the
+  job still passes. Also present in 1.3.0.
+
+- A scan target containing no cryptography reports a migration readiness of
+  `0.0% [CRITICAL]`. Nothing was measured, so the number describes an absence
+  of evidence rather than a risk. The recommendations printed underneath state
+  this correctly.
+
+- SARIF `ruleId` values are unique per occurrence rather than per pattern, so
+  GitHub Code Scanning cannot group results and a dismissal does not carry
+  across runs.
 
 ## [1.3.0]
 

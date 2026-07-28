@@ -1,4 +1,4 @@
-// Copyright 2025 CyberSecurity NonProfit (CSNP)
+// Copyright 2025-2026 CyberSecurity NonProfit (CSNP)
 // SPDX-License-Identifier: Apache-2.0
 
 package patterns
@@ -420,9 +420,9 @@ func (m *Matcher) loadPatterns() {
 	// DES/3DES (Deprecated)
 	// Note: Require mode suffix (CBC/ECB/CFB/OFB) or crypto context to avoid false positives
 	m.patterns = append(m.patterns, Pattern{
-		ID:          "DES-001",
-		Name:        "DES Algorithm",
-		Category:    "Deprecated Algorithm",
+		ID:       "DES-001",
+		Name:     "DES Algorithm",
+		Category: "Deprecated Algorithm",
 		// des.NewCipher is the Go standard library's only way to construct a
 		// DES cipher, and it was not covered: \bDES\.(new|...)\b cannot match
 		// "des.NewCipher" because the \b after "new" requires a non-word
@@ -437,9 +437,9 @@ func (m *Matcher) loadPatterns() {
 	})
 
 	m.patterns = append(m.patterns, Pattern{
-		ID:          "3DES-001",
-		Name:        "Triple DES Algorithm",
-		Category:    "Deprecated Algorithm",
+		ID:       "3DES-001",
+		Name:     "Triple DES Algorithm",
+		Category: "Deprecated Algorithm",
 		// des.NewTripleDESCipher is the Go standard library constructor; the
 		// \b(3DES|...)\b alternation cannot reach it.
 		Regex:       regexp.MustCompile(`(?i)\b(3DES|Triple[-_]?DES|DESede|TDEA)\b|\bdes\.NewTripleDESCipher\s*\(`),

@@ -20,15 +20,33 @@ All notable changes to CryptoScan are recorded here. This project follows
     `prefer-const` makes the idiomatic form in JavaScript.
 
   The heuristic has been replaced by an evidence classifier anchored to the
-  position of the match. A match that is part of a call, a member access, an
-  import or an argument to a crypto factory is now always reported, whatever
-  else appears on the line.
+  position of the match. The classifier asks whether the token is part of an
+  operation *before* it applies any noise heuristic, so a call, a member
+  access, an import or an argument to a crypto factory is always reported,
+  whatever else appears on the line.
 
-- **Suppression is now counted and recoverable.** Matches held back as prose,
-  log output, comments, URLs or documentation and configuration values are
-  reported as a count in the scan summary, and `--include-narrative` (also
-  covered by `--verbose`) shows them. Detected key material is never held back,
-  since a private key in a comment is still an exposed private key.
+  That ordering is the safety property, and getting it wrong is subtle. An
+  intermediate version of this change ran the log, comment and path rules
+  first, which reintroduced the same defect class through a different door: a
+  variable named `outputs` (containing `puts `) hid
+  `Cipher.getInstance("RC4")`, a `z--` decrement hid a DES cipher in Java,
+  `gpg --cipher-algo 3DES` read as a comment, and adding a fifth entry to an
+  `sshd_config` `MACs` line took the file from three findings to zero. All of
+  those are now regression tests.
+
+- **Declared cryptographic configuration is reported.** `cipher: DES-CBC`,
+  `MACs hmac-md5 ...`, `SSLProtocol +SSLv3` and `ssh-keygen -t rsa -b 1024`
+  are findings. For a cryptographic inventory a declared algorithm *is* the
+  inventory, and an Apache config enabling SSLv3 must fail
+  `--fail-on critical`. Scanning a repository that ships cryptographic
+  reference data will now report a finding per row; use `--exclude`.
+
+- **Suppression is counted and recoverable.** Findings held back as prose, log
+  output, comments, URLs or documentation labels are reported as a count in the
+  scan summary, and `--include-narrative` (also covered by `--verbose`) shows
+  them. The count is computed after deduplication, so it is exactly the number
+  of findings the flag adds. Detected key material is never held back, since a
+  private key in a comment is still an exposed private key.
 
 - **`cryptoscan:ignore` no longer blinds the following line.** A trailing
   directive suppressed both its own line and the next one. A directive now

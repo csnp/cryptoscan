@@ -137,7 +137,7 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 	// between "nothing was found" and "something was found and not shown".
 	if results.Summary.NarrativeSuppressed > 0 {
 		b.WriteString(r.color(colorCyan, fmt.Sprintf(
-			"\n  %d mention(s) withheld as documentation, log or configuration text.\n"+
+			"\n  %d finding(s) withheld as documentation, log or comment text.\n"+
 				"  Show them with: cryptoscan scan %s --include-narrative\n",
 			results.Summary.NarrativeSuppressed, results.ScanTarget)))
 	}

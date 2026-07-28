@@ -45,7 +45,7 @@ func TestClassifyMatchNeverPanics(t *testing.T) {
 					t.Fatalf("panic: line=%q start=%d end=%d: %v", line, start, end, p)
 				}
 			}()
-			classifyMatch(line, start, end)
+			classifyMatch(matchContext{Line: line, Start: start, End: end})
 		}()
 	}
 }
@@ -64,7 +64,7 @@ func TestUnclassifiableSpansAreReported(t *testing.T) {
 		{"md5(b)", 3, 3},
 	}
 	for _, tc := range cases {
-		if class, reason := classifyMatch(tc.line, tc.start, tc.end); class != evidenceNarrative {
+		if class, reason := classifyMatch(matchContext{Line: tc.line, Start: tc.start, End: tc.end}); class != evidenceNarrative {
 			continue
 		} else {
 			t.Errorf("classifyMatch(%q, %d, %d) suppressed the finding (reason %q); unclassifiable spans must be reported",

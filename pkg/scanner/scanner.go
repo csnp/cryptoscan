@@ -157,10 +157,11 @@ type Scanner struct {
 		languageStats map[string]int
 	}
 
-	// narrativeSuppressed counts matches withheld because the algorithm was
-	// named in prose, a log message, a documentation or configuration key, or
-	// a URL. It is reported so that a suppression is never invisible.
-	narrativeSuppressed int
+	// narrativeWithheld holds matches kept out of the default report because
+	// the algorithm was named in text rather than used. They are retained
+	// rather than counted so that the reported number is exactly what
+	// --include-narrative would add, after deduplication.
+	narrativeWithheld []Finding
 }
 
 // New creates a new Scanner instance
@@ -219,7 +220,24 @@ func (s *Scanner) Scan() (*Results, error) {
 	}
 
 	// Deduplicate findings (same file+line+category = keep highest priority)
+	raw := s.findings
 	s.findings = s.deduplicateFindings(s.findings)
+
+	// Report exactly how many findings --include-narrative would add, not how
+	// many raw matches were withheld. Some withheld matches deduplicate against
+	// a finding that was reported anyway, so counting at the point of
+	// suppression overstated the number by more than 70% on a documentation
+	// tree, and a count a user cannot reproduce is a data-integrity defect.
+	narrativeCount := 0
+	if len(s.narrativeWithheld) > 0 {
+		combined := make([]Finding, 0, len(raw)+len(s.narrativeWithheld))
+		combined = append(combined, raw...)
+		combined = append(combined, s.narrativeWithheld...)
+		narrativeCount = len(s.deduplicateFindings(combined)) - len(s.findings)
+		if narrativeCount < 0 {
+			narrativeCount = 0
+		}
+	}
 
 	// Sort findings by priority, breaking ties on location so that the order
 	// is fully determined by the scanned content rather than by the order
@@ -257,6 +275,7 @@ func (s *Scanner) Scan() (*Results, error) {
 	}
 
 	results.Summary = s.calculateSummary()
+	results.Summary.NarrativeSuppressed = narrativeCount
 	results.Insights = s.generateInsights()
 
 	return results, nil
@@ -590,7 +609,7 @@ func (s *Scanner) scanFile(path string) error {
 			}
 
 			// Apply noise reduction filters
-			if !s.shouldIncludeFinding(m, line) {
+			if !s.shouldIncludeFinding(m) {
 				continue
 			}
 
@@ -608,15 +627,28 @@ func (s *Scanner) scanFile(path string) error {
 			m.SourceContext = s.extractSourceContext(allLines, lineNum, 3)
 
 			// Apply severity filter
-			if m.Severity >= s.config.MinSeverity {
-				s.mu.Lock()
-				s.findings = append(s.findings, m)
-				s.mu.Unlock()
+			if m.Severity < s.config.MinSeverity {
+				continue
+			}
 
-				// Stream finding via callback
-				if s.config.OnFinding != nil {
-					s.config.OnFinding(m)
-				}
+			// The evidence check runs last, after every other filter, so that
+			// the withheld set contains only matches that would otherwise have
+			// been reported. Anything else makes the "N withheld" count larger
+			// than what --include-narrative actually returns.
+			if s.isNarrativeMention(m, line, fileCtx) {
+				s.mu.Lock()
+				s.narrativeWithheld = append(s.narrativeWithheld, m)
+				s.mu.Unlock()
+				continue
+			}
+
+			s.mu.Lock()
+			s.findings = append(s.findings, m)
+			s.mu.Unlock()
+
+			// Stream finding via callback
+			if s.config.OnFinding != nil {
+				s.config.OnFinding(m)
 			}
 		}
 
@@ -896,12 +928,38 @@ func (s *Scanner) meetsConfidenceThreshold(conf types.Confidence) bool {
 	}
 }
 
+// isNarrativeMention reports whether a match names an algorithm in text rather
+// than using it, and should therefore be withheld from the default report.
+//
+// line is the full source line. f.Context is truncated to 120 characters for
+// display and must never be used for classification: the match offset would
+// not line up.
+//
+// Detected key material is exempt. A private key pasted into a comment is
+// still an exposed private key, and that is why the scan loop reads comments
+// containing "key" or "secret" at all.
+func (s *Scanner) isNarrativeMention(f types.Finding, line string, fileCtx *analyzer.FileContext) bool {
+	if s.config.IncludeNarrative || f.FindingType == types.FindingTypeSecret {
+		return false
+	}
+
+	mc := matchContext{
+		Line:  line,
+		Start: f.Column - 1,
+		End:   f.Column - 1 + len(f.Match),
+	}
+	if fileCtx != nil {
+		mc.Language = string(fileCtx.Language)
+		mc.FileType = string(fileCtx.FileType)
+	}
+
+	class, _ := classifyMatch(mc)
+	return class == evidenceNarrative
+}
+
 // shouldIncludeFinding applies noise reduction filters.
 // Returns false if the finding should be suppressed based on config.
-//
-// line is the full source line the match came from; f.Context is truncated for
-// display and must not be used for classification.
-func (s *Scanner) shouldIncludeFinding(f types.Finding, line string) bool {
+func (s *Scanner) shouldIncludeFinding(f types.Finding) bool {
 	// Skip library import findings unless explicitly included
 	// These are low-value (just import statements, not actual crypto usage)
 	if !s.config.IncludeImports && f.Category == "Library Import" {
@@ -917,25 +975,6 @@ func (s *Scanner) shouldIncludeFinding(f types.Finding, line string) bool {
 		}
 		// Skip AES (quantum partial, acceptable especially AES-256)
 		if f.Algorithm == "AES" && f.Quantum == types.QuantumPartial && f.Severity <= types.SeverityInfo {
-			return false
-		}
-	}
-
-	// Withhold matches where the algorithm is named in narrative text rather
-	// than used: prose, log output, a documentation or configuration key's
-	// value, a URL or a file path. Operational constructs are never withheld,
-	// however the surrounding line reads.
-	//
-	// Detected key material is exempt: a private key pasted into a comment is
-	// still an exposed private key, and that is the reason the scan loop reads
-	// comments containing "key" or "secret" in the first place.
-	if !s.config.IncludeNarrative && f.FindingType != types.FindingTypeSecret {
-		start := f.Column - 1
-		end := start + len(f.Match)
-		if class, _ := classifyMatch(line, start, end); class == evidenceNarrative {
-			s.mu.Lock()
-			s.narrativeSuppressed++
-			s.mu.Unlock()
 			return false
 		}
 	}
@@ -972,14 +1011,13 @@ func (s *Scanner) shouldIgnorePattern(id, category string) bool {
 
 func (s *Scanner) calculateSummary() Summary {
 	summary := Summary{
-		TotalFindings:       len(s.findings),
-		NarrativeSuppressed: s.narrativeSuppressed,
-		BySeverity:          make(map[string]int),
-		ByCategory:          make(map[string]int),
-		ByQuantumRisk:       make(map[string]int),
-		ByConfidence:        make(map[string]int),
-		ByFileType:          make(map[string]int),
-		ByLanguage:          make(map[string]int),
+		TotalFindings: len(s.findings),
+		BySeverity:    make(map[string]int),
+		ByCategory:    make(map[string]int),
+		ByQuantumRisk: make(map[string]int),
+		ByConfidence:  make(map[string]int),
+		ByFileType:    make(map[string]int),
+		ByLanguage:    make(map[string]int),
 	}
 
 	for _, f := range s.findings {

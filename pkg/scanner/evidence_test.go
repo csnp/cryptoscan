@@ -12,45 +12,78 @@ import (
 	"github.com/csnp/cryptoscan/pkg/types"
 )
 
-// TestOperationalCryptoIsNeverSuppressed covers the detection-suppression
-// defects found by the v1.4.0 release test. Each line here is a real way to
-// write the algorithm, and each produced zero findings before the evidence
-// classifier replaced the substring blocklist:
+// TestOperationalCryptoIsNeverSuppressed is the false-negative regression
+// suite. Every line here is a real way to write the algorithm, and every one
+// of them reported zero findings at some point during this fix.
 //
-//	a.md5(b)                      dropped by the ".md" entry in urlPatterns
-//	hashlib.md5(b"a")             dropped by ".md"
-//	cipher = md5(b"a")            dropped by "cipher ="
-//	const x = crypto.createHash   dropped by "const "
+// The first group is the original defect: a substring blocklist over the whole
+// line, where ".md" matched every ".md5(", "cipher =" matched the conventional
+// Java variable name, and "const " matched idiomatic JavaScript.
 //
-// The fixtures are scanned end to end rather than unit-tested against the
-// classifier, so a regression anywhere in the filter chain fails the test.
+// The second group is the regression the first replacement introduced, and is
+// the reason the evidence classifier now asks the operational question before
+// any heuristic. Running the log, comment and path rules first meant a
+// variable named "outputs" (containing "puts ") or a decrement operator
+// (containing "--") hid a CRITICAL finding. Those are semantics-preserving
+// edits, which made the scanner steerable by the author of the code it scans.
 func TestOperationalCryptoIsNeverSuppressed(t *testing.T) {
 	cases := []struct {
-		name string
-		file string
-		line string
+		name  string
+		file  string
+		line  string
+		token string // must appear in the fixture, so the case cannot go vacuous
 	}{
-		{"python bare call", "a.py", `md5(b)`},
-		{"python method call", "a.py", `a.md5(b)`},
-		{"python assigned method call", "a.py", `x = a.md5(b)`},
-		{"python hashlib", "a.py", `hashlib.md5(b"a")`},
-		{"python hashlib returned", "a.py", `return hashlib.md5(b"data").hexdigest()`},
-		{"python variable named cipher", "a.py", `cipher = md5(b"a")`},
-		{"go des constructor", "a.go", `block, err := des.NewCipher(key)`},
-		{"go triple des constructor", "a.go", `block, err := des.NewTripleDESCipher(key)`},
-		{"js let binding", "a.js", `let   x = crypto.createHash('md5')`},
-		{"js const binding", "a.js", `const x = crypto.createHash('md5')`},
-		{"js const cipher binding", "a.js", `const cipher = crypto.createCipheriv('des-ede3-cbc', k, iv)`},
-		{"js library member call", "a.js", `const rc4 = CryptoJS.RC4.encrypt(data, key)`},
-		{"java anonymous variable", "a.java", `Cipher q      = Cipher.getInstance("RC4");`},
-		{"java conventional variable", "a.java", `Cipher cipher = Cipher.getInstance("RC4");`},
-		{"java des instance", "a.java", `Cipher cipher = Cipher.getInstance("DES");`},
+		// Original blocklist defects.
+		{"python bare call", "a.py", `md5(b)`, "md5"},
+		{"python method call", "a.py", `a.md5(b)`, "md5"},
+		{"python assigned method call", "a.py", `x = a.md5(b)`, "md5"},
+		{"python hashlib", "a.py", `hashlib.md5(b"a")`, "md5"},
+		{"python hashlib returned", "a.py", `return hashlib.md5(b"data").hexdigest()`, "md5"},
+		{"python variable named cipher", "a.py", `cipher = md5(b"a")`, "md5"},
+		{"go des constructor", "a.go", `block, err := des.NewCipher(key)`, "des.NewCipher"},
+		{"go triple des constructor", "a.go", `block, err := des.NewTripleDESCipher(key)`, "des.NewTripleDESCipher"},
+		{"js let binding", "a.js", `let   x = crypto.createHash('md5')`, "md5"},
+		{"js const binding", "a.js", `const x = crypto.createHash('md5')`, "md5"},
+		{"js const cipher binding", "a.js", `const cipher = crypto.createCipheriv('des-ede3-cbc', k, iv)`, "des"},
+		{"js library member call", "a.js", `const rc4 = CryptoJS.RC4.encrypt(data, key)`, "RC4"},
+		{"java anonymous variable", "a.java", `Cipher q      = Cipher.getInstance("RC4");`, "RC4"},
+		{"java conventional variable", "a.java", `Cipher cipher = Cipher.getInstance("RC4");`, "RC4"},
+		{"java des instance", "a.java", `Cipher cipher = Cipher.getInstance("DES");`, "DES"},
+
+		// Variable names that contain a logging callee as a substring.
+		{"variable named outputs", "a.java", `outputs = Cipher.getInstance("RC4");`, "RC4"},
+		{"variable named inputs", "a.js", `inputs = crypto.createHash("md5").update(x)`, "md5"},
+
+		// A document filename sharing a token with a real call.
+		{"md filename argument", "a.py", `h = hashlib.md5(load("a.md"))`, "md5"},
+
+		// Comment markers that are not comment markers in this language.
+		{"java decrement operator", "a.java", `int z = 0; z--; Cipher c = Cipher.getInstance("DES");`, "DES"},
+		{"shell long flag", "run.sh", `gpg --cipher-algo 3DES --symmetric secrets.tar`, "3DES"},
+		{"js private field", "a.js", `class V { #c = crypto.createCipheriv("des-ede3-cbc", k, iv); }`, "des"},
+
+		// Configuration is inventory, not narrative.
+		{"yaml cipher key", "c.yaml", `cipher: DES-CBC`, "DES"},
+		{"ruby keyword argument", "a.rb", `c = OpenSSL::Cipher.new(cipher: 'DES-CBC')`, "DES"},
+		{"sshd macs directive", "sshd_config", `MACs hmac-md5 hmac-sha1 umac-64 hmac-ripemd160 hmac-sha1-96`, "md5"},
+		{"sshd host key algorithms", "sshd_config", `HostKeyAlgorithms ssh-rsa ssh-dss ecdsa-sha2-nistp256 ssh-ed25519 rsa-sha2-256`, "rsa"},
+		{"apache ssl protocol", "httpd.conf", `SSLProtocol -all +SSLv3 +TLSv1 +TLSv1.1 +TLSv1.2`, "SSLv3"},
+
+		// Shelling out to a crypto tool is still using crypto.
+		{"shell keygen", "gen.sh", `ssh-keygen -t rsa -b 1024 -f id_rsa -N ""`, "rsa"},
+		{"go exec of openssl", "a.go", `exec.Command("sh", "-c", "openssl dgst -md5 file.bin")`, "md5"},
+		{"shell variable holding command", "run.sh", `CMD="openssl enc -rc4 -in a -out b"`, "rc4"},
+
+		// A Go selector expression indexing a crypto path key.
+		{"go map key with import path", "a.go", `a.graph.Nodes["crypto/rsa.GenerateKey"] = &CallNode{}`, "rsa"},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			n := scanLine(t, tc.file, tc.line)
-			if n == 0 {
+			if !strings.Contains(strings.ToLower(tc.line), strings.ToLower(tc.token)) {
+				t.Fatalf("fixture does not contain %q; the case would prove nothing", tc.token)
+			}
+			if n := scanLine(t, tc.file, tc.line); n == 0 {
 				t.Errorf("operational crypto was suppressed: %q produced 0 findings, want at least 1", tc.line)
 			}
 		})
@@ -59,8 +92,12 @@ func TestOperationalCryptoIsNeverSuppressed(t *testing.T) {
 
 // TestNarrativeMentionsAreStillWithheld guards the other direction. If the
 // classifier reported everything, the fix would trade false negatives for an
-// unusable amount of noise, so the suppression that earns its place has to
-// keep working.
+// unusable amount of noise.
+//
+// Note what is deliberately absent: configuration keys naming an algorithm.
+// `cipher: DES-CBC` is covered by the suite above as something that MUST be
+// reported, because for a cryptographic inventory a declared algorithm is the
+// inventory.
 func TestNarrativeMentionsAreStillWithheld(t *testing.T) {
 	cases := []struct {
 		name string
@@ -69,10 +106,10 @@ func TestNarrativeMentionsAreStillWithheld(t *testing.T) {
 	}{
 		{"log message", "a.go", `log.Printf("falling back to md5 for legacy peers")`},
 		{"error string", "a.go", `return errors.New("publicKey must be a valid Ed25519 public key")`},
-		{"json config key", "a.json", `  "algorithm": "RSA-2048",`},
-		{"yaml config key", "a.yaml", `  algorithm: RSA-2048`},
-		{"doc key", "a.yaml", `  description: uses SHA-1 for backwards compatibility`},
-		{"markdown link", "a.go", `// see docs/legacy-md5.md for the migration plan`},
+		{"go comment", "a.go", `// Remediation: migrate this RSA key to ML-KEM before 2030`},
+		{"python comment", "a.py", `# the old RSA key path is deprecated, use ML-KEM`},
+		{"doc label", "a.yaml", `  description: uses SHA-1 for backwards compatibility`},
+		{"markdown link", "a.go", `x := loadDoc("docs/legacy-md5.md")`},
 		{"url", "a.go", `const ref = "https://example.test/wiki/RC4_considered_harmful"`},
 	}
 
@@ -85,34 +122,42 @@ func TestNarrativeMentionsAreStillWithheld(t *testing.T) {
 	}
 }
 
-// TestNarrativeSuppressionIsCountedAndRecoverable asserts the two properties
-// that separate a defensible noise filter from a silent false negative: the
-// user is told how many mentions were withheld, and a flag brings them back.
-func TestNarrativeSuppressionIsCountedAndRecoverable(t *testing.T) {
+// TestWithheldCountMatchesWhatTheFlagRecovers pins the two properties that
+// separate a defensible noise filter from a silent false negative: the user is
+// told how many findings were withheld, and the flag returns exactly that many.
+//
+// The count used to be incremented at the point of suppression, before
+// deduplication, so it overstated the recoverable set by more than 70% on a
+// documentation tree. A user-facing number that cannot be reproduced by
+// running the command it recommends is a data-integrity defect.
+func TestWithheldCountMatchesWhatTheFlagRecovers(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, "a.go"), `package main
+
+// Remediation: migrate this RSA key to ML-KEM before the 2030 deadline
 func main() {
 	log.Printf("falling back to md5 for legacy peers")
+	log.Printf("sha1 signatures are no longer accepted by this server")
 }
 `)
 
 	withheld := scanDir(t, dir, false)
-	if withheld.Summary.NarrativeSuppressed == 0 {
-		t.Error("narrative suppression was not counted; a withheld finding must be visible in the summary")
-	}
-	if len(withheld.Findings) != 0 {
-		t.Errorf("got %d findings by default, want 0", len(withheld.Findings))
-	}
-
 	shown := scanDir(t, dir, true)
-	if len(shown.Findings) == 0 {
-		t.Error("--include-narrative did not recover the withheld finding")
+
+	got := withheld.Summary.NarrativeSuppressed
+	want := len(shown.Findings) - len(withheld.Findings)
+
+	if got == 0 {
+		t.Fatal("nothing was counted as withheld; the fixture no longer exercises suppression")
+	}
+	if got != want {
+		t.Errorf("summary reports %d withheld, but --include-narrative adds %d (%d vs %d findings)",
+			got, want, len(shown.Findings), len(withheld.Findings))
 	}
 }
 
 // TestIgnoreCommentAppliesToItsOwnLineOnly covers the off-by-one where a
-// trailing cryptoscan:ignore also blinded the following line. Line 3 is not
-// annotated and must be reported.
+// trailing cryptoscan:ignore also blinded the following line.
 func TestIgnoreCommentAppliesToItsOwnLineOnly(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, "a.py"), `import hashlib
@@ -121,24 +166,20 @@ B = hashlib.sha1(b"2")
 C = hashlib.sha1(b"3")
 `)
 
-	results := scanDir(t, dir, false)
-
-	lines := map[int]bool{}
-	for _, f := range results.Findings {
-		lines[f.Line] = true
-	}
+	lines := findingLines(t, scanDir(t, dir, false))
 	if lines[2] {
 		t.Error("line 2 carries cryptoscan:ignore and must be suppressed")
 	}
 	for _, want := range []int{3, 4} {
 		if !lines[want] {
-			t.Errorf("line %d has no ignore directive but was suppressed; got findings on lines %v", want, lines)
+			t.Errorf("line %d has no ignore directive but was suppressed; got findings on %v", want, lines)
 		}
 	}
 }
 
 // TestIgnoreNextLineStillWorks confirms the explicit next-line form was not
-// broken by the fix above.
+// broken by the fix above. It asserts on line numbers rather than on a count,
+// so it cannot stay green by finding something somewhere else.
 func TestIgnoreNextLineStillWorks(t *testing.T) {
 	dir := t.TempDir()
 	write(t, filepath.Join(dir, "a.py"), `import hashlib
@@ -147,24 +188,12 @@ A = hashlib.sha1(b"1")
 B = hashlib.sha1(b"2")
 `)
 
-	results := scanDir(t, dir, false)
-	for _, f := range results.Findings {
-		if f.Line == 3 {
-			t.Error("line 3 is covered by cryptoscan:ignore-next-line and must be suppressed")
-		}
+	lines := findingLines(t, scanDir(t, dir, false))
+	if lines[3] {
+		t.Error("line 3 is covered by cryptoscan:ignore-next-line and must be suppressed")
 	}
-	if len(results.Findings) == 0 {
-		t.Error("line 4 is not covered by the directive and must still be reported")
-	}
-}
-
-// TestClassifyMatchOutOfRangeIsReported guards the fail-open contract: an
-// offset the classifier cannot interpret must not drop the finding.
-func TestClassifyMatchOutOfRange(t *testing.T) {
-	for _, tc := range []struct{ start, end int }{{-1, 3}, {0, 999}, {5, 2}} {
-		if class, _ := classifyMatch("md5(b)", tc.start, tc.end); class != evidenceOperational {
-			t.Errorf("classifyMatch(%d,%d) suppressed the finding; unclassifiable matches must be reported", tc.start, tc.end)
-		}
+	if !lines[4] {
+		t.Errorf("line 4 is not covered by the directive and must still be reported; got %v", lines)
 	}
 }
 
@@ -190,14 +219,18 @@ func scanDir(t *testing.T, dir string, includeNarrative bool) *Results {
 	return results
 }
 
+func findingLines(t *testing.T, results *Results) map[int]bool {
+	t.Helper()
+	lines := map[int]bool{}
+	for _, f := range results.Findings {
+		lines[f.Line] = true
+	}
+	return lines
+}
+
 func write(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
 		t.Fatalf("write %s: %v", path, err)
-	}
-	// Guard against a vacuously green test: the fixture has to contain the
-	// algorithm token at all, or the assertions below prove nothing.
-	if !strings.ContainsAny(strings.ToLower(content), "0123456789abcdefghijklmnopqrstuvwxyz") {
-		t.Fatalf("fixture %s is empty", path)
 	}
 }

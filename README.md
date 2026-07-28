@@ -338,20 +338,41 @@ cryptoscan scan . --min-severity critical --format json | jq '.findings | length
 
 ### What is reported, and what is held back
 
-CryptoScan reports an algorithm when the match is part of an operation: a call,
-an instantiation, a member access, or an algorithm name passed to a crypto
-factory. `hashlib.md5(data)`, `des.NewCipher(key)`, `const cipher =
-crypto.createCipheriv('des-ede3-cbc', k, iv)` and
-`Cipher.getInstance("RC4")` are all reported.
-
-Mentions in text are held back: prose, log messages, comments, URLs, and the
-values of documentation or configuration keys. The scan summary always says how
-many were held back, and `--include-narrative` shows them:
+CryptoScan asks one question first: is the matched token part of an operation?
+A call, an instantiation, a member access, an import, or an algorithm name
+passed to a crypto factory is always reported, whatever else appears on the
+line. So all of these produce findings:
 
 ```
-  14 mention(s) withheld as documentation, log or configuration text.
+hashlib.md5(data)
+des.NewCipher(key)
+const cipher = crypto.createCipheriv('des-ede3-cbc', k, iv)
+Cipher.getInstance("RC4")
+```
+
+Declared configuration is also reported. For a cryptographic inventory, an
+algorithm named in a config file is the inventory:
+
+```
+cipher: DES-CBC
+MACs hmac-md5 hmac-sha1 umac-64
+SSLProtocol -all +SSLv3 +TLSv1
+ssh-keygen -t rsa -b 1024 -f id_rsa
+```
+
+Only mentions in *text* are held back: prose, log and error messages, comments,
+URLs, and the values of documentation labels such as `description:` and
+`title:`. The scan summary always says how many were held back, and the number
+is exactly what the flag returns:
+
+```
+  14 finding(s) withheld as documentation, log or comment text.
   Show them with: cryptoscan scan . --include-narrative
 ```
+
+Scanning a repository that ships cryptographic reference data (a database of
+packages and the algorithms they use, for example) will report a finding per
+row. Use `--exclude` to skip those paths.
 
 ### Suppressing False Positives
 

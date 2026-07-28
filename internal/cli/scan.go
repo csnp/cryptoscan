@@ -52,12 +52,22 @@ var scanCmd = &cobra.Command{
 	Long: `Scan a local directory or Git repository for cryptographic patterns.
 
 The scanner detects:
-  - Asymmetric algorithms: RSA, DSA, ECDSA, Ed25519, DH, ECDH
+  - Asymmetric algorithms: RSA, ECDSA, Ed25519, ECDH (the elliptic-curve
+    ones are reported as ECC)
   - Symmetric algorithms: AES, DES, 3DES, Blowfish, ChaCha20, RC4
-  - Hash functions: MD5, SHA-1, SHA-256, SHA-384, SHA-512, SHA-3
+  - Hash functions: MD5, SHA-1, SHA-2, SHA-3
   - Key sizes and configurations
   - TLS/SSL settings
   - Crypto library imports
+
+Quantum-safe algorithms, including AES and the SHA-2 family, are detected but
+withheld from the default report because they need no migration. Pass
+--include-quantum-safe to see them.
+
+Not detected: DSA. Standalone DSA key generation is not matched by any
+pattern, so a codebase using it will not be told that it is quantum
+vulnerable. Detection is matched on whole words, so a compound identifier
+such as RSAPrivateKey or AESCipher is not matched either.
 
 Output formats:
   - text:  Human-readable console output (default)
@@ -98,14 +108,14 @@ func init() {
 	scanCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
 	scanCmd.Flags().StringVarP(&includeGlobs, "include", "i", "", "File patterns to include (comma-separated)")
 	scanCmd.Flags().StringVarP(&excludeGlobs, "exclude", "e", "", "File patterns to exclude (comma-separated)")
-	scanCmd.Flags().IntVarP(&maxDepth, "max-depth", "d", 0, "Maximum directory depth (0 = unlimited)")
+	scanCmd.Flags().IntVarP(&maxDepth, "max-depth", "d", 0, "Maximum directory depth (0 = unlimited). NOT YET IMPLEMENTED: the value is accepted and ignored")
 	scanCmd.Flags().BoolVarP(&showProgress, "progress", "p", false, "Show scan progress")
 	scanCmd.Flags().StringVar(&minSeverity, "min-severity", "info", "Minimum severity to report: info, low, medium, high, critical")
 	scanCmd.Flags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 	scanCmd.Flags().BoolVar(&jsonPretty, "pretty", false, "Pretty print JSON output")
-	scanCmd.Flags().BoolVar(&scanGitHistory, "git-history", false, "Scan Git history (slower)")
-	scanCmd.Flags().StringVarP(&groupBy, "group-by", "g", "", "Group output by: file, severity, category, quantum")
-	scanCmd.Flags().IntVarP(&contextLines, "context", "c", 3, "Number of context lines to show around findings")
+	scanCmd.Flags().BoolVar(&scanGitHistory, "git-history", false, "Scan Git history (slower). NOT YET IMPLEMENTED: only the working tree is scanned")
+	scanCmd.Flags().StringVarP(&groupBy, "group-by", "g", "", "Group output by: file. NOT YET IMPLEMENTED: severity, category and quantum are accepted and ignored")
+	scanCmd.Flags().IntVarP(&contextLines, "context", "c", 3, "Number of context lines to show around findings. NOT YET IMPLEMENTED: the report always shows 3")
 	scanCmd.Flags().BoolVar(&streamFindings, "stream", true, "Show findings as they are discovered")
 	scanCmd.Flags().BoolVar(&includeImports, "include-imports", false, "Include library import findings (normally suppressed as low-value)")
 	scanCmd.Flags().BoolVar(&includeQuantumSafe, "include-quantum-safe", false, "Include quantum-safe algorithm findings (SHA-256, AES-256)")

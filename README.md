@@ -3,7 +3,7 @@
 <h3 align="center">Cryptographic Discovery for the Post-Quantum Era</h3>
 
 <p align="center">
-  <strong>Find every cryptographic algorithm in your codebase. Know your quantum risk. Get a Migration Readiness Score. Plan your migration.</strong>
+  <strong>Inventory the cryptography in your codebase. Know your quantum risk. Get a Migration Readiness Score. Plan your migration.</strong>
 </p>
 
 <p align="center">
@@ -23,7 +23,7 @@
 
 ---
 
-> **Part of the QRAMM Toolkit** — Open-source tools for quantum readiness:
+> **Part of the QRAMM Toolkit**. Open-source tools for quantum readiness:
 >
 > | Tool | Purpose |
 > |------|---------|
@@ -37,11 +37,11 @@
 
 ## The Quantum Computing Challenge
 
-**Quantum computers will break RSA, ECDSA, and Diffie-Hellman within the next decade.** This isn't speculation—the NSA, NIST, and major technology companies are already migrating to post-quantum cryptography (PQC).
+**Quantum computers will break RSA, ECDSA, and Diffie-Hellman within the next decade.** This isn't speculation. The NSA, NIST, and major technology companies are already migrating to post-quantum cryptography (PQC).
 
 The challenge? **You can't migrate what you can't find.**
 
-Most organizations have no visibility into which cryptographic algorithms are used across their codebases, configurations, and dependencies. CryptoScan solves this by providing a complete cryptographic inventory in seconds—with full source code context so you know exactly what needs to change and where.
+Most organizations have no visibility into which cryptographic algorithms are used across their codebases, configurations, and dependencies. CryptoScan solves this by providing a complete cryptographic inventory in seconds, with full source code context so you know exactly what needs to change and where.
 
 ## Why CryptoScan
 
@@ -73,31 +73,31 @@ CryptoScan is purpose-built for quantum readiness assessment:
 <details>
 <summary><strong>Click to expand capability descriptions</strong></summary>
 
-**Remote Git URL scanning** — Scan any public or private Git repository directly by URL without cloning it first. Just run `cryptoscan scan https://github.com/org/repo.git` and get results immediately.
+**Remote Git URL scanning**: Scan any public or private Git repository directly by URL without cloning it first. Just run `cryptoscan scan https://github.com/org/repo.git` and get results immediately.
 
-**Source code context** — Every finding includes the 3 lines before and after the match, so you can immediately understand the context without opening the file. Know if it's in a comment, test, or production code at a glance.
+**Source code context**: Every finding includes the 3 lines before and after the match, so you can immediately understand the context without opening the file. Know if it's in a comment, test, or production code at a glance.
 
-**Quantum risk classification** — Each finding is tagged with its quantum computing threat level: VULNERABLE (broken by Shor's algorithm), PARTIAL (weakened by Grover's algorithm), SAFE (quantum-resistant), or UNKNOWN. This tells you exactly what needs to migrate first.
+**Quantum risk classification**: Each finding is tagged with its quantum computing threat level: VULNERABLE (broken by Shor's algorithm), PARTIAL (weakened by Grover's algorithm), SAFE (quantum-resistant), or UNKNOWN. This tells you exactly what needs to migrate first.
 
-**Post-Quantum Crypto detection** — Detects NIST-standardized PQC algorithms including ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), and draft FN-DSA (FIPS 206). Also detects stateful hash-based signatures (XMSS, LMS per SP 800-208). Recognizes both new FIPS names and legacy names (Kyber, Dilithium, SPHINCS+).
+**Post-Quantum Crypto detection**: Detects NIST-standardized PQC algorithms including ML-KEM (FIPS 203), ML-DSA (FIPS 204), SLH-DSA (FIPS 205), and draft FN-DSA (FIPS 206). Also detects stateful hash-based signatures (XMSS, LMS per SP 800-208). Recognizes both new FIPS names and legacy names (Kyber, Dilithium, SPHINCS+).
 
-**Migration Readiness Score** — Get an instant percentage score showing how prepared your codebase is for the post-quantum transition. The score weighs quantum-safe algorithms (100%), hybrid implementations (80%), and partial safety (30%) against vulnerable and critical findings. Includes top-risk files to prioritize.
+**Migration Readiness Score**: Get an instant percentage score showing how prepared your codebase is for the post-quantum transition. The score weighs quantum-safe algorithms (100%), hybrid implementations (80%), and partial safety (30%) against vulnerable and critical findings. Includes top-risk files to prioritize.
 
-**Hybrid crypto recognition** — Identifies hybrid cryptographic implementations that combine classical and post-quantum algorithms for defense-in-depth. Detects patterns like X25519+ML-KEM key exchange and ECDSA+ML-DSA composite signatures—the recommended transition approach.
+**Hybrid crypto recognition**: Identifies hybrid cryptographic implementations that combine classical and post-quantum algorithms for defense-in-depth. Detects patterns like X25519+ML-KEM key exchange and ECDSA+ML-DSA composite signatures, the recommended transition approach.
 
-**QRAMM framework mapping** — Maps all findings to the Quantum Readiness Assurance Maturity Model (QRAMM) Dimension 1: Cryptographic Visibility & Inventory. Shows your maturity level for Discovery (Practice 1.1), Vulnerability Assessment (Practice 1.2), and Dependency Mapping (Practice 1.3).
+**QRAMM framework mapping**: Maps all findings to the Quantum Readiness Assurance Maturity Model (QRAMM) Dimension 1: Cryptographic Visibility & Inventory. Shows your maturity level for Discovery (Practice 1.1), Vulnerability Assessment (Practice 1.2), and Dependency Mapping (Practice 1.3).
 
-**Context-aware confidence** — Not all matches are equal. CryptoScan reduces confidence for findings in comments, documentation, log messages, and test files. High-confidence findings in production code are prioritized over low-confidence matches in docs.
+**Context-aware confidence**: Not all matches are equal. CryptoScan reduces confidence for findings in comments, documentation, log messages, and test files. High-confidence findings in production code are prioritized over low-confidence matches in docs.
 
-**CBOM output** — Generate a Cryptographic Bill of Materials—a machine-readable inventory of all cryptographic algorithms in your codebase. Required for federal compliance (OMB M-23-02) and essential for tracking quantum migration progress.
+**CBOM output**: Generate a Cryptographic Bill of Materials, a machine-readable inventory of all cryptographic algorithms in your codebase. Required for federal compliance (OMB M-23-02) and essential for tracking quantum migration progress.
 
-**SARIF for GitHub Security** — Output findings in SARIF format for direct integration with GitHub Code Scanning. See cryptographic issues as security alerts in your pull requests and repository Security tab.
+**SARIF for GitHub Security**: Output findings in SARIF format for direct integration with GitHub Code Scanning. See cryptographic issues as security alerts in your pull requests and repository Security tab.
 
-**Inline ignore comments** — Suppress false positives directly in your code with `// cryptoscan:ignore`. No need to maintain separate exclusion files or configure complex ignore rules.
+**Inline ignore comments**: Suppress false positives directly in your code with `// cryptoscan:ignore`. No need to maintain separate exclusion files or configure complex ignore rules.
 
-**Migration guidance** — Every finding includes specific remediation advice: which NIST PQC algorithm to migrate to (ML-KEM, ML-DSA, SLH-DSA), links to standards, and effort estimates.
+**Migration guidance**: Every finding includes specific remediation advice: which NIST PQC algorithm to migrate to (ML-KEM, ML-DSA, SLH-DSA), links to standards, and effort estimates.
 
-**Dependency scanning** — Scans package manifests (package.json, go.mod, requirements.txt, pom.xml, etc.) to identify crypto libraries in your dependencies. Covers 20+ package manager formats.
+**Dependency scanning**: Scans package manifests (package.json, go.mod, requirements.txt, pom.xml, etc.) to identify crypto libraries in your dependencies. Covers 20+ package manager formats.
 
 </details>
 
@@ -107,7 +107,7 @@ CryptoScan is purpose-built for quantum readiness assessment:
 
 #### Option 1: Build from Source
 
-Requires **Go 1.21+** ([install Go](https://go.dev/dl/)) — always use the latest patch version for security fixes
+Requires **Go 1.21+** ([install Go](https://go.dev/dl/)). Always use the latest patch version for security fixes.
 
 Copy and paste this entire block:
 
@@ -394,12 +394,12 @@ legacyKey := oldCrypto.NewKey()
 ```
 
 Supported directives:
-- `cryptoscan:ignore` — Ignore all findings on this line, and only this line
-- `cryptoscan:ignore RSA-001` — Ignore specific pattern ID
-- `cryptoscan:ignore RSA-*` — Ignore pattern family (wildcard)
-- `cryptoscan:ignore-next-line` — Ignore finding on the following line
-- `crypto-scan:ignore` — Alternative format
-- `noscan` — Quick ignore all
+- `cryptoscan:ignore`: Ignore all findings on this line, and only this line
+- `cryptoscan:ignore RSA-001`: Ignore specific pattern ID
+- `cryptoscan:ignore RSA-*`: Ignore pattern family (wildcard)
+- `cryptoscan:ignore-next-line`: Ignore finding on the following line
+- `crypto-scan:ignore`: Alternative format
+- `noscan`: Quick ignore all
 
 ### CI/CD Integration
 
@@ -713,12 +713,12 @@ We believe that:
 
 ### QRAMM Toolkit
 
-CryptoScan is part of the **Quantum Readiness Assurance Maturity Model (QRAMM)** toolkit—a suite of open-source tools designed to help organizations prepare for the post-quantum era:
+CryptoScan is part of the **Quantum Readiness Assurance Maturity Model (QRAMM)** toolkit, a suite of open-source tools designed to help organizations prepare for the post-quantum era:
 
-- **CryptoScan** — Cryptographic discovery scanner (this project)
-- **[CryptoDeps](https://github.com/csnp/qramm-cryptodeps)** — Quantum-safe dependency analysis for your software supply chain
-- **QRAMM Assessment** — Quantum readiness maturity assessment
-- **[TLS Analyzer](https://github.com/csnp/qramm-tls-analyzer)** — TLS/SSL configuration analysis with CNSA 2.0 compliance tracking
+- **CryptoScan**: Cryptographic discovery scanner (this project)
+- **[CryptoDeps](https://github.com/csnp/cryptodeps)**: Quantum-safe dependency analysis for your software supply chain
+- **QRAMM Assessment**: Quantum readiness maturity assessment
+- **[TLS Analyzer](https://github.com/csnp/tls-analyzer)**: TLS/SSL configuration analysis with CNSA 2.0 compliance tracking
 
 Learn more at [qramm.org](https://qramm.org) and [csnp.org](https://csnp.org).
 
@@ -726,12 +726,12 @@ Learn more at [qramm.org](https://qramm.org) and [csnp.org](https://csnp.org).
 
 ### NIST Post-Quantum Cryptography Standards
 
-- [FIPS 203 - ML-KEM (Module-Lattice-Based Key-Encapsulation Mechanism)](https://csrc.nist.gov/pubs/fips/203/final) — Replaces RSA/ECDH for key exchange
-- [FIPS 204 - ML-DSA (Module-Lattice-Based Digital Signature Algorithm)](https://csrc.nist.gov/pubs/fips/204/final) — Replaces RSA/ECDSA for signatures
-- [FIPS 205 - SLH-DSA (Stateless Hash-Based Digital Signature Algorithm)](https://csrc.nist.gov/pubs/fips/205/final) — Alternative signature scheme
-- [FIPS 206 - FN-DSA (FFT-Based Network Digital Signature Algorithm)](https://csrc.nist.gov/pubs/fips/206/ipd) — Draft standard (formerly Falcon)
-- [SP 800-208 - XMSS and LMS Hash-Based Signatures](https://csrc.nist.gov/pubs/sp/800/208/final) — Stateful hash-based signatures
-- [NIST SP 800-131A Rev 2](https://csrc.nist.gov/pubs/sp/800/131/a/r2/final) — Transitioning cryptographic algorithms and key lengths
+- [FIPS 203 - ML-KEM (Module-Lattice-Based Key-Encapsulation Mechanism)](https://csrc.nist.gov/pubs/fips/203/final): Replaces RSA/ECDH for key exchange
+- [FIPS 204 - ML-DSA (Module-Lattice-Based Digital Signature Algorithm)](https://csrc.nist.gov/pubs/fips/204/final): Replaces RSA/ECDSA for signatures
+- [FIPS 205 - SLH-DSA (Stateless Hash-Based Digital Signature Algorithm)](https://csrc.nist.gov/pubs/fips/205/final): Alternative signature scheme
+- [FIPS 206 - FN-DSA (FFT-Based Network Digital Signature Algorithm)](https://csrc.nist.gov/pubs/fips/206/ipd): Draft standard (formerly Falcon)
+- [SP 800-208 - XMSS and LMS Hash-Based Signatures](https://csrc.nist.gov/pubs/sp/800/208/final): Stateful hash-based signatures
+- [NIST SP 800-131A Rev 2](https://csrc.nist.gov/pubs/sp/800/131/a/r2/final): Transitioning cryptographic algorithms and key lengths
 
 ### Additional Resources
 
@@ -741,14 +741,14 @@ Learn more at [qramm.org](https://qramm.org) and [csnp.org](https://csnp.org).
 
 ## License
 
-Apache License 2.0 — see [LICENSE](LICENSE) for details.
+Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 Copyright 2025 CyberSecurity NonProfit (CSNP)
 
 ---
 
 <p align="center">
-  <sub>Built with purpose by <a href="https://csnp.org">CSNP</a> — Advancing cybersecurity for everyone</sub>
+  <sub>Built with purpose by <a href="https://csnp.org">CSNP</a>. Advancing cybersecurity for everyone</sub>
 </p>
 
 <p align="center">

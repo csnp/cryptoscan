@@ -78,6 +78,6 @@ var versionCmd = &cobra.Command{
 			fmt.Printf("  built:  %s\n", buildDate)
 		}
 		fmt.Printf("\nPart of QRAMM - https://qramm.org\n")
-		fmt.Printf("Copyright 2025 CSNP - https://csnp.org\n")
+		fmt.Printf("Copyright 2025-2026 CSNP - https://csnp.org\n")
 	},
 }

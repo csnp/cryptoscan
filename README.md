@@ -572,6 +572,8 @@ SARIF output integrates with GitHub Code Scanning, VS Code SARIF Viewer, and oth
 
 **What is CBOM?** Just as an SBOM (Software Bill of Materials) inventories your software dependencies, a CBOM inventories all cryptographic algorithms, keys, and certificates in your systems. It answers: "What cryptography are we using, where, and is it quantum-safe?"
 
+Every field the CBOM output writes, the code that sets it, and how the output lines up with the NTIA SBOM minimum elements are listed in [docs/cbom-fields.md](docs/cbom-fields.md).
+
 **Why it matters:**
 - **Compliance**: Required by emerging regulations (OMB M-23-02, NIST guidelines) for federal contractors and regulated industries
 - **Visibility**: Single source of truth for all cryptographic assets across your organization

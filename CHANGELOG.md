@@ -3,6 +3,25 @@
 All notable changes to CryptoScan are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Documentation
+
+- **The CBOM fields are documented, and a test keeps the page accurate.**
+  `docs/cbom-fields.md` lists every field the CBOM output writes, the line in
+  the reporter that sets it and its CycloneDX 1.6 definition, and maps the
+  output to the 2021 NTIA minimum elements for an SBOM. Supplier, component
+  version and dependency relationships are not written today, and the page
+  says so and names the follow-up work for each. The page also records that
+  certificate and TLS findings carry no `certificateProperties` or
+  `protocolProperties` yet.
+
+  `pkg/reporter/cbom_fields_test.go` runs the real scanner over a small
+  fixture, generates a CBOM, and fails if the page marks a field as written
+  that the CBOM does not contain, or as not written when it does. CISA and
+  NIST have not yet published minimum elements for a CBOM; the page is where
+  CryptoScan will track them once they do.
+
 ## [1.4.0] - 2026-07-28
 
 ### Fixed

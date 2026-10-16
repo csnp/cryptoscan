@@ -5,12 +5,16 @@ package reporter
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/csnp/cryptoscan/pkg/analyzer"
+	"github.com/csnp/cryptoscan/pkg/patterns"
 	"github.com/csnp/cryptoscan/pkg/scanner"
 )
 
@@ -667,5 +671,168 @@ func TestFooterLinksTheQuickAssessment(t *testing.T) {
 	const assess = "  Assess your organisation: https://qramm.org/quick-assessment.html\n"
 	if !strings.Contains(text, toolkit+assess) {
 		t.Errorf("footer does not carry %q directly after %q", strings.TrimSpace(assess), strings.TrimSpace(toolkit))
+	}
+}
+
+// findingBlocks splits the detailed findings section of a text report into
+// one string per "Finding #N" block.
+func findingBlocks(text string) []string {
+	parts := strings.Split(text, "┌── Finding #")
+	if len(parts) < 2 {
+		return nil
+	}
+	return parts[1:]
+}
+
+// lineWith returns the first line of block that contains marker.
+func lineWith(block, marker string) string {
+	for _, l := range strings.Split(block, "\n") {
+		if strings.Contains(l, marker) {
+			return l
+		}
+	}
+	return ""
+}
+
+// An MD5 block names the classical break, prints a Java fix and a command
+// that shows line 96; an RSA-1024 block keeps the harvest-now sentence.
+func TestTextFindingBlockVerifyFixAndImpact(t *testing.T) {
+	m := patterns.NewMatcher()
+	engine := analyzer.NewRemediationEngine()
+	ctx := &analyzer.FileContext{Language: analyzer.LangJava, FileType: analyzer.FileTypeCode}
+	pick := func(line string, lineNum int, id string) scanner.Finding {
+		t.Helper()
+		for _, f := range m.MatchWithContext(line, "src/a.java", lineNum, ctx, nil) {
+			if strings.HasPrefix(f.ID, id+"-") {
+				engine.Apply(&f)
+				return f
+			}
+		}
+		t.Fatalf("no %s match in %q", id, line)
+		return scanner.Finding{}
+	}
+	md5 := pick(`        MessageDigest md = MessageDigest.getInstance("MD5");`, 96, "MD5-001")
+	rsa := pick(`        int keySize = 1024;`, 40, "RSA-1024")
+
+	text, err := NewTextReporter(false).Generate(&scanner.Results{Findings: []scanner.Finding{md5, rsa}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocks := findingBlocks(text)
+	if len(blocks) != 2 {
+		t.Fatalf("found %d finding blocks, want 2:\n%s", len(blocks), text)
+	}
+	md5Block, rsaBlock := blocks[0], blocks[1]
+
+	for _, want := range []string{
+		"│ Verify: sed -n '96p' src/a.java",
+		`│ Fix: Replace MessageDigest.getInstance("MD5") with MessageDigest.getInstance("SHA-256")`,
+		"│ Effort: Low",
+		"│ Impact: Broken by classical attacks today",
+	} {
+		if !strings.Contains(md5Block, want) {
+			t.Errorf("MD5 block lacks %q:\n%s", want, md5Block)
+		}
+	}
+	if strings.Contains(text, "Assessment needed") {
+		t.Errorf("report prints \"Assessment needed\":\n%s", text)
+	}
+	if impact := lineWith(md5Block, "│ Impact: "); strings.Contains(impact, "harvest") {
+		t.Errorf("MD5 Impact uses quantum wording for a classical break: %q", impact)
+	}
+
+	if rsa.Severity != scanner.SeverityCritical {
+		t.Fatalf("RSA-1024 severity = %s, want CRITICAL for this check", rsa.Severity)
+	}
+	for _, want := range []string{
+		"│ Verify: sed -n '40p' src/a.java",
+		"harvest-now-decrypt-later",
+		"│ Fix: Migrate RSA",
+		"│ Effort: Medium to High",
+	} {
+		if !strings.Contains(rsaBlock, want) {
+			t.Errorf("RSA block lacks %q:\n%s", want, rsaBlock)
+		}
+	}
+}
+
+// A scanned finding carries a command that shows the matched line and one
+// concrete change, in the text report and in JSON, and never ends in
+// "Assessment needed".
+func TestScannedFindingsCarryVerifyAndFix(t *testing.T) {
+	dir := t.TempDir()
+	file := filepath.Join(dir, "src", "a.java")
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	lines := make([]string, 100)
+	lines[0] = "import java.security.MessageDigest;"
+	lines[95] = `        MessageDigest md = MessageDigest.getInstance("MD5");`
+	if err := os.WriteFile(file, []byte(strings.Join(lines, "\n")), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	results, err := scanner.New(scanner.Config{Target: dir}).Scan()
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+	if len(results.Findings) == 0 {
+		t.Fatal("expected the MD5 use to be reported")
+	}
+	results.ScanTarget = dir
+
+	text, err := NewTextReporter(false).Generate(results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(text, "Assessment needed") {
+		t.Error("text report still prints \"Assessment needed\"")
+	}
+
+	blocks := findingBlocks(text)
+	if len(blocks) != len(results.Findings) {
+		t.Fatalf("found %d finding blocks, want %d", len(blocks), len(results.Findings))
+	}
+	md5Block := ""
+	for i, b := range blocks {
+		if n := strings.Count(b, "│ Verify: "); n != 1 {
+			t.Errorf("finding #%d prints %d Verify lines, want 1", i+1, n)
+		}
+		if n := strings.Count(b, "│ Fix: "); n != 1 {
+			t.Errorf("finding #%d prints %d Fix lines, want 1", i+1, n)
+		}
+		if _, fix, ok := strings.Cut(lineWith(b, "│ Fix: "), "│ Fix: "); ok && strings.Count(b, strings.TrimSpace(fix)) != 1 {
+			t.Errorf("finding #%d prints its fix %q more than once", i+1, strings.TrimSpace(fix))
+		}
+		if strings.Contains(b, "│ Algorithm: MD5") {
+			md5Block = b
+		}
+	}
+	if md5Block == "" {
+		t.Fatal("no MD5 finding block in the text report")
+	}
+	if want := "│ Verify: sed -n '96p' " + file; !strings.Contains(md5Block, want) {
+		t.Errorf("MD5 block lacks %q:\n%s", want, md5Block)
+	}
+	if impact := lineWith(md5Block, "│ Impact: "); strings.Contains(impact, "harvest") {
+		t.Errorf("MD5 Impact uses quantum wording for a classical break: %q", impact)
+	}
+
+	js, err := NewJSONReporter(false).Generate(results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var doc struct {
+		Findings []map[string]any `json:"findings"`
+	}
+	if err := json.Unmarshal([]byte(js), &doc); err != nil {
+		t.Fatal(err)
+	}
+	for i, f := range doc.Findings {
+		for _, key := range []string{"verify", "fix"} {
+			if s, _ := f[key].(string); s == "" {
+				t.Errorf("JSON finding %d (%v) has no %q string", i, f["id"], key)
+			}
+		}
 	}
 }

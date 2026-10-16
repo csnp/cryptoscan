@@ -628,3 +628,83 @@ func TestWeakCertSignatureIsCritical(t *testing.T) {
 		}
 	}
 }
+
+// findingFromPattern builds the finding MatchWithContext would build for a
+// match of p at line 1, before any context adjustment.
+func findingFromPattern(p Pattern) types.Finding {
+	return types.Finding{
+		ID:          p.ID + "-1-0",
+		Type:        p.Name,
+		FindingType: determineFindingType(p),
+		Category:    p.Category,
+		Algorithm:   p.Algorithm,
+		Severity:    p.Severity,
+		Quantum:     p.Quantum,
+		Remediation: p.Remediation,
+	}
+}
+
+// MD5, SHA-1, DES, 3DES, RC4 and Blowfish fall to classical attacks today.
+// Their Impact says so instead of borrowing the harvest-now-decrypt-later
+// sentence, which is about quantum-vulnerable key establishment.
+func TestImpactNamesClassicalBreaks(t *testing.T) {
+	m := NewMatcher()
+	want := map[string]bool{"MD5": false, "SHA-1": false, "DES": false, "3DES": false, "RC4": false, "Blowfish": false}
+
+	for _, p := range m.patterns {
+		if _, ok := want[p.Algorithm]; !ok {
+			continue
+		}
+		want[p.Algorithm] = true
+		f := findingFromPattern(p)
+		for _, sev := range []types.Severity{p.Severity, types.SeverityMedium} {
+			f.Severity = sev
+			impact := determineImpact(f)
+			if !strings.HasPrefix(impact, "Broken by classical attacks today") {
+				t.Errorf("%s (%s, %s): Impact = %q, want the classical-break wording", p.ID, p.Algorithm, sev, impact)
+			}
+			if strings.Contains(strings.ToLower(impact), "harvest") || strings.Contains(strings.ToLower(impact), "quantum computing advances") {
+				t.Errorf("%s (%s, %s): Impact = %q, carries quantum wording for a classical break", p.ID, p.Algorithm, sev, impact)
+			}
+			if !strings.Contains(impact, "without a quantum computer") {
+				t.Errorf("%s (%s, %s): Impact = %q, want it to say no quantum computer is needed", p.ID, p.Algorithm, sev, impact)
+			}
+		}
+	}
+
+	for alg, seen := range want {
+		if !seen {
+			t.Errorf("no pattern carries Algorithm %q; the classical-break list is out of date", alg)
+		}
+	}
+}
+
+// RSA, ECC, DH and DSA keep the harvest-now-decrypt-later sentence at
+// CRITICAL: that risk is real for quantum-vulnerable key establishment.
+func TestImpactKeepsHarvestNowForAsymmetric(t *testing.T) {
+	for _, alg := range []string{"RSA", "ECC", "DH", "DSA"} {
+		f := types.Finding{
+			ID:          alg + "-001-1-0",
+			FindingType: types.FindingTypeAlgorithm,
+			Category:    "Asymmetric Encryption",
+			Algorithm:   alg,
+			Severity:    types.SeverityCritical,
+			Quantum:     types.QuantumVulnerable,
+		}
+		if impact := determineImpact(f); !strings.Contains(impact, "harvest-now-decrypt-later") {
+			t.Errorf("%s: Impact = %q, want the harvest-now-decrypt-later sentence", alg, impact)
+		}
+	}
+}
+
+// "Assessment needed" told a reader nothing and gave no next step. A
+// category with no effort estimate now carries no Effort line at all.
+func TestEffortNeverSaysAssessmentNeeded(t *testing.T) {
+	m := NewMatcher()
+	for _, p := range m.patterns {
+		f := findingFromPattern(p)
+		if effort := determineEffort(f); effort == "Assessment needed" {
+			t.Errorf("%s (%s): Effort = %q", p.ID, p.Category, effort)
+		}
+	}
+}

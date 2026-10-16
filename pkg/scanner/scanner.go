@@ -393,6 +393,13 @@ func (s *Scanner) Scan() (*Results, error) {
 		return a.ID < b.ID
 	})
 
+	// Give every reported finding a command that shows the matched line and
+	// one concrete change.
+	remediation := analyzer.NewRemediationEngine()
+	for i := range s.findings {
+		remediation.Apply(&s.findings[i])
+	}
+
 	// Calculate migration score and enhance findings with QRAMM mapping
 	migrationScore := analyzer.CalculateMigrationScore(s.findings)
 

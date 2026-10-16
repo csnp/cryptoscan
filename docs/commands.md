@@ -7,9 +7,14 @@ This page lists every CryptoScan command and flag, the exit codes, and what each
 | Command | What it does |
 |---------|--------------|
 | `cryptoscan scan <path or URL>` | Scan a directory or repository for cryptographic usage |
+| `cryptoscan cbom <path or URL>` | Write a CycloneDX 1.6 Cryptographic Bill of Materials (equivalent to scan --format cbom) |
+| `cryptoscan gate <path or URL>` | Fail a build when findings reach a severity (equivalent to scan --fail-on high) |
+| `cryptoscan pqc <path or URL>` | Show post-quantum readiness: PQC and hybrid usage found, quantum-vulnerable usage, and the QRAMM Dimension 1 levels |
 | `cryptoscan version` | Print version information |
 | `cryptoscan completion <shell>` | Generate the autocompletion script for the specified shell |
 | `cryptoscan help [command]` | Help about any command |
+
+The shell is one of `bash`, `fish`, `powershell` and `zsh`, and `--no-descriptions` disables completion descriptions. The flags of `cbom`, `gate` and `pqc` are listed after the exit codes below.
 
 ## Scan flags
 
@@ -61,7 +66,7 @@ How these flags are used in a pipeline is in [CI/CD integration](ci.md). The `.c
 | `0` | The scan finished and no finding reached the failure threshold. |
 | `1` | Without `--fail-on`: at least one CRITICAL finding. With `--fail-on <severity>`: at least one finding at that severity or higher. Also any error, such as a missing path or a baseline file that cannot be read. |
 
-By default the scan exits 1 on any CRITICAL finding and 0 otherwise. `--fail-on` replaces that default, and a `failOn` key in `.cryptoscan.yaml` does the same when the flag is not given. Findings removed by `--baseline`, `--ignore` or `--ignore-category` do not count. The logic is the exit-code block at the end of `runScan` in `internal/cli/scan.go`.
+By default the scan exits 1 on any CRITICAL finding and 0 otherwise. `--fail-on` replaces that default, and a `failOn` key in `.cryptoscan.yaml` does the same when the flag is not given. Findings removed by `--baseline`, `--ignore` or `--ignore-category` do not count. The logic is the `exitCode` function in `internal/cli/scan.go`.
 
 An invalid `--fail-on` value is accepted silently in release 1.4.0 (see the known limitations in [CHANGELOG.md](../CHANGELOG.md)), so check the spelling of the severity in your pipeline.
 

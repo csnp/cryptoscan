@@ -1,0 +1,31 @@
+{
+  "capture": "scan-crypto-samples.txt",
+  "command": "cryptoscan scan crypto-samples",
+  "version": "1.4.0",
+  "build": "go build -ldflags \"-X main.version=1.4.0\" ./cmd/cryptoscan",
+  "commit": "11f0e46e4e1d0a5819246eab66f2a8da70d0a8e4",
+  "fixture": "crypto-samples",
+  "workingDirectory": "/tmp/cryptoscan",
+  "invocation": "run from a directory holding only crypto-samples extracted from the commit, stdout not a terminal (so no color), stderr merged into stdout, with a new empty HOME",
+  "capturedAt": "2026-10-16T03:33:28Z",
+  "exitCode": 1,
+  "lineCount": 3166,
+  "outputSha256": "e648220b3a5c8b2e34a9719031f4515909e41b331003f060ded313745c458cbf",
+  "excerpt": {
+    "doc": "README.md",
+    "startLine": 1,
+    "endLine": 162,
+    "elidedLines": [
+      [
+        6,
+        123
+      ],
+      [
+        158,
+        158
+      ]
+    ],
+    "elisionMarker": "  ...",
+    "sha256": "ea7782a5157e5e08401668332f66aa23814e79a69d34d114877776e6ee95aef1"
+  }
+}

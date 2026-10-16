@@ -89,6 +89,8 @@ jobs:
 
       - name: Run Scan
         run: |
+          # Add --no-config when the gate must depend only on the options written here,
+          # so a .cryptoscan.yaml in the pull request or above the checkout cannot change it.
           # Use baseline if it exists, fail on new HIGH+ findings
           if [ -f baseline.json ]; then
             cryptoscan scan . --baseline baseline.json --fail-on high --format sarif --output results.sarif

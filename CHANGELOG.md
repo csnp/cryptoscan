@@ -55,6 +55,29 @@ All notable changes to CryptoScan are recorded here. This project follows
 Adding `cbom`, `gate` and `pqc` removed or renamed no `scan` flag and did not
 change how `scan` decides its exit code.
 
+- **Reports name the config file they applied and count what it removed.**
+  Without `--config`, the scanner applies the first config file it finds in
+  the scan target or in any directory above it. Its ignore rules,
+  `minSeverity` and `baseline` could remove every finding, and the text
+  report then printed `Total Findings: 0` and a check mark with no mention of
+  the file. The text report now names the file, says whether it was found
+  above the scan target, and lists how many findings each of
+  `ignore.patterns`, `ignore.categories`, `minSeverity` and `baseline` removed
+  and how many files and directories `ignore.files` kept out of the scan.
+  When the file removed findings and none are left, the line
+  `No findings reported: the config file removed N findings` replaces
+  `No cryptographic findings detected`. JSON output carries the same record
+  in a `config` object, and SARIF output in `runs[0].invocations`. Tests
+  check, for `ignore.patterns`, `ignore.categories` and `minSeverity`, that
+  the count equals the number of findings a scan without the file reports in
+  addition, after deduplication.
+
+  The exit code is unchanged: with `--fail-on low`, a tree whose config file
+  ignores every pattern still exits 0.
+
+- **`--no-config`** runs the scan on command-line options alone, ignoring any
+  config file. It cannot be combined with `--config`.
+
 ### Fixed
 
 - **`cryptoscan --version` works.** It printed `Error: unknown flag: --version`.
@@ -99,6 +122,11 @@ change how `scan` decides its exit code.
   Without `--fail-on` the exit code does not change. JSON reports now carry
   `unanalyzedFiles` on every scan, as an empty array when every file was
   analyzed.
+
+- **An auto-detected config file that is not valid YAML now prints a
+  warning.** The file is still not applied, and stderr now carries a line
+  naming its path and the parse error. Before, nothing was printed. A file
+  passed with `--config` still stops the scan with an error.
 
 ### Documentation
 

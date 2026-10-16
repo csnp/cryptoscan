@@ -23,6 +23,26 @@ minSeverity: low          # Report LOW and above
 baseline: baseline.json   # Only report new findings vs baseline
 ```
 
+Without `--config`, CryptoScan looks for `.cryptoscan.yaml`, `.cryptoscan.yml`,
+`cryptoscan.yaml` or `cryptoscan.yml` in the scan target (the working directory
+when the target is a repository URL), then in each directory above it, and
+applies the first file it finds. Every text, JSON and SARIF report
+names the file it applied, says whether it was found above the scan target, and
+counts what each setting removed:
+
+```
+  Config file applied: /home/dev/project/.cryptoscan.yaml
+    (found in the scan target)
+    ignore.patterns removed 3 findings
+  Scan without it: cryptoscan scan . --no-config
+```
+
+JSON output carries the same information in a `config` object, and SARIF output in
+`runs[0].invocations`. When the file removed findings and none are left, the text
+report says so in place of "No cryptographic findings detected". An auto-detected
+file that is not valid YAML is not applied, and a warning naming it is printed to
+stderr. Pass `--no-config` to ignore config files and use only command-line options.
+
 | Key | Same as | Values |
 |-----|---------|--------|
 | `ignore.patterns` | `--ignore` | Pattern IDs; a trailing `*` matches a family, such as `RSA-*` |

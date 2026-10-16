@@ -70,7 +70,77 @@ type Config struct {
 	IgnoreIDs        []string // Pattern IDs to ignore (e.g., "RSA-001", "CERT-SELFSIGNED-001")
 	IgnoreCategories []string // Categories to ignore (e.g., "Certificate", "Library Import")
 	IgnoreFiles      []string // File patterns to ignore (e.g., "vendor/*", "test/*")
+
+	// ConfigFile carries the rules read from a .cryptoscan.yaml file. They are
+	// kept apart from the command-line rules above and checked after them, so
+	// that what each setting removes can be counted and reported. Checking
+	// them separately does not change which findings are reported.
+	ConfigFile *ConfigFileRules
 }
+
+// Where a configuration file was found, as recorded in ConfigReport.Source.
+const (
+	ConfigSourceFlag             = "flag"             // passed with --config
+	ConfigSourceScanTarget       = "scanTarget"       // found in the scanned directory
+	ConfigSourceParentDirectory  = "parentDirectory"  // found in a directory above the scan target
+	ConfigSourceWorkingDirectory = "workingDirectory" // found from the working directory, for a repository URL target
+)
+
+// ConfigFileRules are the suppression settings read from a configuration
+// file, with the path and source that the report names.
+type ConfigFileRules struct {
+	Path             string
+	Source           string
+	IgnoreIDs        []string
+	IgnoreCategories []string
+	IgnoreFiles      []string
+	MinSeverity      Severity // applied only when HasMinSeverity is true
+	HasMinSeverity   bool
+}
+
+// ConfigReport records the configuration file a scan applied and what each of
+// its suppression settings removed. A configuration file in the scanned tree,
+// or in any directory above it, can remove every finding, and without this
+// record a report cannot tell "nothing was found" from "everything found was
+// removed by a file the reader never saw".
+type ConfigReport struct {
+	Path            string                `json:"path"`
+	Source          string                `json:"source"`
+	FindingsRemoved ConfigFindingsRemoved `json:"findingsRemoved"`
+	PathsSkipped    ConfigPathsSkipped    `json:"pathsSkipped"`
+}
+
+// ConfigFindingsRemoved counts the findings each setting removed from the
+// report. A finding matched by more than one setting is counted once, against
+// the first of ignore.patterns, ignore.categories, minSeverity and baseline
+// that matched it.
+type ConfigFindingsRemoved struct {
+	IgnorePatterns   int `json:"ignorePatterns"`
+	IgnoreCategories int `json:"ignoreCategories"`
+	MinSeverity      int `json:"minSeverity"`
+	Baseline         int `json:"baseline"`
+	Total            int `json:"total"`
+}
+
+// ConfigPathsSkipped counts what ignore.files kept out of the scan. Skipped
+// files are not read, so the findings they would have produced are unknown.
+type ConfigPathsSkipped struct {
+	Files       int `json:"files"`
+	Directories int `json:"directories"`
+}
+
+// Any reports whether the configuration file removed or skipped anything.
+func (c *ConfigReport) Any() bool {
+	return c != nil && (c.FindingsRemoved.Total > 0 || c.PathsSkipped.Files > 0 || c.PathsSkipped.Directories > 0)
+}
+
+// Indexes into Scanner.configWithheld, in the order the rules are checked.
+const (
+	configRulePatterns = iota
+	configRuleCategories
+	configRuleMinSeverity
+	configRuleCount
+)
 
 // ToolInfo identifies the scanner build that produced a set of results.
 //
@@ -97,6 +167,7 @@ type Results struct {
 	BytesScanned   int64                 `json:"bytesScanned"`
 	LanguageStats  map[string]int        `json:"languageStats"`
 	Metadata       map[string]string     `json:"metadata,omitempty"`
+	Config         *ConfigReport         `json:"config,omitempty"`
 
 	// UnanalyzedFiles lists files whose analysis stopped on an internal
 	// error. The rest of the scan still runs, but findings for these files
@@ -199,6 +270,12 @@ type Scanner struct {
 
 	// unanalyzed holds files whose analysis stopped on an internal error.
 	unanalyzed []UnanalyzedFile
+
+	// configWithheld holds, per configuration-file setting, the matches that
+	// setting kept out of a report that would otherwise have contained them.
+	// configSkipped counts the paths ignore.files kept out of the scan.
+	configWithheld [configRuleCount][]Finding
+	configSkipped  ConfigPathsSkipped
 }
 
 // New creates a new Scanner instance
@@ -278,6 +355,11 @@ func (s *Scanner) Scan() (*Results, error) {
 	}
 	byEvidence, withheldByEvidence := countByEvidence(scanned, s.findings)
 
+	var configReport *ConfigReport
+	if s.config.ConfigFile != nil {
+		configReport = s.configReport(raw)
+	}
+
 	// Sort findings by priority, breaking ties on location so that the order
 	// is fully determined by the scanned content rather than by the order
 	// files happened to be walked.
@@ -319,6 +401,7 @@ func (s *Scanner) Scan() (*Results, error) {
 		BytesScanned:    s.stats.bytesScanned,
 		LanguageStats:   s.stats.languageStats,
 		Metadata:        map[string]string{MetadataScanRoot: s.root},
+		Config:          configReport,
 		UnanalyzedFiles: unanalyzed,
 	}
 
@@ -336,6 +419,40 @@ func (s *Scanner) Scan() (*Results, error) {
 // is not found and when the host cannot be reached, so the error does not try
 // to tell those apart.
 var ErrCloneFailed = errors.New("repository not found or not accessible")
+
+// configReport counts what each configuration-file setting removed. As with
+// the narrative count, each number is what removing that setting would add to
+// the report after deduplication, not the raw number of matches it held back.
+// The baseline count is added by the caller, which applies the baseline.
+func (s *Scanner) configReport(raw []Finding) *ConfigReport {
+	rules := s.config.ConfigFile
+	report := &ConfigReport{
+		Path:         rules.Path,
+		Source:       rules.Source,
+		PathsSkipped: s.configSkipped,
+	}
+
+	var counts [configRuleCount]int
+	combined := append([]Finding(nil), raw...)
+	prev := len(s.findings)
+	for rule, withheld := range s.configWithheld {
+		if len(withheld) == 0 {
+			continue
+		}
+		combined = append(combined, withheld...)
+		n := len(s.deduplicateFindings(combined))
+		counts[rule] = n - prev
+		prev = n
+	}
+
+	report.FindingsRemoved = ConfigFindingsRemoved{
+		IgnorePatterns:   counts[configRulePatterns],
+		IgnoreCategories: counts[configRuleCategories],
+		MinSeverity:      counts[configRuleMinSeverity],
+		Total:            counts[configRulePatterns] + counts[configRuleCategories] + counts[configRuleMinSeverity],
+	}
+	return report
+}
 
 // cloneRepository clones a Git repository to a temporary directory
 func (s *Scanner) cloneRepository(url string) (string, error) {
@@ -507,6 +624,19 @@ func (s *Scanner) shouldSkipDir(root, path, name string) error {
 		}
 	}
 
+	if rules := s.config.ConfigFile; rules != nil {
+		for _, pattern := range rules.IgnoreFiles {
+			matchedRel, _ := filepath.Match(pattern, relPath)
+			matchedName, _ := filepath.Match(pattern, name)
+			if matchedRel || matchedName {
+				s.mu.Lock()
+				s.configSkipped.Directories++
+				s.mu.Unlock()
+				return filepath.SkipDir
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -606,6 +736,19 @@ func (s *Scanner) shouldScanFile(path string) bool {
 		}
 		if !included {
 			return false
+		}
+	}
+
+	// Checked last, so that a file is counted only if it would otherwise have
+	// been scanned.
+	if rules := s.config.ConfigFile; rules != nil {
+		for _, pattern := range rules.IgnoreFiles {
+			if matched, _ := filepath.Match(pattern, name); matched {
+				s.mu.Lock()
+				s.configSkipped.Files++
+				s.mu.Unlock()
+				return false
+			}
 		}
 	}
 
@@ -740,8 +883,8 @@ func (s *Scanner) scanFile(path string) error {
 				continue
 			}
 
-			// The evidence check runs last, after every other filter, so that
-			// the withheld set contains only matches that would otherwise have
+			// The evidence check runs after every other filter, so that the
+			// withheld set contains only matches that would otherwise have
 			// been reported. Anything else makes the "N withheld" count larger
 			// than what --include-narrative actually returns.
 			//
@@ -749,7 +892,23 @@ func (s *Scanner) scanFile(path string) error {
 			// reported, so that deduplication can prefer an operational match
 			// over a narrative one at the same location.
 			m.EvidenceKind, m.Narrative = s.evidenceKind(m, line, fileCtx)
-			if m.Narrative && !s.config.IncludeNarrative {
+			withheldAsNarrative := m.Narrative && !s.config.IncludeNarrative
+
+			// Configuration-file rules run after the command-line filters, so
+			// a match is held for counting only if the report would otherwise
+			// have contained it. A narrative match the file removes is dropped
+			// without being counted under either heading, as it was when the
+			// file's rules were merged into the command-line ones.
+			if rule, ok := s.configRuleFor(m); ok {
+				if !withheldAsNarrative {
+					s.mu.Lock()
+					s.configWithheld[rule] = append(s.configWithheld[rule], m)
+					s.mu.Unlock()
+				}
+				continue
+			}
+
+			if withheldAsNarrative {
 				s.mu.Lock()
 				s.narrativeWithheld = append(s.narrativeWithheld, m)
 				s.mu.Unlock()
@@ -1152,6 +1311,29 @@ func (s *Scanner) shouldIgnorePattern(id, category string) bool {
 	}
 
 	return false
+}
+
+// configRuleFor reports which configuration-file setting, if any, removes f,
+// checking them in the order the report attributes them.
+func (s *Scanner) configRuleFor(f Finding) (int, bool) {
+	rules := s.config.ConfigFile
+	if rules == nil {
+		return 0, false
+	}
+	for _, ignore := range rules.IgnoreIDs {
+		if config.MatchesPattern(f.ID, ignore) {
+			return configRulePatterns, true
+		}
+	}
+	for _, ignoreCat := range rules.IgnoreCategories {
+		if config.MatchesCategory(f.Category, ignoreCat) {
+			return configRuleCategories, true
+		}
+	}
+	if rules.HasMinSeverity && f.Severity < rules.MinSeverity {
+		return configRuleMinSeverity, true
+	}
+	return 0, false
 }
 
 func (s *Scanner) calculateSummary() Summary {

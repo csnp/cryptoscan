@@ -56,6 +56,7 @@ CI/CD flags:
 | `--fail-on string` | Exit non-zero if findings at this severity or higher (info, low, medium, high, critical), or if any file could not be analyzed |
 | `--baseline string` | Baseline JSON file - only report new findings |
 | `--config string` | Config file path (default: auto-detect .cryptoscan.yaml) |
+| `--no-config` | Do not read a config file; use only command-line options |
 
 How these flags are used in a pipeline is in [CI/CD integration](ci.md). The `.cryptoscan.yaml` keys that set the same values are in [Configuration](configuration.md).
 

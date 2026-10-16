@@ -48,6 +48,7 @@ var (
 	failOn           string // --fail-on "high"
 	baselineFile     string // --baseline "baseline.json"
 	configFile       string // --config ".cryptoscan.yaml"
+	noConfig         bool   // --no-config
 )
 
 var scanCmd = &cobra.Command{
@@ -86,6 +87,7 @@ CI/CD Integration:
                         or if any file could not be analyzed
   --baseline            Only report new findings compared to baseline JSON
   --config              Path to .cryptoscan.yaml config file
+  --no-config           Do not read a config file; use only command-line options
 
 Inline Suppression:
   // cryptoscan:ignore                  Ignore all findings on this line
@@ -133,6 +135,7 @@ func init() {
 	scanCmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero if findings at this severity or higher (info, low, medium, high, critical), or if any file could not be analyzed")
 	scanCmd.Flags().StringVar(&baselineFile, "baseline", "", "Baseline JSON file - only report new findings")
 	scanCmd.Flags().StringVar(&configFile, "config", "", "Config file path (default: auto-detect .cryptoscan.yaml)")
+	scanCmd.Flags().BoolVar(&noConfig, "no-config", false, "Do not read a config file; use only command-line options")
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
@@ -188,10 +191,15 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		}
 	}
 
+	if noConfig && configFile != "" {
+		return nil, "", fmt.Errorf("--config and --no-config cannot be used together")
+	}
+
 	// Load config file (explicit or auto-detected)
 	var cfgFile *config.Config
 	cfgPath := configFile
-	if cfgPath == "" {
+	cfgSource := scanner.ConfigSourceFlag
+	if cfgPath == "" && !noConfig {
 		// Auto-detect config file starting from target directory
 		startDir := target
 		if isURL(target) {
@@ -199,6 +207,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		}
 		if absPath, err := filepath.Abs(startDir); err == nil {
 			cfgPath = config.FindConfigFile(absPath)
+			cfgSource = autoConfigSource(cfgPath, absPath, isURL(target))
 		}
 	}
 	if cfgPath != "" {
@@ -208,6 +217,13 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 			// Only error if explicitly specified
 			return nil, "", withHint(fmt.Errorf("failed to load config file %s: %w", cfgPath, err),
 				"Check the --config path, or leave out --config to look for .cryptoscan.yaml automatically.")
+		} else {
+			// The user may believe this file's rules are active, so say that
+			// they are not.
+			fmt.Fprintf(os.Stderr, "Warning: config file %s could not be parsed and was not applied: %v\n", cfgPath, err)
+		}
+		if absCfg, err := filepath.Abs(cfgPath); err == nil {
+			cfgPath = absCfg
 		}
 	}
 
@@ -254,25 +270,33 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		}
 	}
 
-	// Merge config file settings (CLI flags take precedence)
-	effectiveMinSeverity := minSeverity
+	// Merge config file settings (CLI flags take precedence). The file's
+	// suppression rules go to the scanner separately from the command-line
+	// ones, so that what each removes can be counted in the report.
 	effectiveFailOn := opts.failOn
 	effectiveBaseline := baselineFile
+	baselineFromConfig := false
+	var cfgRules *scanner.ConfigFileRules
 	if cfgFile != nil {
-		// Add config file ignore patterns (CLI patterns take precedence)
-		ignoreIDs = append(ignoreIDs, cfgFile.Ignore.Patterns...)
-		ignoreCats = append(ignoreCats, cfgFile.Ignore.Categories...)
-		excludes = append(excludes, cfgFile.Ignore.Files...)
+		cfgRules = &scanner.ConfigFileRules{
+			Path:             cfgPath,
+			Source:           cfgSource,
+			IgnoreIDs:        cfgFile.Ignore.Patterns,
+			IgnoreCategories: cfgFile.Ignore.Categories,
+			IgnoreFiles:      cfgFile.Ignore.Files,
+		}
 
 		// Use config file settings if CLI flags not set
-		if effectiveMinSeverity == "info" && cfgFile.MinSeverity != "" && !opts.inventory {
-			effectiveMinSeverity = cfgFile.MinSeverity
+		if minSeverity == "info" && cfgFile.MinSeverity != "" && !opts.inventory {
+			cfgRules.MinSeverity = parseSeverity(cfgFile.MinSeverity)
+			cfgRules.HasMinSeverity = true
 		}
 		if effectiveFailOn == "" && cfgFile.FailOn != "" {
 			effectiveFailOn = cfgFile.FailOn
 		}
 		if effectiveBaseline == "" && cfgFile.Baseline != "" && !opts.inventory {
 			effectiveBaseline = cfgFile.Baseline
+			baselineFromConfig = true
 		}
 		if outputFormat == "text" && cfgFile.Format != "" &&
 			(opts.formats == nil || slices.Contains(opts.formats, cfgFile.Format)) {
@@ -288,12 +312,13 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		MaxDepth:           maxDepth,
 		ShowProgress:       showProgress,
 		ScanGitHistory:     scanGitHistory,
-		MinSeverity:        parseSeverity(effectiveMinSeverity),
+		MinSeverity:        parseSeverity(minSeverity),
 		IncludeImports:     includeImports || verbose,                         // Include if explicitly set or verbose mode
 		IncludeQuantumSafe: includeQuantumSafe || verbose || opts.quantumSafe, // Include if explicitly set, verbose mode, or forced by the command
 		IncludeNarrative:   includeNarrative || verbose,                       // Include if explicitly set or verbose mode
 		IgnoreIDs:          ignoreIDs,
 		IgnoreCategories:   ignoreCats,
+		ConfigFile:         cfgRules,
 	}
 
 	// The banner and streamed findings belong to the scan's text report, not
@@ -377,7 +402,13 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 			return nil, "", withHint(fmt.Errorf("failed to load baseline: %w", err),
 				"Check the --baseline path. To create a baseline: cryptoscan scan . --format json --output baseline.json")
 		}
+		before := len(results.Findings)
 		results.Findings = filterNewFindings(results.Findings, results.Metadata[scanner.MetadataScanRoot], baseline)
+		if baselineFromConfig && results.Config != nil {
+			removed := before - len(results.Findings)
+			results.Config.FindingsRemoved.Baseline = removed
+			results.Config.FindingsRemoved.Total += removed
+		}
 		// Recalculate summary and migration score after filtering
 		results.Summary = calculateSummary(results.Findings)
 		results.MigrationScore = analyzer.CalculateMigrationScore(results.Findings)
@@ -545,6 +576,21 @@ func scanErrorHint(err error) string {
 		return "Check that you have permission to read the path."
 	}
 	return ""
+}
+
+// autoConfigSource says where an auto-detected config file was found relative
+// to the scan target. The search walks up from the target, so a file in any
+// directory above it applies to the scan without being part of what is
+// scanned, and the report has to say so.
+func autoConfigSource(cfgPath, absStart string, targetIsURL bool) string {
+	switch {
+	case targetIsURL:
+		return scanner.ConfigSourceWorkingDirectory
+	case filepath.Dir(cfgPath) == absStart:
+		return scanner.ConfigSourceScanTarget
+	default:
+		return scanner.ConfigSourceParentDirectory
+	}
 }
 
 func printScanningHeader(useColor bool) {

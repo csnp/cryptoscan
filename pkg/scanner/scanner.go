@@ -132,6 +132,17 @@ type Summary struct {
 	// named in text rather than used. Reported so that the reduction is
 	// visible and recoverable with --include-narrative.
 	NarrativeSuppressed int `json:"narrativeSuppressedCount"`
+
+	// ByEvidence counts findings by the scanner rule that decided their
+	// context (see the Evidence constants in evidence.go). It describes the
+	// whole scan: findings withheld by the narrative rules are counted under
+	// their rule too, so the values add up to TotalFindings plus
+	// NarrativeSuppressed, and --include-narrative does not change the map.
+	ByEvidence map[string]int `json:"byEvidence"`
+
+	// WithheldByEvidence is the part of each ByEvidence count that is not in
+	// Findings. It is not serialized; narrativeSuppressedCount is the total.
+	WithheldByEvidence map[string]int `json:"-"`
 }
 
 // HasCritical returns true if any critical findings exist
@@ -238,12 +249,15 @@ func (s *Scanner) Scan() (*Results, error) {
 	// suppression overstated the number by more than 70% on a documentation
 	// tree, and a count a user cannot reproduce is a data-integrity defect.
 	narrativeCount := 0
+	scanned := s.findings
 	if len(s.narrativeWithheld) > 0 {
 		combined := make([]Finding, 0, len(raw)+len(s.narrativeWithheld))
 		combined = append(combined, raw...)
 		combined = append(combined, s.narrativeWithheld...)
-		narrativeCount = len(s.deduplicateFindings(combined)) - len(s.findings)
+		scanned = s.deduplicateFindings(combined)
+		narrativeCount = len(scanned) - len(s.findings)
 	}
+	byEvidence, withheldByEvidence := countByEvidence(scanned, s.findings)
 
 	// Sort findings by priority, breaking ties on location so that the order
 	// is fully determined by the scanned content rather than by the order
@@ -282,6 +296,8 @@ func (s *Scanner) Scan() (*Results, error) {
 
 	results.Summary = s.calculateSummary()
 	results.Summary.NarrativeSuppressed = narrativeCount
+	results.Summary.ByEvidence = byEvidence
+	results.Summary.WithheldByEvidence = withheldByEvidence
 	results.Insights = s.generateInsights()
 
 	return results, nil
@@ -678,7 +694,7 @@ func (s *Scanner) scanFile(path string) error {
 			// The classification is recorded on the finding even when it is
 			// reported, so that deduplication can prefer an operational match
 			// over a narrative one at the same location.
-			m.Narrative = s.isNarrativeMention(m, line, fileCtx)
+			m.EvidenceKind, m.Narrative = s.evidenceKind(m, line, fileCtx)
 			if m.Narrative && !s.config.IncludeNarrative {
 				s.mu.Lock()
 				s.narrativeWithheld = append(s.narrativeWithheld, m)
@@ -942,6 +958,8 @@ func (s *Scanner) scanDependencyFile(path string, fileCtx *analyzer.FileContext)
 			Description: dep.Description,
 			Remediation: dep.Remediation,
 			Tags:        []string{"dependency", string(dep.Library.Language)},
+
+			EvidenceKind: EvidenceDependency,
 		}
 
 		if dep.Library.QuantumSafe {
@@ -972,8 +990,9 @@ func (s *Scanner) meetsConfidenceThreshold(conf types.Confidence) bool {
 	}
 }
 
-// isNarrativeMention reports whether a match names an algorithm in text rather
-// than using it, and should therefore be withheld from the default report.
+// evidenceKind reports the evidence kind of a match and whether it names an
+// algorithm in text rather than using it, in which case it is withheld from
+// the default report.
 //
 // line is the full source line. f.Context is truncated to 120 characters for
 // display and must never be used for classification: the match offset would
@@ -982,9 +1001,9 @@ func (s *Scanner) meetsConfidenceThreshold(conf types.Confidence) bool {
 // Detected key material is exempt. A private key pasted into a comment is
 // still an exposed private key, and that is why the scan loop reads comments
 // containing "key" or "secret" at all.
-func (s *Scanner) isNarrativeMention(f types.Finding, line string, fileCtx *analyzer.FileContext) bool {
+func (s *Scanner) evidenceKind(f types.Finding, line string, fileCtx *analyzer.FileContext) (string, bool) {
 	if f.FindingType == types.FindingTypeSecret {
-		return false
+		return EvidenceKeyMaterial, false
 	}
 
 	mc := matchContext{
@@ -997,8 +1016,34 @@ func (s *Scanner) isNarrativeMention(f types.Finding, line string, fileCtx *anal
 		mc.FileType = string(fileCtx.FileType)
 	}
 
-	class, _ := classifyMatch(mc)
-	return class == evidenceNarrative
+	class, reason := classifyMatch(mc)
+	if class == evidenceNarrative {
+		return reason, true
+	}
+	return EvidenceOperational, false
+}
+
+// countByEvidence counts scanned, the deduplicated set of every finding the
+// scan produced including withheld ones, by evidence kind, and reports how
+// many of each kind are missing from reported.
+func countByEvidence(scanned, reported []Finding) (byKind, withheld map[string]int) {
+	byKind = make(map[string]int)
+	for _, f := range scanned {
+		byKind[f.EvidenceKind]++
+	}
+
+	shown := make(map[string]int)
+	for _, f := range reported {
+		shown[f.EvidenceKind]++
+	}
+
+	withheld = make(map[string]int)
+	for kind, n := range byKind {
+		if missing := n - shown[kind]; missing > 0 {
+			withheld[kind] = missing
+		}
+	}
+	return byKind, withheld
 }
 
 // shouldIncludeFinding applies noise reduction filters.

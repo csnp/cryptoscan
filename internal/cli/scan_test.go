@@ -6,9 +6,12 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
+	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -244,7 +247,7 @@ func TestPrintScanningHeader(t *testing.T) {
 func TestPrintScanningFooter(t *testing.T) {
 	// Test with color
 	output := captureStdout(func() {
-		printScanningFooter(10, 5, 100*time.Millisecond, true)
+		printScanningFooter(streamTally{listed: 10, unique: 10, reported: 10, files: 5}, 100*time.Millisecond, true)
 	})
 	if !bytes.Contains([]byte(output), []byte("10")) {
 		t.Error("printScanningFooter should contain finding count")
@@ -252,13 +255,71 @@ func TestPrintScanningFooter(t *testing.T) {
 
 	// Test without color
 	output = captureStdout(func() {
-		printScanningFooter(25, 10, 500*time.Millisecond, false)
+		printScanningFooter(streamTally{listed: 25, unique: 25, reported: 25, files: 10}, 500*time.Millisecond, false)
 	})
 	if !bytes.Contains([]byte(output), []byte("25")) {
 		t.Error("printScanningFooter should contain finding count")
 	}
 	if !bytes.Contains([]byte(output), []byte("Scan complete")) {
 		t.Error("printScanningFooter should contain 'Scan complete'")
+	}
+}
+
+// TestPrintScanningFooterCountsReportedFindings uses the counts from a scan of
+// crypto-samples, where 121 matches are listed and 110 findings remain after
+// deduplication. The footer leads with the number the report prints as Total
+// Findings and accounts for every listed match.
+func TestPrintScanningFooterCountsReportedFindings(t *testing.T) {
+	tests := []struct {
+		name  string
+		tally streamTally
+		want  []string
+		never []string
+	}{
+		{
+			name:  "duplicates merged",
+			tally: streamTally{listed: 121, unique: 110, reported: 110, files: 6},
+			want: []string{
+				"Scan complete: 110 findings in 6 files",
+				"The list above has 121 matches.",
+				"11 repeat a match of the same kind on the same line and are counted with it.",
+			},
+			never: []string{"121 findings", "baseline"},
+		},
+		{
+			name:  "duplicates and baseline",
+			tally: streamTally{listed: 16, unique: 13, reported: 12, files: 37},
+			want: []string{
+				"Scan complete: 12 findings in 37 files",
+				"The list above has 16 matches.",
+				"3 repeat a match of the same kind on the same line and are counted with it.",
+				"1 is already in the baseline and is not counted.",
+			},
+			never: []string{"16 findings", "13 findings"},
+		},
+		{
+			name:  "nothing merged",
+			tally: streamTally{listed: 1, unique: 1, reported: 1, files: 1},
+			want:  []string{"Scan complete: 1 finding in 1 file ("},
+			never: []string{"The list above"},
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			output := captureStdout(func() {
+				printScanningFooter(tc.tally, 16*time.Millisecond, false)
+			})
+			for _, s := range tc.want {
+				if !strings.Contains(output, s) {
+					t.Errorf("footer should contain %q, got:\n%s", s, output)
+				}
+			}
+			for _, s := range tc.never {
+				if strings.Contains(output, s) {
+					t.Errorf("footer should not contain %q, got:\n%s", s, output)
+				}
+			}
+		})
 	}
 }
 
@@ -803,5 +864,64 @@ func TestRunScanExcludesFromFlagConfigAndDefaults(t *testing.T) {
 	}
 	if byDir["src"] == 0 {
 		t.Error("src/ has no findings; nothing excludes it")
+	}
+}
+
+// TestStreamFooterMatchesReportTotal scans a line that two detection patterns
+// match with the same category. Both matches are listed as they are found,
+// and deduplication then keeps one of them. The footer used to print the
+// number of listed matches, so it said "2 findings" above a report that says
+// "Total Findings: 1".
+func TestStreamFooterMatchesReportTotal(t *testing.T) {
+	tmpDir, err := os.MkdirTemp("", "cryptoscan-dedup-*")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer os.RemoveAll(tmpDir)
+
+	content := "from cryptography.hazmat.primitives.kdf.hkdf import HKDF\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, "kdf.py"), []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	outputFormat = "text"
+	outputFile = ""
+	minSeverity = ""
+	noColor = true
+	showProgress = false
+	streamFindings = true
+	baselineFile = ""
+	failOn = ""
+
+	output := captureStdout(func() {
+		if err := runScan(&cobra.Command{}, []string{tmpDir}); err != nil {
+			t.Errorf("runScan failed: %v", err)
+		}
+	})
+
+	listed := regexp.MustCompile(`(?m)^\s+\[\w+\] #\d+`).FindAllString(output, -1)
+	if len(listed) < 2 {
+		t.Fatalf("fixture should list at least two matches on one line, listed %d:\n%s", len(listed), output)
+	}
+
+	footer := regexp.MustCompile(`Scan complete: (\d+) findings? in`).FindStringSubmatch(output)
+	if footer == nil {
+		t.Fatalf("no stream footer in output:\n%s", output)
+	}
+	total := regexp.MustCompile(`Total Findings: (\d+)`).FindStringSubmatch(output)
+	if total == nil {
+		t.Fatalf("no Total Findings line in output:\n%s", output)
+	}
+	if footer[1] != total[1] {
+		t.Errorf("stream footer says %s findings, report says Total Findings: %s", footer[1], total[1])
+	}
+	if total[1] == strconv.Itoa(len(listed)) {
+		t.Fatalf("fixture no longer produces a duplicate match: %d listed, %s reported", len(listed), total[1])
+	}
+
+	// The listed matches are numbered, so the footer has to account for them.
+	wantListed := fmt.Sprintf("The list above has %d matches.", len(listed))
+	if !strings.Contains(output, wantListed) {
+		t.Errorf("footer should say %q, got:\n%s", wantListed, output)
 	}
 }

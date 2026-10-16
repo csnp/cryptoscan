@@ -193,6 +193,25 @@ change how `scan` decides its exit code.
   quantum computer." RSA, ECC, DH and DSA keep the harvest-now-decrypt-later
   wording. Severity, quantum risk, scores and exit codes are unchanged.
 
+- **The text report gives one count for a scan.** The line printed when the
+  scan finishes counted every match as it was listed, before matches of the
+  same kind on the same line were merged and before a baseline was applied,
+  so it said `121 findings` above a report that said `Total Findings: 110`.
+  It now leads with the number the report counts, and when the numbered list
+  above it is longer it says why: `The list above has 121 matches.`, then how
+  many repeat a match on the same line and how many are already in the
+  baseline.
+
+  The INVENTORY box and the Quantum Risk Assessment group the same findings
+  by different fields, so their rows differ (`Safe (PQC): 32` against
+  `SAFE 35` on `crypto-samples`). Each now names the field it groups by, the
+  Quantum Risk Assessment prints a total, and both totals equal
+  `Total Findings`. A finding whose quantum risk is not one of the printed
+  rows is counted as `UNKNOWN` rather than left out. Tests scan
+  `crypto-samples` and check that the text breakdowns add up to
+  `Total Findings`, and that `summary.totalFindings`, the number of
+  `findings` and `migrationScore.totalCount` in the JSON output are equal.
+
 ### Documentation
 
 - **The CBOM fields are documented, and a test keeps the page accurate.**

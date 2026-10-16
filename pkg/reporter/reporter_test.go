@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -834,5 +835,216 @@ func TestScannedFindingsCarryVerifyAndFix(t *testing.T) {
 				t.Errorf("JSON finding %d (%v) has no %q string", i, f["id"], key)
 			}
 		}
+	}
+}
+
+// scanCryptoSamples runs the real scanner, with the default scan settings,
+// over a temporary copy of crypto-samples. The copy keeps the scan away from
+// any .cryptoscan.yaml in the repository, which the scanner would otherwise
+// pick up from a parent directory.
+func scanCryptoSamples(t *testing.T) *scanner.Results {
+	t.Helper()
+
+	// os.MkdirTemp rather than t.TempDir, whose path carries the test name.
+	dir, err := os.MkdirTemp("", "cryptoscan-counts-")
+	if err != nil {
+		t.Fatalf("create fixture directory: %v", err)
+	}
+	t.Cleanup(func() { os.RemoveAll(dir) })
+
+	src := filepath.Join("..", "..", "crypto-samples")
+	root := filepath.Join(dir, "crypto-samples")
+	err = filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		dst := filepath.Join(root, rel)
+		if d.IsDir() {
+			return os.MkdirAll(dst, 0o755)
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		return os.WriteFile(dst, body, 0o644)
+	})
+	if err != nil {
+		t.Fatalf("copy crypto-samples: %v", err)
+	}
+
+	results, err := scanner.New(scanner.Config{
+		Target:      root,
+		MinSeverity: scanner.SeverityInfo,
+	}).Scan()
+	if err != nil {
+		t.Fatalf("scan crypto-samples: %v", err)
+	}
+	if len(results.Findings) == 0 {
+		t.Fatal("scan of crypto-samples produced no findings")
+	}
+	results.ScanTarget = root
+	return results
+}
+
+// reportSection returns the text from the first line containing start up to,
+// but not including, the next line containing end.
+func reportSection(t *testing.T, text, start, end string) string {
+	t.Helper()
+	i := strings.Index(text, start)
+	if i < 0 {
+		t.Fatalf("report has no %q section:\n%s", start, text)
+	}
+	rest := text[i:]
+	j := strings.Index(rest, end)
+	if j < 0 {
+		t.Fatalf("report has no %q after %q:\n%s", end, start, text)
+	}
+	return rest[:j]
+}
+
+func atoi(t *testing.T, s string) int {
+	t.Helper()
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		t.Fatalf("not a number: %q", s)
+	}
+	return n
+}
+
+// quantumRows returns the per-risk rows and the printed total of the Quantum
+// Risk Assessment block.
+func quantumRows(t *testing.T, report string) (rows map[string]int, total int) {
+	t.Helper()
+	block := reportSection(t, report, "Quantum Risk Assessment", "Categories Found")
+	rows = map[string]int{}
+	for _, m := range regexp.MustCompile(`(?m)^\s+\S+\s+(VULNERABLE|PARTIAL|SAFE|UNKNOWN)\s+(\d+)\s*$`).FindAllStringSubmatch(block, -1) {
+		rows[m[1]] += atoi(t, m[2])
+	}
+	m := regexp.MustCompile(`(?m)^\s+Total\s+(\d+)\s*$`).FindStringSubmatch(block)
+	if m == nil {
+		t.Fatalf("Quantum Risk Assessment prints no total row:\n%s", block)
+	}
+	return rows, atoi(t, m[1])
+}
+
+// TestTextReportCountsAgree checks that every breakdown in the text report
+// adds up to the number it prints as Total Findings, and that each breakdown
+// says which field of a finding it groups by. The readiness box groups by
+// migration status and the Quantum Risk Assessment by quantum risk, so their
+// rows differ (SAFE 35 against Safe (PQC) 32 on crypto-samples) and a reader
+// could not tell why.
+func TestTextReportCountsAgree(t *testing.T) {
+	results := scanCryptoSamples(t)
+	want := results.Summary.TotalFindings
+
+	report, err := NewTextReporter(false).Generate(results)
+	if err != nil {
+		t.Fatalf("generate text report: %v", err)
+	}
+
+	m := regexp.MustCompile(`Total Findings: (\d+)`).FindStringSubmatch(report)
+	if m == nil || atoi(t, m[1]) != want {
+		t.Fatalf("Total Findings line = %v, want %d", m, want)
+	}
+
+	inventory := reportSection(t, report, "INVENTORY", "QRAMM DIMENSION")
+	if !strings.Contains(inventory, "by migration status") {
+		t.Errorf("INVENTORY does not say it counts by migration status:\n%s", inventory)
+	}
+	rowSum := 0
+	for _, label := range []string{`Safe \(PQC\):`, `Hybrid:`, `Partial:`, `Vulnerable:`, `Critical:`} {
+		m := regexp.MustCompile(label + `\s+(\d+)`).FindStringSubmatch(inventory)
+		if m == nil {
+			t.Fatalf("INVENTORY has no %s row:\n%s", label, inventory)
+		}
+		rowSum += atoi(t, m[1])
+	}
+	m = regexp.MustCompile(`Total:\s+(\d+)`).FindStringSubmatch(inventory)
+	if m == nil {
+		t.Fatalf("INVENTORY has no Total row:\n%s", inventory)
+	}
+	if got := atoi(t, m[1]); got != want {
+		t.Errorf("INVENTORY Total: %d, Total Findings: %d", got, want)
+	}
+	if rowSum != want {
+		t.Errorf("INVENTORY rows add up to %d, Total Findings: %d", rowSum, want)
+	}
+
+	if !strings.Contains(reportSection(t, report, "Quantum Risk Assessment", "\n"), "by quantum risk") {
+		t.Errorf("Quantum Risk Assessment heading does not say it counts by quantum risk")
+	}
+	rows, total := quantumRows(t, report)
+	quantumSum := 0
+	for _, n := range rows {
+		quantumSum += n
+	}
+	if total != want {
+		t.Errorf("Quantum Risk Assessment total %d, Total Findings: %d", total, want)
+	}
+	if quantumSum != want {
+		t.Errorf("Quantum Risk Assessment rows add up to %d, Total Findings: %d", quantumSum, want)
+	}
+}
+
+// TestQuantumRowsCoverEveryFinding gives the text reporter a finding whose
+// quantum risk is not one of the four printed rows. It has to be counted
+// somewhere, or the rows stop adding up to Total Findings.
+func TestQuantumRowsCoverEveryFinding(t *testing.T) {
+	results := createTestResults()
+	results.Findings[1].Quantum = ""
+	results.Summary.ByQuantumRisk = map[string]int{"VULNERABLE": 1, "": 1}
+
+	report, err := NewTextReporter(false).Generate(results)
+	if err != nil {
+		t.Fatalf("generate text report: %v", err)
+	}
+	rows, total := quantumRows(t, report)
+	sum := 0
+	for _, n := range rows {
+		sum += n
+	}
+	if sum != 2 || total != 2 {
+		t.Errorf("Quantum Risk Assessment rows %v add up to %d with total %d, want 2", rows, sum, total)
+	}
+	if rows["UNKNOWN"] != 1 {
+		t.Errorf("a finding with no quantum risk should be counted as UNKNOWN, rows %v", rows)
+	}
+}
+
+// TestJSONReportCountsAgree checks that the three totals a JSON consumer can
+// read for one scan are the same number.
+func TestJSONReportCountsAgree(t *testing.T) {
+	results := scanCryptoSamples(t)
+
+	out, err := NewJSONReporter(false).Generate(results)
+	if err != nil {
+		t.Fatalf("generate JSON report: %v", err)
+	}
+	var doc struct {
+		Summary struct {
+			TotalFindings int `json:"totalFindings"`
+		} `json:"summary"`
+		Findings       []json.RawMessage `json:"findings"`
+		MigrationScore *struct {
+			TotalCount int `json:"totalCount"`
+		} `json:"migrationScore"`
+	}
+	if err := json.Unmarshal([]byte(out), &doc); err != nil {
+		t.Fatalf("JSON report does not parse: %v", err)
+	}
+	if doc.MigrationScore == nil {
+		t.Fatal("JSON report has no migrationScore")
+	}
+	n := len(doc.Findings)
+	if n == 0 {
+		t.Fatal("JSON report has no findings")
+	}
+	if doc.Summary.TotalFindings != n || doc.MigrationScore.TotalCount != n {
+		t.Errorf("summary.totalFindings %d, len(findings) %d, migrationScore.totalCount %d: want all equal",
+			doc.Summary.TotalFindings, n, doc.MigrationScore.TotalCount)
 	}
 }

@@ -318,14 +318,14 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	textReport := outputFormat == "text" && opts.view == nil
 
 	// Setup streaming output for text format (thread-safe for parallel scanning)
-	findingCount := 0
+	listedCount := 0
 	fileCount := 0
 	var outputMu sync.Mutex
 	if streamFindings && textReport {
 		cfg.OnFinding = func(f scanner.Finding) {
 			outputMu.Lock()
-			findingCount++
-			num := findingCount
+			listedCount++
+			num := listedCount
 			// Clear the progress line before printing finding
 			clearProgressLine()
 			printStreamFinding(f, num, !noColor)
@@ -380,12 +380,10 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	}
 	duration := time.Since(startTime)
 
-	// Print streaming footer with summary
-	if streamFindings && textReport {
-		// Clear any remaining progress line
-		clearProgressLine()
-		printScanningFooter(findingCount, fileCount, duration, !noColor)
-	}
+	// Matches are listed as they are found, before deduplication and before
+	// any baseline is applied, so the footer is printed once the report's own
+	// count is known.
+	uniqueCount := len(results.Findings)
 
 	// Apply baseline comparison if specified
 	if effectiveBaseline != "" {
@@ -404,6 +402,18 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		// Recalculate summary and migration score after filtering
 		results.Summary = calculateSummary(results.Findings)
 		results.MigrationScore = analyzer.CalculateMigrationScore(results.Findings)
+	}
+
+	// Print streaming footer with summary
+	if streamFindings && textReport {
+		// Clear any remaining progress line
+		clearProgressLine()
+		printScanningFooter(streamTally{
+			listed:   listedCount,
+			unique:   uniqueCount,
+			reported: len(results.Findings),
+			files:    results.FilesScanned,
+		}, duration, !noColor)
 	}
 
 	// Create reporter
@@ -602,7 +612,18 @@ func printScanningHeader(useColor bool) {
 	}
 }
 
-func printScanningFooter(findingCount, fileCount int, duration time.Duration, useColor bool) {
+// streamTally holds the counts the stream footer reports. The streamed list
+// shows every match as it is found, which is more than the report counts:
+// matches of the same category on the same line are merged into one finding,
+// and a baseline removes findings that were already known.
+type streamTally struct {
+	listed   int // matches printed while scanning
+	unique   int // findings left after deduplication
+	reported int // findings the report counts as Total Findings
+	files    int // files scanned
+}
+
+func printScanningFooter(tally streamTally, duration time.Duration, useColor bool) {
 	const (
 		colorGreen = "\033[32m"
 		colorBold  = "\033[1m"
@@ -610,13 +631,48 @@ func printScanningFooter(findingCount, fileCount int, duration time.Duration, us
 		colorDim   = "\033[2m"
 	)
 
+	counts := fmt.Sprintf("%d %s in %d %s (%s)",
+		tally.reported, plural(tally.reported, "finding", "findings"),
+		tally.files, plural(tally.files, "file", "files"),
+		duration.Round(time.Millisecond))
+
 	fmt.Println()
 	if useColor {
-		fmt.Printf("%s%s  \u2713 Scan complete%s: %d findings in %d files (%s)\n\n",
-			colorGreen, colorBold, colorReset, findingCount, fileCount, duration.Round(time.Millisecond))
+		fmt.Printf("%s%s  \u2713 Scan complete%s: %s\n", colorGreen, colorBold, colorReset, counts)
 	} else {
-		fmt.Printf("  Scan complete: %d findings in %d files (%s)\n\n", findingCount, fileCount, duration.Round(time.Millisecond))
+		fmt.Printf("  Scan complete: %s\n", counts)
 	}
+
+	// The listed matches are numbered, so when their count differs from the
+	// report's, say where the difference went.
+	var notes []string
+	if tally.listed != tally.reported {
+		notes = append(notes, fmt.Sprintf("The list above has %d %s.",
+			tally.listed, plural(tally.listed, "match", "matches")))
+		if merged := tally.listed - tally.unique; merged > 0 {
+			notes = append(notes, fmt.Sprintf("%d %s a match of the same kind on the same line and %s counted with it.",
+				merged, plural(merged, "repeats", "repeat"), plural(merged, "is", "are")))
+		}
+		if known := tally.unique - tally.reported; known > 0 {
+			notes = append(notes, fmt.Sprintf("%d %s already in the baseline and %s not counted.",
+				known, plural(known, "is", "are"), plural(known, "is", "are")))
+		}
+	}
+	for _, note := range notes {
+		if useColor {
+			fmt.Printf("%s  %s%s\n", colorDim, note, colorReset)
+		} else {
+			fmt.Printf("  %s\n", note)
+		}
+	}
+	fmt.Println()
+}
+
+func plural(n int, one, many string) string {
+	if n == 1 {
+		return one
+	}
+	return many
 }
 
 // printStreamFinding prints a compact finding line during scanning

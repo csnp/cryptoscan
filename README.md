@@ -1,118 +1,83 @@
-<h1 align="center">CryptoScan</h1>
+# CryptoScan
 
-<h3 align="center">Cryptographic Discovery for the Post-Quantum Era</h3>
+[![CI](https://github.com/csnp/cryptoscan/actions/workflows/ci.yml/badge.svg)](https://github.com/csnp/cryptoscan/actions/workflows/ci.yml) [![Go Report Card](https://goreportcard.com/badge/github.com/csnp/cryptoscan?v=2)](https://goreportcard.com/report/github.com/csnp/cryptoscan) [![License](https://img.shields.io/github/license/csnp/cryptoscan)](LICENSE)
 
-<p align="center">
-  <strong>Inventory the cryptography in your codebase. Know your quantum risk. Get a Migration Readiness Score. Plan your migration.</strong>
-</p>
+> Part of the **QRAMM** toolkit by CSNP: CryptoScan, [CryptoDeps](https://github.com/csnp/cryptodeps), [TLS Analyzer](https://github.com/csnp/tls-analyzer). Framework: [qramm.org](https://qramm.org).
 
-<p align="center">
-  <a href="https://github.com/csnp/cryptoscan/actions/workflows/ci.yml"><img src="https://github.com/csnp/cryptoscan/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
-  <a href="https://goreportcard.com/report/github.com/csnp/cryptoscan"><img src="https://goreportcard.com/badge/github.com/csnp/cryptoscan?v=2" alt="Go Report Card"></a>
-  <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg" alt="License"></a>
-  <a href="https://go.dev/"><img src="https://img.shields.io/badge/Go-1.21+-00ADD8?logo=go&logoColor=white" alt="Go Version"></a>
-</p>
+[Website](https://qramm.org) · [Docs](https://qramm.org/learn/cryptoscan-guide.html) · [Framework](https://github.com/csnp/qramm)
 
-<p align="center">
-  <a href="#why-cryptoscan">Why CryptoScan</a> •
-  <a href="#quick-start">Quick Start</a> •
-  <a href="#features">Features</a> •
-  <a href="https://qramm.org/learn/cryptoscan-guide.html">Full Documentation</a> •
-  <a href="#contributing">Contributing</a>
-</p>
+CryptoScan is a command-line scanner that finds the cryptography in your source code and configuration files, sorts each finding by its quantum risk, maps the results to QRAMM Dimension 1 (Cryptographic Visibility and Inventory), and writes them as text, JSON, CSV, SARIF or a CycloneDX CBOM.
 
----
+It reads the files in the working tree, not Git history (`--git-history` is accepted but not yet implemented), and it does not detect DSA, as `cryptoscan scan --help` states.
 
-> **Part of the QRAMM Toolkit**. Open-source tools for quantum readiness:
->
-> | Tool | Purpose |
-> |------|---------|
-> | **[CryptoScan](https://github.com/csnp/cryptoscan)** | Cryptographic discovery in source code ← You are here |
-> | **[CryptoDeps](https://github.com/csnp/cryptodeps)** | Quantum-safe dependency analysis for your supply chain |
-> | **[TLS-Analyzer](https://github.com/csnp/tls-analyzer)** | TLS/SSL configuration analysis with CNSA 2.0 compliance |
->
-> Learn more at [qramm.org](https://qramm.org)
-
----
-
-## The Quantum Computing Challenge
-
-**Quantum computers will break RSA, ECDSA, and Diffie-Hellman within the next decade.** This isn't speculation. The NSA, NIST, and major technology companies are already migrating to post-quantum cryptography (PQC).
-
-The challenge? **You can't migrate what you can't find.**
-
-Most organizations have no visibility into which cryptographic algorithms are used across their codebases, configurations, and dependencies. CryptoScan solves this by providing a complete cryptographic inventory in seconds, with full source code context so you know exactly what needs to change and where.
-
-## Quick Start
-
-### Installation
-
-#### Option 1: Build from Source
-
-Requires **Go 1.21+** ([install Go](https://go.dev/dl/)). Always use the latest patch version for security fixes.
-
-Copy and paste this entire block:
-
-```bash
-git clone https://github.com/csnp/cryptoscan.git
-cd cryptoscan
-go build -o cryptoscan ./cmd/cryptoscan
-sudo mv cryptoscan /usr/local/bin/
-cd ..
-cryptoscan version
-```
-
-#### Option 2: Go Install
-
-For Go developers:
+Install it with Go (the binary goes into `$(go env GOPATH)/bin`), then scan the sample files that come with this repository:
 
 ```bash
 go install github.com/csnp/cryptoscan/cmd/cryptoscan@latest
+git clone https://github.com/csnp/cryptoscan.git && cd cryptoscan
+cryptoscan scan crypto-samples
 ```
 
-#### Option 3: Download Binary
+What `cryptoscan scan crypto-samples` prints, trimmed ([full output](docs/captures/scan-crypto-samples.txt)):
 
-Download pre-built binaries from [GitHub Releases](https://github.com/csnp/cryptoscan/releases/latest).
+```text
+  Scanning... (findings appear as discovered)
 
-### Basic Usage
+  [INFO] #1   ML-KEM Key Encapsul... ...scan/crypto-samples/pqc_algorithms.py:5   
+  [INFO] #2   Post-Quantum Crypto... ...oscan/crypto-samples/hybrid_crypto.js:5   
+  [INFO] #3   Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:7   
+  ...
 
-```bash
-# Scan a local directory
-cryptoscan scan .
+  Scan complete: 121 findings in 6 files (16ms)
 
-# Scan a remote Git repository
-cryptoscan scan https://github.com/your-org/your-repo.git
 
-# Output to JSON for automation
-cryptoscan scan . --format json --output findings.json
+╔═══════════════════════════════════════════════════════════════╗
+║              CRYPTOGRAPHIC SCAN RESULTS                       ║
+║                    QRAMM CryptoScan                           ║
+╚═══════════════════════════════════════════════════════════════╝
 
-# Generate SARIF for GitHub Security integration
-cryptoscan scan . --format sarif --output results.sarif
+┌─ QUANTUM MIGRATION READINESS ──────────────────────────────────┐
+│  Score: █████████░░░░░░░░░░░░░░░░ 37.5% [CRITICAL]│
+│─────────────────────────────────────────────────────────────────│
+│  INVENTORY                                                     │
+│    ✓ Safe (PQC):        32       ✗ Vulnerable:    39      │
+│    ◐ Hybrid:            3        [!] Critical:      13      │
+│    ◑ Partial:           23       Total:          110     │
+│─────────────────────────────────────────────────────────────────│
+│  QRAMM DIMENSION 1: Cryptographic Visibility & Inventory (CVI) │
+│    Practice 1.1 Discovery:   Level 3/5 ●●●○○                    │
+│    Practice 1.2 Assessment:  Level 3/5 ●●●○○                    │
+│    Practice 1.3 Mapping:     Level 3/5 ●●●○○                    │
+│─────────────────────────────────────────────────────────────────│
+│  TOP PRIORITY FILES                                            │
+│    1. ...scan/crypto-samples/crypto_samples.go   (29 findings)  │
+│    2. ...scan/crypto-samples/crypto_samples.py   (21 findings)  │
+│    3. ...can/crypto-samples/CryptoSamples.java   (8 findings)  │
+│─────────────────────────────────────────────────────────────────│
+│  RECOMMENDATIONS                                               │
+│    • CRITICAL: Remove broken algorithms (MD5, SHA-1, DES, RC4)...│
+│    • Plan migration from quantum-vulnerable algorithms to PQC ...│
+└─────────────────────────────────────────────────────────────────┘
+
+┌─ Scan Information ─────────────────────────────────────────────┐
+│ Target:   crypto-samples                                      │
+  ...
+│ Duration: 16ms                                                │
+│ Scanned:  6 files • 873 lines • 26.3 KB                       │
+│ Speed:    383 files/sec • 1.6 MB/sec                          │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-The scan exits with code 1 when it finds a CRITICAL issue or hits an error, and 0 otherwise; `--fail-on` changes the threshold (see Exit codes in the [command reference](docs/commands.md)).
+Common jobs:
 
-### Try It Out
+- Scan a project folder: `cryptoscan scan .` ([command reference](docs/commands.md#commands))
+- Scan a remote repository: `cryptoscan scan https://github.com/your-org/your-repo.git` ([command reference](docs/commands.md#commands))
+- Send findings to GitHub code scanning: `cryptoscan scan . --format sarif --output results.sarif` ([GitHub Actions with SARIF](docs/ci.md#github-actions-with-sarif))
+- Write a Cryptographic Bill of Materials: `cryptoscan scan . --format cbom --output crypto-bom.json` ([CBOM output](docs/commands.md#cbom-cryptographic-bill-of-materials))
+- Fail a CI build on serious findings: `cryptoscan scan . --fail-on high` ([exit code control](docs/ci.md#exit-code-control))
+- Report only findings that are new since a baseline: `cryptoscan scan . --baseline baseline.json` ([baseline workflow](docs/ci.md#baseline-workflow))
 
-This repository includes sample cryptographic code for testing:
-
-```bash
-# Clone and build
-git clone https://github.com/csnp/cryptoscan.git
-cd cryptoscan
-go build -o cryptoscan ./cmd/cryptoscan
-
-# Scan the sample files (Go, Python, Java, JavaScript)
-./cryptoscan scan ./crypto-samples
-
-# Expected: ~100+ findings showing various crypto patterns including:
-# - Post-Quantum: ML-KEM, ML-DSA, SLH-DSA, XMSS, LMS
-# - Hybrid: X25519+ML-KEM, ECDSA+ML-DSA composite
-# - Quantum vulnerable: RSA, ECDSA, Ed25519
-# - MACs: HMAC-SHA256/512, KMAC
-# - KDFs: HKDF, PBKDF2, Argon2id, bcrypt
-# - With Migration Readiness Score and QRAMM mapping
-```
+The scan exits with code 1 when it finds a CRITICAL issue or hits an error, and 0 otherwise; `--fail-on` changes the threshold (see [Exit codes](docs/commands.md#exit-codes)).
 
 ## Features
 
@@ -172,22 +137,30 @@ Algorithm names that appear only in prose, logs or comments are held back from t
 
 ### Multiple Output Formats
 
+`--format` takes `text` (the default), `json`, `csv`, `sarif` or `cbom`, and `--output` writes the report to a file. [Output formats](docs/commands.md#output-formats) shows the command for each and what each one contains.
+
+## Install
+
+The first example on this page installs with `go install`. You can also build from source or download a binary.
+
+### Build from source
+
+Requires Go at the version named in [go.mod](go.mod) or newer ([install Go](https://go.dev/dl/)). Always use the latest patch version for security fixes.
+
+Copy and paste this entire block. It moves the binary into `/usr/local/bin`, so `sudo` asks for your password:
+
 ```bash
-# Human-readable text (default)
-cryptoscan scan .
-
-# JSON for automation and integration
-cryptoscan scan . --format json --output findings.json
-
-# CSV for spreadsheet analysis
-cryptoscan scan . --format csv --output findings.csv
-
-# SARIF for GitHub Code Scanning
-cryptoscan scan . --format sarif --output results.sarif
-
-# CBOM (Cryptographic Bill of Materials) for compliance
-cryptoscan scan . --format cbom --output crypto-bom.json
+git clone https://github.com/csnp/cryptoscan.git
+cd cryptoscan
+go build -o cryptoscan ./cmd/cryptoscan
+sudo mv cryptoscan /usr/local/bin/
+cd ..
+cryptoscan version
 ```
+
+### Download a binary
+
+Download pre-built binaries from [GitHub Releases](https://github.com/csnp/cryptoscan/releases/latest).
 
 ## Documentation
 

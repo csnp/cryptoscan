@@ -212,6 +212,22 @@ change how `scan` decides its exit code.
   `Total Findings`, and that `summary.totalFindings`, the number of
   `findings` and `migrationScore.totalCount` in the JSON output are equal.
 
+- **An unknown `--format`, `--fail-on` or `--min-severity` value is now an
+  error.** Before, `--format xml` printed the text report, and an unknown
+  severity such as `--fail-on hihg` or `--min-severity extreme` was read as
+  `info`: `--fail-on` then failed the build on every finding with no message,
+  and `--min-severity` reported everything. `--format jsn -o report.json`
+  wrote the text report into a `.json` file. The scan now stops before
+  scanning or writing anything, prints
+  `Error: unknown --format "xml" (valid: text, json, csv, sarif, cbom)` and
+  exits 1, the same exit code as an unknown flag. The `format`, `failOn` and
+  `minSeverity` settings in `.cryptoscan.yaml` are checked the same way, and
+  the error names the config file. Values are matched without regard to case,
+  so `--fail-on HIGH` and `--format JSON` both work; before, `--format JSON`
+  also fell back to the text report. The flag help and the error message are
+  built from the same list of accepted values, and `cryptoscan scan --help`
+  now describes the `csv` format, which it left out.
+
 ### Documentation
 
 - **The CBOM fields are documented, and a test keeps the page accurate.**

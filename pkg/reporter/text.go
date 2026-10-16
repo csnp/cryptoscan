@@ -166,7 +166,7 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 	r.writeFindingsByContext(&b, &results.Summary)
 
 	// Quantum Risk Assessment with visual emphasis
-	b.WriteString(r.color(colorBold, "  Quantum Risk Assessment:\n"))
+	b.WriteString(r.color(colorBold, "  Quantum Risk Assessment (findings by quantum risk):\n"))
 	if results.Summary.QuantumVulnCount > 0 {
 		b.WriteString(r.color(colorRed+colorBold, fmt.Sprintf("    [!] %d quantum-vulnerable findings require migration planning\n", results.Summary.QuantumVulnCount)))
 	}
@@ -180,15 +180,36 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 		{"SAFE", colorGreen, "✓"},
 		{"UNKNOWN", colorCyan, "?"},
 	}
+	// Every finding is counted in exactly one row, so the rows add up to
+	// Total Findings. A quantum risk outside the three known values cannot be
+	// determined, and is counted as UNKNOWN rather than left out.
+	quantumCounts := make(map[string]int)
+	for risk, count := range results.Summary.ByQuantumRisk {
+		switch risk {
+		case "VULNERABLE", "PARTIAL", "SAFE":
+			quantumCounts[risk] += count
+		default:
+			quantumCounts["UNKNOWN"] += count
+		}
+	}
+	quantumTotal := 0
 	for _, risk := range quantumRisks {
-		if count, ok := results.Summary.ByQuantumRisk[risk.name]; ok && count > 0 {
+		if count := quantumCounts[risk.name]; count > 0 {
 			b.WriteString(fmt.Sprintf("    %s %s%-12s%s %d\n",
 				r.color(risk.color, risk.icon),
 				r.color(risk.color, ""),
 				risk.name,
 				r.color(colorReset, ""),
 				count))
+			quantumTotal += count
 		}
+	}
+	b.WriteString(fmt.Sprintf("      %-12s %d\n", "Total", quantumTotal))
+	if results.MigrationScore != nil && quantumTotal > 0 {
+		b.WriteString(r.color(colorCyan,
+			"    The migration readiness box above counts the same findings by\n"+
+				"    migration status, which also weighs hybrid use and algorithms that\n"+
+				"    are already broken, so its rows differ from these.\n"))
 	}
 	b.WriteString("\n")
 
@@ -461,7 +482,7 @@ func (r *TextReporter) writeMigrationScore(b *strings.Builder, score *scanner.Mi
 	b.WriteString(r.color(colorCyan, "│") + r.color(colorCyan, "─────────────────────────────────────────────────────────────────") + r.color(colorCyan, "│\n"))
 
 	// Status breakdown
-	b.WriteString(r.color(colorCyan, "│") + r.color(colorBold, "  INVENTORY                                                     ") + r.color(colorCyan, "│\n"))
+	b.WriteString(r.color(colorCyan, "│") + r.color(colorBold, fmt.Sprintf("%-64s", "  INVENTORY (findings by migration status)")) + r.color(colorCyan, "│\n"))
 	b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    %s Safe (PQC):        %-5d", r.color(colorGreen, "✓"), score.SafeCount) + fmt.Sprintf("    %s Vulnerable:    %-5d", r.color(colorRed, "✗"), score.VulnerableCount) + r.color(colorCyan, "   │\n"))
 	b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    %s Hybrid:            %-5d", r.color(colorGreen, "◐"), score.HybridCount) + fmt.Sprintf("    %s Critical:      %-5d", r.color(colorRed+colorBold, "[!]"), score.CriticalCount) + r.color(colorCyan, "   │\n"))
 	b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    %s Partial:           %-5d", r.color(colorYellow, "◑"), score.PartialCount) + fmt.Sprintf("    Total:          %-5d", score.TotalCount) + r.color(colorCyan, "   │\n"))

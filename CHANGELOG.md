@@ -22,6 +22,35 @@ All notable changes to CryptoScan are recorded here. This project follows
   NIST have not yet published minimum elements for a CBOM; the page is where
   CryptoScan will track them once they do.
 
+### Fixed
+
+- **A scan target inside a `docs` directory reported nothing.** The path rules
+  that keep documentation, build output and test code out of the report were
+  tested against the absolute path of each file, so directories above the scan
+  target counted. A checkout under `~/work/docs/myproject` scanned 0 files and
+  exited 0, and one under `~/work/api-docs/` read every file and then discarded
+  every finding. This was listed as a known limitation in 1.4.0.
+
+  The rules now test only the path relative to the scan target, at one point
+  that every rule uses:
+  - which files are read (documentation directories such as `docs/`, `doc/`,
+    `documentation/` and `wiki/`);
+  - which directories are walked (`build/`, `dist/`, `bin/`, `target/site/`
+    and the rest of the built-in list);
+  - which findings are discarded (names such as `api-docs` and `user_docs`);
+  - how a file is classified, so a target under a `test/` directory is no
+    longer reported with test-file severity.
+
+  The same names inside the scan target are excluded as before. Two results
+  change as a consequence, and both are intended:
+  - The scan target itself is never skipped by the built-in directory list, so
+    `cryptoscan scan ./build` or `cryptoscan scan ./examples` now scans that
+    directory instead of reporting 0 files. `--exclude` patterns still apply
+    to it.
+  - The result no longer depends on how the target path is written. Scanning
+    `.` used to include a top-level `docs/` directory that scanning the same
+    tree by its absolute path left out. Both now leave it out.
+
 ## [1.4.0] - 2026-07-28
 
 ### Fixed

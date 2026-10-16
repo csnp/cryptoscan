@@ -13,6 +13,7 @@ import (
 	"strings"
 	"testing"
 	"time"
+	"unicode/utf8"
 
 	"github.com/csnp/cryptoscan/pkg/analyzer"
 	"github.com/csnp/cryptoscan/pkg/patterns"
@@ -1046,5 +1047,120 @@ func TestJSONReportCountsAgree(t *testing.T) {
 	if doc.Summary.TotalFindings != n || doc.MigrationScore.TotalCount != n {
 		t.Errorf("summary.totalFindings %d, len(findings) %d, migrationScore.totalCount %d: want all equal",
 			doc.Summary.TotalFindings, n, doc.MigrationScore.TotalCount)
+	}
+}
+
+// migrationBoxRows returns the lines of the migration readiness box, from the
+// Score row to the closing border.
+func migrationBoxRows(t *testing.T, output string) []string {
+	t.Helper()
+	lines := strings.Split(output, "\n")
+	for i, line := range lines {
+		if strings.Contains(line, "Score:") {
+			for j := i; j < len(lines); j++ {
+				if strings.HasPrefix(lines[j], "└") {
+					return lines[i:j]
+				}
+			}
+		}
+	}
+	t.Fatal("output has no migration readiness Score row")
+	return nil
+}
+
+func TestTextReporterStatesScoreMethod(t *testing.T) {
+	results := createTestResults()
+	results.MigrationScore = &scanner.MigrationScore{
+		Score:           32.5,
+		Level:           "HIGH",
+		SafeCount:       1,
+		PartialCount:    1,
+		VulnerableCount: 2,
+		TotalCount:      4,
+	}
+
+	output, err := NewTextReporter(false).Generate(results)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	rows := migrationBoxRows(t, output)
+	if len(rows) < 2 || !strings.Contains(rows[1], "Method: (safe 1 + 0.8 x hybrid 0 + 0.3 x partial 1)") {
+		t.Fatalf("the row under Score does not state the method with the scan's counts:\n%s", strings.Join(rows, "\n"))
+	}
+
+	var method, words []string
+	for _, row := range rows[1:] {
+		if strings.Contains(row, "INVENTORY") || strings.Contains(row, "───") {
+			break
+		}
+		method = append(method, row)
+		words = append(words, strings.Fields(strings.Trim(row, "│"))...)
+		if got := utf8.RuneCountInString(row); got != 67 {
+			t.Errorf("method row is %d characters wide, the box is 67:\n%s", got, row)
+		}
+	}
+	text := strings.Join(method, "\n")
+	if !strings.Contains(text, "/ 4 findings") {
+		t.Errorf("method rows split or miss %q:\n%s", "/ 4 findings", text)
+	}
+	want := "Method: (safe 1 + 0.8 x hybrid 0 + 0.3 x partial 1) / 4 findings, as a percentage. " +
+		"Every finding counts once; test and example files count the same as production code."
+	if got := strings.Join(words, " "); got != want {
+		t.Errorf("method rows read %q, want %q", got, want)
+	}
+}
+
+func TestTextReporterCountsTestDirectoryFindings(t *testing.T) {
+	results := createTestResults()
+	results.Findings[0].File = "tests/x.py"
+	results.Findings[1].File = "src/encrypt.go"
+	results.MigrationScore = analyzer.CalculateMigrationScore(results.Findings)
+
+	output, err := NewTextReporter(false).Generate(results)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	rows := migrationBoxRows(t, output)
+	want := "1 of 2 findings are in test directories."
+	for _, row := range rows {
+		if strings.Contains(row, "INVENTORY") {
+			break
+		}
+		if strings.Contains(row, want) {
+			if got := utf8.RuneCountInString(row); got != 67 {
+				t.Errorf("test-directory row is %d characters wide, the box is 67:\n%s", got, row)
+			}
+			return
+		}
+	}
+	t.Errorf("rows above INVENTORY missing %q:\n%s", want, strings.Join(rows, "\n"))
+}
+
+func TestJSONReporterStatesScoreMethod(t *testing.T) {
+	results := createTestResults()
+	results.Findings[0].File = "tests/x.py"
+	results.Findings[1].File = "src/encrypt.go"
+	results.MigrationScore = analyzer.CalculateMigrationScore(results.Findings)
+
+	output, err := NewJSONReporter(false).Generate(results)
+	if err != nil {
+		t.Fatalf("Generate failed: %v", err)
+	}
+
+	var parsed struct {
+		MigrationScore map[string]interface{} `json:"migrationScore"`
+	}
+	if err := json.Unmarshal([]byte(output), &parsed); err != nil {
+		t.Fatalf("Invalid JSON output: %v", err)
+	}
+
+	method, ok := parsed.MigrationScore["method"].(string)
+	if !ok || !strings.Contains(method, "/ 2 findings") {
+		t.Errorf("migrationScore.method = %v, want the formula with / 2 findings", parsed.MigrationScore["method"])
+	}
+	if got, ok := parsed.MigrationScore["testDirectoryFindings"].(float64); !ok || got != 1 {
+		t.Errorf("migrationScore.testDirectoryFindings = %v, want 1", parsed.MigrationScore["testDirectoryFindings"])
 	}
 }

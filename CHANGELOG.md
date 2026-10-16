@@ -228,6 +228,26 @@ change how `scan` decides its exit code.
   built from the same list of accepted values, and `cryptoscan scan --help`
   now describes the `csv` format, which it left out.
 
+- **A project using hybrid post-quantum key exchange was told it had none.**
+  The recommendation `No quantum-safe algorithms detected. Begin PQC adoption
+  planning.` was printed whenever no fully post-quantum finding was present,
+  even when the inventory listed hybrid findings. It now prints only when the
+  scan finds neither.
+
+### Changed
+
+- **The migration readiness score now says how it was computed.** The text
+  report prints a Method line directly under the score with the scan's own
+  counts, for example `Method: (safe 32 + 0.8 x hybrid 3 + 0.3 x partial 23)
+  / 110 findings, as a percentage. Every finding counts once; test and example
+  files count the same as production code.` When findings sit in a directory
+  named `test`, `tests`, `__tests__`, `spec` or `specs` below the scanned
+  directory, a second line says how many, for example `3 of 6 findings are in
+  test directories.` JSON output carries the same text as
+  `migrationScore.method` and the count as
+  `migrationScore.testDirectoryFindings`. The formula, weights and levels are
+  unchanged, and CBOM and SARIF output are unchanged.
+
 ### Documentation
 
 - **The CBOM fields are documented, and a test keeps the page accurate.**

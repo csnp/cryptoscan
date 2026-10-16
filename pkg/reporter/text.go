@@ -8,6 +8,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/csnp/cryptoscan/pkg/analyzer"
 	"github.com/csnp/cryptoscan/pkg/scanner"
 )
 
@@ -479,6 +480,15 @@ func (r *TextReporter) writeMigrationScore(b *strings.Builder, score *scanner.Mi
 	b.WriteString(r.color(colorBold+colorCyan, "┌─ QUANTUM MIGRATION READINESS ──────────────────────────────────┐\n"))
 	r.writeScoreLine(b, score)
 
+	// How the score was computed, with this scan's counts
+	for _, row := range wrapPhrases("Method: ", analyzer.MethodPhrases(score), migrationTextWidth) {
+		b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("  %-63s", row) + r.color(colorCyan, "│\n"))
+	}
+	if score.TestDirectoryFindings > 0 {
+		line := fmt.Sprintf("%d of %d findings are in test directories.", score.TestDirectoryFindings, score.TotalCount)
+		b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("  %-63s", line) + r.color(colorCyan, "│\n"))
+	}
+
 	b.WriteString(r.color(colorCyan, "│") + r.color(colorCyan, "─────────────────────────────────────────────────────────────────") + r.color(colorCyan, "│\n"))
 
 	// Status breakdown
@@ -572,6 +582,31 @@ func (r *TextReporter) writeQRAMMLevels(b *strings.Builder, score *scanner.Migra
 		b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    Practice 1.2 Assessment:  Level %d/5 %s", score.QRAMMReadiness.AssessmentLevel, r.maturityIndicator(score.QRAMMReadiness.AssessmentLevel)) + r.color(colorCyan, "                    │\n"))
 		b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    Practice 1.3 Mapping:     Level %d/5 %s", score.QRAMMReadiness.MappingLevel, r.maturityIndicator(score.QRAMMReadiness.MappingLevel)) + r.color(colorCyan, "                    │\n"))
 	}
+}
+
+// migrationTextWidth is the widest text a migration box row holds after its
+// two-space indent, keeping a clear space before the closing border.
+const migrationTextWidth = 61
+
+// wrapPhrases joins phrases into rows no wider than width, breaking only
+// between phrases. The first row starts with label; later rows are indented
+// to line up under the first row's text.
+func wrapPhrases(label string, phrases []string, width int) []string {
+	indent := strings.Repeat(" ", len(label))
+	var rows []string
+	row, empty := label, true
+	for _, p := range phrases {
+		if !empty && len(row)+1+len(p) > width {
+			rows = append(rows, row)
+			row, empty = indent, true
+		}
+		if !empty {
+			row += " "
+		}
+		row += p
+		empty = false
+	}
+	return append(rows, row)
 }
 
 func (r *TextReporter) maturityIndicator(level int) string {

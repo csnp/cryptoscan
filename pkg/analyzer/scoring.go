@@ -4,14 +4,40 @@
 package analyzer
 
 import (
+	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 
 	"github.com/csnp/cryptoscan/pkg/types"
 )
 
-// CalculateMigrationScore computes the quantum migration readiness score
+// Weights in the migration score. MethodPhrases prints the same constants, so
+// the formula a report states is the formula that was computed.
+const (
+	hybridWeight  = 0.8
+	partialWeight = 0.3
+)
+
+// methodNote is the part of the stated method that does not depend on counts.
+const methodNote = "Every finding counts once; test and example files count the same as production code."
+
+// testDirectoryNames are the directory names counted by TestDirectoryFindings.
+var testDirectoryNames = map[string]bool{
+	"test": true, "tests": true, "__tests__": true, "spec": true, "specs": true,
+}
+
+// CalculateMigrationScore computes the quantum migration readiness score.
+// Finding paths are read as given; when they include the scanned directory's
+// own path, use CalculateMigrationScoreForRoot.
 func CalculateMigrationScore(findings []types.Finding) *types.MigrationScore {
+	return CalculateMigrationScoreForRoot(findings, "")
+}
+
+// CalculateMigrationScoreForRoot computes the quantum migration readiness
+// score for findings found under root, the scanned directory. Only the
+// directories below root are checked when counting test-directory findings.
+func CalculateMigrationScoreForRoot(findings []types.Finding, root string) *types.MigrationScore {
 	score := &types.MigrationScore{
 		ByPrimitive: make(map[string]int),
 		ByAlgorithm: make(map[string]int),
@@ -54,6 +80,9 @@ func CalculateMigrationScore(findings []types.Finding) *types.MigrationScore {
 			score.CriticalCount++
 		}
 		score.TotalCount++
+		if inTestDirectory(f.File, root) {
+			score.TestDirectoryFindings++
+		}
 
 		// Count by primitive
 		if f.Primitive != "" {
@@ -84,10 +113,11 @@ func CalculateMigrationScore(findings []types.Finding) *types.MigrationScore {
 	// Calculate score: (Safe + Hybrid×0.8 + Partial×0.3) / Total × 100
 	if score.TotalCount > 0 {
 		numerator := float64(score.SafeCount) +
-			float64(score.HybridCount)*0.8 +
-			float64(score.PartialCount)*0.3
+			float64(score.HybridCount)*hybridWeight +
+			float64(score.PartialCount)*partialWeight
 		score.Score = (numerator / float64(score.TotalCount)) * 100
 	}
+	score.Method = strings.Join(MethodPhrases(score), " ")
 
 	// Determine risk level
 	score.Level = DetermineRiskLevel(score)
@@ -111,6 +141,41 @@ func CalculateMigrationScore(findings []types.Finding) *types.MigrationScore {
 	score.QRAMMReadiness = CalculateQRAMMReadiness(score)
 
 	return score
+}
+
+// MethodPhrases states how score.Score is computed, using score's own counts.
+// It is split into phrases so a text report can wrap it without breaking a
+// term of the formula across lines; joined with spaces it is score.Method.
+func MethodPhrases(score *types.MigrationScore) []string {
+	if score.TotalCount == 0 {
+		return strings.Fields("No findings to score, so the score is 0.")
+	}
+	phrases := []string{
+		fmt.Sprintf("(safe %d", score.SafeCount),
+		fmt.Sprintf("+ %g x hybrid %d", hybridWeight, score.HybridCount),
+		fmt.Sprintf("+ %g x partial %d)", partialWeight, score.PartialCount),
+		fmt.Sprintf("/ %d findings,", score.TotalCount),
+	}
+	return append(phrases, strings.Fields("as a percentage. "+methodNote)...)
+}
+
+// inTestDirectory reports whether file sits under a directory named in
+// testDirectoryNames. With a root, only the directories below it count.
+func inTestDirectory(file, root string) bool {
+	rel := file
+	if root != "" {
+		r, err := filepath.Rel(root, file)
+		if err != nil || r == ".." || strings.HasPrefix(r, ".."+string(filepath.Separator)) {
+			return false
+		}
+		rel = r
+	}
+	for _, dir := range strings.Split(filepath.ToSlash(filepath.Dir(rel)), "/") {
+		if testDirectoryNames[dir] {
+			return true
+		}
+	}
+	return false
 }
 
 // ClassifyMigrationStatus determines the migration status of a finding
@@ -522,7 +587,7 @@ func CalculateQRAMMReadiness(score *types.MigrationScore) *types.QRAMMReadiness 
 		readiness.Recommendations = append(readiness.Recommendations,
 			"Consider hybrid cryptography as a transition strategy.")
 	}
-	if score.SafeCount == 0 {
+	if score.SafeCount+score.HybridCount == 0 {
 		readiness.Recommendations = append(readiness.Recommendations,
 			"No quantum-safe algorithms detected. Begin PQC adoption planning.")
 	}

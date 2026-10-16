@@ -115,7 +115,7 @@ Every finding is classified by quantum computing threat level:
 
 CryptoScan calculates a **Migration Readiness Score** that tells you at a glance how prepared your codebase is for the post-quantum transition.
 
-The score formula: `(Safe + Hybrid×0.8 + Partial×0.3) / Total × 100`
+The score formula: `(Safe + Hybrid×0.8 + Partial×0.3) / Total × 100`. Every finding counts once; test and example files count the same as production code.
 
 The report labels the score CRITICAL when any finding is CRITICAL or the score is below 25%, HIGH below 50%, MEDIUM below 75%, and LOW from 75% up. A sample of the score panel is in [How CryptoScan works](docs/how-it-works.md).
 

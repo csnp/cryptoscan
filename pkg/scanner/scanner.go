@@ -186,6 +186,11 @@ type Results struct {
 	// error. The rest of the scan still runs, but findings for these files
 	// may be incomplete, so the gap is reported rather than hidden.
 	UnanalyzedFiles []UnanalyzedFile `json:"unanalyzedFiles"`
+
+	// ScanRoot is the directory finding paths were walked from (a temporary
+	// clone for a Git URL). It is used to recompute the migration score and
+	// is not written to any report.
+	ScanRoot string `json:"-"`
 }
 
 // UnanalyzedFile is a file the scanner could not analyze to the end.
@@ -400,8 +405,11 @@ func (s *Scanner) Scan() (*Results, error) {
 		remediation.Apply(&s.findings[i])
 	}
 
-	// Calculate migration score and enhance findings with QRAMM mapping
-	migrationScore := analyzer.CalculateMigrationScore(s.findings)
+	// Calculate migration score and enhance findings with QRAMM mapping.
+	// Finding paths start with the walked directory, so directories above it
+	// are not mistaken for test directories.
+	root := s.root
+	migrationScore := analyzer.CalculateMigrationScoreForRoot(s.findings, root)
 
 	// Sorted for the same reason as the findings: files are scanned in
 	// parallel, and the report must not depend on which worker finished first.
@@ -416,6 +424,7 @@ func (s *Scanner) Scan() (*Results, error) {
 		Tool:            ToolInfo{Name: "CryptoScan", Version: version.Get()},
 		Findings:        s.findings,
 		MigrationScore:  migrationScore,
+		ScanRoot:        root,
 		FilesScanned:    s.stats.filesScanned,
 		LinesScanned:    s.stats.linesScanned,
 		BytesScanned:    s.stats.bytesScanned,

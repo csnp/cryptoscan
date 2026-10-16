@@ -428,7 +428,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		}
 		// Recalculate summary and migration score after filtering
 		results.Summary = calculateSummary(results.Findings)
-		results.MigrationScore = analyzer.CalculateMigrationScore(results.Findings)
+		results.MigrationScore = analyzer.CalculateMigrationScoreForRoot(results.Findings, results.ScanRoot)
 	}
 
 	// Print streaming footer with summary

@@ -258,6 +258,13 @@ type MigrationScore struct {
 	ByAlgorithm     map[string]int  `json:"byAlgorithm,omitempty"`    // Count by algorithm name
 	TopRiskFiles    []FileRiskScore `json:"topRiskFiles,omitempty"`   // Highest risk files
 	QRAMMReadiness  *QRAMMReadiness `json:"qrammReadiness,omitempty"` // QRAMM dimension readiness
+
+	// Method states how Score was computed, with this scan's own counts, so a
+	// reader can check the number. TestDirectoryFindings counts the findings
+	// under a directory named test, tests, __tests__, spec or specs below the
+	// scanned directory; they are weighted the same as every other finding.
+	Method                string `json:"method"`
+	TestDirectoryFindings int    `json:"testDirectoryFindings"`
 }
 
 // FileRiskScore represents risk score for a single file

@@ -55,6 +55,26 @@ All notable changes to CryptoScan are recorded here. This project follows
 Adding `cbom`, `gate` and `pqc` removed or renamed no `scan` flag and did not
 change how `scan` decides its exit code.
 
+### Fixed
+
+- **`cryptoscan --version` works.** It printed `Error: unknown flag: --version`.
+  It now prints the same text as `cryptoscan version`, and `-v` is its short
+  form on the top-level command. `cryptoscan scan -v` still means `--verbose`.
+
+- **Runtime errors print one next step instead of the usage block.** Scanning a
+  missing path, passing a `--config` or `--baseline` file that does not exist,
+  or writing `--output` into a folder that does not exist printed the error
+  followed by the full usage and flag list. Each now prints the `Error:` line
+  and one line saying what to check. A mistake on the command line itself,
+  such as a missing argument or an unknown flag, still prints the usage block.
+  Exit codes are unchanged.
+
+- **A failed clone says what went wrong.** Scanning a repository URL that git
+  could not clone printed `git clone failed: exit status 128`. It now prints
+  `repository not found or not accessible (git clone: exit status 128)` and
+  suggests checking the URL. When git is not installed, the error says
+  `git is required to scan a repository URL`.
+
 ### Documentation
 
 - **The CBOM fields are documented, and a test keeps the page accurate.**

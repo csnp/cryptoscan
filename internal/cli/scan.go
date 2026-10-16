@@ -4,7 +4,6 @@
 package cli
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -325,7 +324,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 		if err != nil {
 			return fmt.Errorf("failed to load baseline: %w", err)
 		}
-		results.Findings = filterNewFindings(results.Findings, baseline)
+		results.Findings = filterNewFindings(results.Findings, results.Metadata[scanner.MetadataScanRoot], baseline)
 		// Recalculate summary and migration score after filtering
 		results.Summary = calculateSummary(results.Findings)
 		results.MigrationScore = analyzer.CalculateMigrationScore(results.Findings)
@@ -552,71 +551,6 @@ func parseSeverity(s string) scanner.Severity {
 	default:
 		return scanner.SeverityInfo
 	}
-}
-
-// baselineResults is used for loading baseline JSON files
-type baselineResults struct {
-	Findings []scanner.Finding `json:"findings"`
-}
-
-// loadBaseline loads a baseline JSON file containing previous scan results
-func loadBaseline(path string) ([]scanner.Finding, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var results baselineResults
-	if err := json.Unmarshal(data, &results); err != nil {
-		return nil, err
-	}
-
-	return results.Findings, nil
-}
-
-// filterNewFindings removes findings that already exist in the baseline
-// Comparison is based on file + line + pattern ID prefix
-func filterNewFindings(findings []scanner.Finding, baseline []scanner.Finding) []scanner.Finding {
-	baselineSet := make(map[string]bool)
-	for _, f := range baseline {
-		// Key: file + line + patternID prefix (ignoring column for minor shifts)
-		key := fmt.Sprintf("%s:%d:%s", f.File, f.Line, extractPatternPrefix(f.ID))
-		baselineSet[key] = true
-	}
-
-	var newFindings []scanner.Finding
-	for _, f := range findings {
-		key := fmt.Sprintf("%s:%d:%s", f.File, f.Line, extractPatternPrefix(f.ID))
-		if !baselineSet[key] {
-			newFindings = append(newFindings, f)
-		}
-	}
-	return newFindings
-}
-
-// extractPatternPrefix extracts the pattern family prefix from a finding ID
-// e.g., "RSA-001-a1b2c3d4" -> "RSA-001", "CERT-SELFSIGNED-001" -> "CERT-SELFSIGNED-001"
-func extractPatternPrefix(id string) string {
-	// If ID contains a hash suffix (pattern-NNN-HASH), remove it
-	parts := strings.Split(id, "-")
-	if len(parts) >= 3 {
-		// Check if last part looks like a hash (lowercase hex)
-		last := parts[len(parts)-1]
-		if len(last) >= 6 && isHexString(last) {
-			return strings.Join(parts[:len(parts)-1], "-")
-		}
-	}
-	return id
-}
-
-// isHexString checks if a string contains only hexadecimal characters
-func isHexString(s string) bool {
-	for _, c := range s {
-		if !((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F')) {
-			return false
-		}
-	}
-	return len(s) > 0
 }
 
 // calculateSummary recalculates the summary after filtering findings

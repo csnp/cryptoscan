@@ -98,6 +98,12 @@ type Results struct {
 	Metadata       map[string]string     `json:"metadata,omitempty"`
 }
 
+// MetadataScanRoot is the Results.Metadata entry holding the directory the
+// scan's file paths are under. ScanTarget is the target as it was given, such
+// as "." or a repository URL, so a saved report needs this to turn each
+// finding's path back into a path relative to the scanned tree.
+const MetadataScanRoot = "scanRoot"
+
 // Insight provides actionable intelligence derived from findings
 type Insight struct {
 	Type        string   `json:"type"`
@@ -271,7 +277,7 @@ func (s *Scanner) Scan() (*Results, error) {
 		LinesScanned:   s.stats.linesScanned,
 		BytesScanned:   s.stats.bytesScanned,
 		LanguageStats:  s.stats.languageStats,
-		Metadata:       make(map[string]string),
+		Metadata:       map[string]string{MetadataScanRoot: s.root},
 	}
 
 	results.Summary = s.calculateSummary()

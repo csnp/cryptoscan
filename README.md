@@ -441,6 +441,8 @@ cryptoscan scan . --baseline baseline.json --fail-on high
 cryptoscan scan . --format json --output baseline.json
 ```
 
+A baseline is portable across checkouts: each reviewed finding is matched on its path inside the scanned tree, its pattern and the text of its line, so the same baseline works on a CI runner that checks the repository out at a different path, and a line added above a reviewed finding does not make it new.
+
 #### Exit Code Control
 
 Control when CI fails based on finding severity:

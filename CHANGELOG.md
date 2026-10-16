@@ -24,6 +24,36 @@ All notable changes to CryptoScan are recorded here. This project follows
 - **The text footer links the QRAMM quick assessment.** A line after the QRAMM
   Toolkit link points to https://qramm.org/quick-assessment.html, which
   assesses an organisation rather than one repository.
+- **`cryptoscan cbom <path or URL>`** writes a CycloneDX 1.6 Cryptographic
+  Bill of Materials. It runs the same scan as `scan --format cbom`, writes the
+  JSON to standard output or to `-o <file>`, and prints nothing else to
+  standard output. It exits 0 whatever it finds, because an inventory is not a
+  verdict, and non-zero only when the scan or the write fails. `--fail-on` is
+  not offered. A baseline or minimum severity set in `.cryptoscan.yaml` does
+  not filter the CBOM; ignore rules still apply.
+- **`cryptoscan gate <path or URL>`** fails a build when findings reach a
+  severity. It runs the same scan as `scan --fail-on high`, prints the text,
+  JSON or SARIF report, and exits 1 when any finding is at or above
+  `--fail-on`. The default threshold is `high`, where `scan` on its own fails
+  only on CRITICAL; at that default `scan` lets HIGH findings such as RSA-2048
+  key generation through. A `failOn` in `.cryptoscan.yaml` applies when
+  `--fail-on` is not given. `--baseline`, `--ignore`, `--ignore-category` and
+  `--config` work as they do on `scan`.
+- **`cryptoscan pqc <path or URL>`** shows post-quantum readiness. It lists
+  the post-quantum algorithms found (ML-KEM, ML-DSA, SLH-DSA, FN-DSA, XMSS,
+  LMS and post-quantum library imports, each with a count and up to three
+  `file:line` locations), the hybrid constructions found, and the
+  quantum-vulnerable algorithms with a count each, then the migration score
+  line and the QRAMM Dimension 1 practice levels as the `scan` report prints
+  them. Quantum-safe findings are always included, so its score can differ
+  from the score of a default `scan`. `--format json` writes `tool`,
+  `migrationScore` and `pqcFindings`, the findings whose IDs start with
+  `PQC-` or `HYBRID-`. It exits 0 whatever it finds, and non-zero only when
+  the scan fails. A baseline or minimum severity set in `.cryptoscan.yaml`
+  does not filter the view; ignore rules still apply.
+
+Adding `cbom`, `gate` and `pqc` removed or renamed no `scan` flag and did not
+change how `scan` decides its exit code.
 
 ### Documentation
 
@@ -91,39 +121,6 @@ All notable changes to CryptoScan are recorded here. This project follows
   relative one such as `.` is worked out from the paths the current scan
   reports. Regenerate the baseline once with this release so it records the
   root directly. The fallback is planned for removal in the next release.
-
-### Added
-
-- **`cryptoscan cbom <path or URL>`** writes a CycloneDX 1.6 Cryptographic
-  Bill of Materials. It runs the same scan as `scan --format cbom`, writes the
-  JSON to standard output or to `-o <file>`, and prints nothing else to
-  standard output. It exits 0 whatever it finds, because an inventory is not a
-  verdict, and non-zero only when the scan or the write fails. `--fail-on` is
-  not offered. A baseline or minimum severity set in `.cryptoscan.yaml` does
-  not filter the CBOM; ignore rules still apply.
-- **`cryptoscan gate <path or URL>`** fails a build when findings reach a
-  severity. It runs the same scan as `scan --fail-on high`, prints the text,
-  JSON or SARIF report, and exits 1 when any finding is at or above
-  `--fail-on`. The default threshold is `high`, where `scan` on its own fails
-  only on CRITICAL; at that default `scan` lets HIGH findings such as RSA-2048
-  key generation through. A `failOn` in `.cryptoscan.yaml` applies when
-  `--fail-on` is not given. `--baseline`, `--ignore`, `--ignore-category` and
-  `--config` work as they do on `scan`.
-- **`cryptoscan pqc <path or URL>`** shows post-quantum readiness. It lists
-  the post-quantum algorithms found (ML-KEM, ML-DSA, SLH-DSA, FN-DSA, XMSS,
-  LMS and post-quantum library imports, each with a count and up to three
-  `file:line` locations), the hybrid constructions found, and the
-  quantum-vulnerable algorithms with a count each, then the migration score
-  line and the QRAMM Dimension 1 practice levels as the `scan` report prints
-  them. Quantum-safe findings are always included, so its score can differ
-  from the score of a default `scan`. `--format json` writes `tool`,
-  `migrationScore` and `pqcFindings`, the findings whose IDs start with
-  `PQC-` or `HYBRID-`. It exits 0 whatever it finds, and non-zero only when
-  the scan fails. A baseline or minimum severity set in `.cryptoscan.yaml`
-  does not filter the view; ignore rules still apply.
-
-`scan` is unchanged: no flag was removed or renamed, and its exit codes are
-the same.
 
 ## [1.4.0] - 2026-07-28
 

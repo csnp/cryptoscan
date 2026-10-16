@@ -6,9 +6,46 @@ package analyzer
 import (
 	"regexp"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 
 	"github.com/csnp/cryptoscan/pkg/types"
 )
+
+// LowerSameOffsets lowercases s rune by rune, but keeps unchanged any rune
+// whose lowercase form has a different UTF-8 length, and any byte that is not
+// valid UTF-8. The result is the same length as s and every byte offset in it
+// is the same offset in s, so a position found in the lowercased copy can be
+// used to slice the original.
+//
+// strings.ToLower does not have that property. U+023A and U+023E are two bytes
+// long and lowercase to three-byte letters, so a position found in
+// strings.ToLower(line) can run past the end of line.
+func LowerSameOffsets(s string) string {
+	ascii := true
+	for i := 0; i < len(s); i++ {
+		if s[i] >= utf8.RuneSelf {
+			ascii = false
+			break
+		}
+	}
+	if ascii {
+		return strings.ToLower(s)
+	}
+
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); {
+		r, size := utf8.DecodeRuneInString(s[i:])
+		if lower := unicode.ToLower(r); lower != r && utf8.RuneLen(lower) == size {
+			b.WriteRune(lower)
+		} else {
+			b.WriteString(s[i : i+size])
+		}
+		i += size
+	}
+	return b.String()
+}
 
 // LineContext provides context about a specific line of code
 type LineContext struct {
@@ -128,8 +165,10 @@ func IsHelpText(line string) bool {
 
 // IsURLOrPath detects if the match appears to be in a URL or file path context
 func IsURLOrPath(line, match string) bool {
-	matchLower := strings.ToLower(match)
-	lineLower := strings.ToLower(line)
+	// pos indexes both lineLower and line, so the lowercased copies must keep
+	// the byte offsets of the originals.
+	matchLower := LowerSameOffsets(match)
+	lineLower := LowerSameOffsets(line)
 
 	// Find position of match in line
 	pos := strings.Index(lineLower, matchLower)
@@ -197,8 +236,9 @@ func IsURLOrPath(line, match string) bool {
 // IsVariableOrFunctionName detects if the match is part of an identifier name
 // e.g., rsaKeySize, getRSAKey, showECDSAInfo - these are less actionable
 func IsVariableOrFunctionName(line, match string) bool {
-	matchLower := strings.ToLower(match)
-	lineLower := strings.ToLower(line)
+	// pos is found in lineLower and used to index line; see IsURLOrPath.
+	matchLower := LowerSameOffsets(match)
+	lineLower := LowerSameOffsets(line)
 
 	pos := strings.Index(lineLower, matchLower)
 	if pos == -1 {

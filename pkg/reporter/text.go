@@ -142,6 +142,22 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 				"  Show them with: cryptoscan scan %s --include-narrative\n",
 			results.Summary.NarrativeSuppressed, results.ScanTarget)))
 	}
+
+	// A file the scanner could not analyze is a gap in coverage. Say so, so
+	// that a short report is not read as a clean one.
+	if len(results.UnanalyzedFiles) > 0 {
+		b.WriteString(r.color(colorYellow, fmt.Sprintf(
+			"\n  %d file(s) could not be analyzed, so findings for them may be incomplete:\n",
+			len(results.UnanalyzedFiles))))
+		for _, u := range results.UnanalyzedFiles {
+			location := u.File
+			if u.Line > 0 {
+				location = fmt.Sprintf("%s:%d", u.File, u.Line)
+			}
+			b.WriteString(fmt.Sprintf("    %s  %s\n", location, u.Reason))
+		}
+		b.WriteString("  Report this at https://github.com/csnp/cryptoscan/issues with the line shown.\n")
+	}
 	b.WriteString("\n")
 
 	r.writeFindingsByContext(&b, &results.Summary)

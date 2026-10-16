@@ -5,6 +5,26 @@ All notable changes to CryptoScan are recorded here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- **The scan summary counts findings by context.** Text output has a
+  "Findings by context:" block after the severity breakdown, with one line per
+  kind and the number reported or withheld. The kinds are the rules that
+  decide a match's context: `operational` for code that uses the algorithm,
+  `comment`, `log-message` and `url-or-path` for the narrative rules that
+  withhold text naming it, and `key-material` and `dependency` for findings
+  those rules never apply to. The counts cover the whole scan, withheld
+  findings included, so they are the same with or without
+  `--include-narrative` and add up to `totalFindings` plus
+  `narrativeSuppressedCount`. JSON output carries them as `summary.byEvidence`.
+  Context is decided by the scanner's rules, not by a model. SARIF and CSV
+  output are unchanged. When `--baseline` is used, the summary is rebuilt from
+  the new findings only and `byEvidence` is `null`, as
+  `narrativeSuppressedCount` is `0` there today.
+- **The text footer links the QRAMM quick assessment.** A line after the QRAMM
+  Toolkit link points to https://qramm.org/quick-assessment.html, which
+  assesses an organisation rather than one repository.
+
 ### Documentation
 
 - **The CBOM fields are documented, and a test keeps the page accurate.**

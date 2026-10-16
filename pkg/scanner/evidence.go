@@ -79,6 +79,25 @@ const (
 	evidenceNarrative
 )
 
+// Evidence kinds, as counted in Summary.ByEvidence.
+//
+// A narrative match is counted under the reason classifyMatch returned for it:
+// "log-message", "comment" or "url-or-path". Every operational reason ("call",
+// "import", "default" and the rest) is counted as EvidenceOperational, because
+// those reasons describe how code uses the token, not a context a reader would
+// set aside.
+const (
+	EvidenceOperational = "operational"
+
+	// EvidenceKeyMaterial is detected key material. It is never classified:
+	// a private key pasted into a comment is still an exposed private key.
+	EvidenceKeyMaterial = "key-material"
+
+	// EvidenceDependency is a crypto library named in a dependency manifest.
+	// Manifest entries do not pass through classifyMatch.
+	EvidenceDependency = "dependency"
+)
+
 // matchContext carries what the classifier knows about where a match came
 // from. Language and file type come from the file analyzer and are needed to
 // interpret comment markers and to decide whether whole-line prose detection

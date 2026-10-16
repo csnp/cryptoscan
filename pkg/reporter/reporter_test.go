@@ -5,6 +5,8 @@ package reporter
 
 import (
 	"encoding/json"
+	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -550,5 +552,120 @@ func TestEmptyResults(t *testing.T) {
 				t.Errorf("%s reporter returned empty output", tc.name)
 			}
 		})
+	}
+}
+
+// TestFindingsByContextAgreesWithJSON scans crypto-samples and checks the text
+// report's "Findings by context" block against the JSON report of the same
+// scan: one line per summary.byEvidence key in sorted order, the reported
+// lines adding up to totalFindings, the withheld lines adding up to
+// narrativeSuppressedCount, the rules stated once and no percentage.
+func TestFindingsByContextAgreesWithJSON(t *testing.T) {
+	for _, include := range []bool{false, true} {
+		results, err := scanner.New(scanner.Config{
+			Target:           "../../crypto-samples",
+			MinSeverity:      scanner.SeverityInfo,
+			IncludeNarrative: include,
+		}).Scan()
+		if err != nil {
+			t.Fatalf("scan crypto-samples: %v", err)
+		}
+
+		jsonOut, err := NewJSONReporter(false).Generate(results)
+		if err != nil {
+			t.Fatalf("generate JSON: %v", err)
+		}
+		if !strings.Contains(jsonOut, `"byEvidence"`) {
+			t.Fatalf("include-narrative=%v: JSON output has no \"byEvidence\"", include)
+		}
+		var parsed struct {
+			Summary struct {
+				TotalFindings       int            `json:"totalFindings"`
+				NarrativeSuppressed int            `json:"narrativeSuppressedCount"`
+				ByEvidence          map[string]int `json:"byEvidence"`
+			} `json:"summary"`
+		}
+		if err := json.Unmarshal([]byte(jsonOut), &parsed); err != nil {
+			t.Fatalf("parse JSON: %v", err)
+		}
+		if len(parsed.Summary.ByEvidence) == 0 {
+			t.Fatalf("include-narrative=%v: summary.byEvidence is empty", include)
+		}
+
+		text, err := NewTextReporter(false).Generate(results)
+		if err != nil {
+			t.Fatalf("generate text: %v", err)
+		}
+		const heading = "  Findings by context:\n"
+		const rules = "Context is decided by the scanner's rules, not by a model."
+		start := strings.Index(text, heading)
+		if start < 0 {
+			t.Fatalf("include-narrative=%v: text output has no %q", include, strings.TrimSpace(heading))
+		}
+		if n := strings.Count(text, rules); n != 1 {
+			t.Errorf("include-narrative=%v: the rules sentence appears %d times, want 1", include, n)
+		}
+		end := strings.Index(text[start:], rules)
+		if end < 0 {
+			t.Fatalf("include-narrative=%v: the rules sentence does not close the block", include)
+		}
+		block := text[start+len(heading) : start+end]
+		if strings.Contains(block, "%") {
+			t.Errorf("include-narrative=%v: the block prints a percentage:\n%s", include, block)
+		}
+
+		kinds := make([]string, 0, len(parsed.Summary.ByEvidence))
+		for k := range parsed.Summary.ByEvidence {
+			kinds = append(kinds, k)
+		}
+		sort.Strings(kinds)
+
+		lines := strings.Split(strings.TrimRight(block, "\n "), "\n")
+		if len(lines) != len(kinds) {
+			t.Fatalf("include-narrative=%v: %d lines for %d kinds:\n%s", include, len(lines), len(kinds), block)
+		}
+		reported, withheld := 0, 0
+		for i, kind := range kinds {
+			fields := strings.Fields(lines[i])
+			if len(fields) < 3 || fields[0] != kind {
+				t.Fatalf("include-narrative=%v: line %d is %q, want kind %q", include, i, lines[i], kind)
+			}
+			n, err := strconv.Atoi(fields[1])
+			if err != nil || n != parsed.Summary.ByEvidence[kind] {
+				t.Errorf("include-narrative=%v: %s line says %q, JSON says %d", include, kind, fields[1], parsed.Summary.ByEvidence[kind])
+			}
+			rest := strings.Join(fields[2:], " ")
+			switch rest {
+			case "reported":
+				reported += n
+			case "withheld (--include-narrative shows them)":
+				withheld += n
+			default:
+				t.Errorf("include-narrative=%v: %s line ends %q", include, kind, rest)
+			}
+		}
+		if reported != parsed.Summary.TotalFindings {
+			t.Errorf("include-narrative=%v: reported lines add up to %d, totalFindings is %d", include, reported, parsed.Summary.TotalFindings)
+		}
+		if withheld != parsed.Summary.NarrativeSuppressed {
+			t.Errorf("include-narrative=%v: withheld lines add up to %d, narrativeSuppressedCount is %d", include, withheld, parsed.Summary.NarrativeSuppressed)
+		}
+		if !include && withheld == 0 {
+			t.Error("the default scan of crypto-samples printed nothing as withheld")
+		}
+	}
+}
+
+// TestFooterLinksTheQuickAssessment pins the footer line that points a reader
+// from one repository's scan to the organisation-level assessment.
+func TestFooterLinksTheQuickAssessment(t *testing.T) {
+	text, err := NewTextReporter(false).Generate(createTestResults())
+	if err != nil {
+		t.Fatalf("generate text: %v", err)
+	}
+	const toolkit = "  Part of the QRAMM Toolkit: https://qramm.org\n"
+	const assess = "  Assess your organisation: https://qramm.org/quick-assessment.html\n"
+	if !strings.Contains(text, toolkit+assess) {
+		t.Errorf("footer does not carry %q directly after %q", strings.TrimSpace(assess), strings.TrimSpace(toolkit))
 	}
 }

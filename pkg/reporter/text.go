@@ -5,6 +5,7 @@ package reporter
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/csnp/cryptoscan/pkg/scanner"
@@ -142,6 +143,8 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 			results.Summary.NarrativeSuppressed, results.ScanTarget)))
 	}
 	b.WriteString("\n")
+
+	r.writeFindingsByContext(&b, &results.Summary)
 
 	// Quantum Risk Assessment with visual emphasis
 	b.WriteString(r.color(colorBold, "  Quantum Risk Assessment:\n"))
@@ -498,10 +501,45 @@ func (r *TextReporter) maturityIndicator(level int) string {
 	return r.color(colorRed, filled) + empty
 }
 
+// writeFindingsByContext prints how the scan's findings divide by the rule that
+// decided their context, including the findings the narrative rules withheld,
+// so a reader can see how much of the raw scan was comment or documentation
+// text. Kinds are sorted so the block is identical on every run.
+func (r *TextReporter) writeFindingsByContext(b *strings.Builder, s *scanner.Summary) {
+	if len(s.ByEvidence) == 0 {
+		return
+	}
+
+	kinds := make([]string, 0, len(s.ByEvidence))
+	for kind := range s.ByEvidence {
+		kinds = append(kinds, kind)
+	}
+	sort.Strings(kinds)
+
+	b.WriteString(r.color(colorBold, "  Findings by context:\n"))
+	for _, kind := range kinds {
+		withheld := s.WithheldByEvidence[kind]
+		reported := s.ByEvidence[kind] - withheld
+		var status string
+		switch {
+		case withheld == 0:
+			status = fmt.Sprintf("%4d reported", reported)
+		case reported == 0:
+			status = fmt.Sprintf("%4d withheld (--include-narrative shows them)", withheld)
+		default:
+			status = fmt.Sprintf("%4d reported, %d withheld (--include-narrative shows them)", reported, withheld)
+		}
+		b.WriteString(fmt.Sprintf("    %-12s %s\n", kind, status))
+	}
+	b.WriteString(r.color(colorCyan, "  Context is decided by the scanner's rules, not by a model.\n"))
+	b.WriteString("\n")
+}
+
 func (r *TextReporter) writeFooter(b *strings.Builder) {
 	b.WriteString(r.color(colorBold, "═══════════════════════════════════════════════════════════════\n"))
 	b.WriteString(r.color(colorCyan, "  QRAMM CryptoScan") + " - Quantum Readiness Assessment Tool\n")
 	b.WriteString("  Part of the QRAMM Toolkit: https://qramm.org\n")
+	b.WriteString("  Assess your organisation: https://qramm.org/quick-assessment.html\n")
 	b.WriteString("  Developed by CSNP: https://csnp.org\n")
 	b.WriteString("\n")
 	b.WriteString(r.color(colorGreen, "  CSNP Mission: ") + "Advancing cybersecurity through education,\n")

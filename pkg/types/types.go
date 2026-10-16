@@ -177,6 +177,10 @@ type Finding struct {
 	// operational match over a narrative one at the same location, which is
 	// what makes the default report a subset of --include-narrative.
 	Narrative bool `json:"-"`
+
+	// EvidenceKind names the scanner rule that decided the match's context,
+	// for the summary's byEvidence counts. It is not serialized per finding.
+	EvidenceKind string `json:"-"`
 }
 
 // Priority calculates a priority score for sorting (higher = more urgent)

@@ -128,6 +128,41 @@ change how `scan` decides its exit code.
   naming its path and the parse error. Before, nothing was printed. A file
   passed with `--config` still stops the scan with an error.
 
+- **`--exclude "vendor/*"` excluded nothing, and most of the default excludes
+  did nothing either.** An exclude pattern was compared with a directory's name
+  or a file's name on its own, so a pattern containing a `/` could never match.
+  The example in `cryptoscan scan --help`, `--exclude "vendor/*,test/*"`, and
+  the README example `--exclude "vendor/*,node_modules/*,*_test.go"` still
+  scanned `vendor/` and `test/`; only base-name patterns such as `*_test.go` or
+  `vendor` worked. The `ignore.files` list in `.cryptoscan.yaml` had the same
+  problem.
+
+  Patterns are now matched against the path from the scan root, for files and
+  directories alike:
+  - A pattern without `/` matches a file or directory name at any depth
+    (`vendor`, `*_test.go`).
+  - A pattern ending in `/*` or `/**` skips that directory and everything in
+    it (`vendor/*`, `src/generated/*`). When the part before `/*` has no other
+    `/`, it matches a directory at any depth. A trailing `/` works the same
+    way, and a leading `./` is ignored.
+  - Any other pattern is matched against the path from the scan root, and a
+    directory it matches is skipped with its contents (`src/*.pb.go`).
+
+  `cryptoscan scan --help` states these rules under `--exclude`, and the same
+  rules apply to `ignore.files`. `--include` is unchanged and still matches
+  file names only.
+
+  **This changes default coverage.** The scan command always adds `vendor/*`,
+  `venv/*`, `.venv/*` and `target/*` to the exclude list, and until now those
+  four had no effect. Directories named `vendor`, `venv`, `.venv` or `target`,
+  at any depth, are no longer scanned by default, so a repository with
+  vendored dependencies, a virtual environment, or Maven or Cargo build output
+  in its tree reports fewer findings than before. To scan one of them, pass it
+  as the target, for example `cryptoscan scan ./vendor`. The other default
+  directory excludes (`.git`, `.svn`, `.hg`, `node_modules`, `__pycache__`,
+  `dist`, `build`) were already skipped by name and behave as before. The default patterns
+  skip directories only: a file named `build` or `target` is not excluded.
+
 ### Documentation
 
 - **The CBOM fields are documented, and a test keeps the page accurate.**

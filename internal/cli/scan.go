@@ -114,7 +114,7 @@ func init() {
 	scanCmd.Flags().StringVarP(&outputFormat, "format", "f", "text", "Output format: text, json, csv, sarif, cbom")
 	scanCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
 	scanCmd.Flags().StringVarP(&includeGlobs, "include", "i", "", "File patterns to include (comma-separated)")
-	scanCmd.Flags().StringVarP(&excludeGlobs, "exclude", "e", "", "File patterns to exclude (comma-separated)")
+	scanCmd.Flags().StringVarP(&excludeGlobs, "exclude", "e", "", "File and directory patterns to exclude (comma-separated): a pattern without / matches a name at any depth (vendor, *_test.go), a pattern ending in /* or /** skips that directory and everything in it (vendor/*), and any other pattern is matched against the path from the scan root (src/*.pb.go)")
 	scanCmd.Flags().IntVarP(&maxDepth, "max-depth", "d", 0, "Maximum directory depth (0 = unlimited). NOT YET IMPLEMENTED: the value is accepted and ignored")
 	scanCmd.Flags().BoolVarP(&showProgress, "progress", "p", false, "Show scan progress")
 	scanCmd.Flags().StringVar(&minSeverity, "min-severity", "info", "Minimum severity to report: info, low, medium, high, critical")
@@ -243,15 +243,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	}
 
 	// Add default excludes
-	defaultExcludes := []string{
-		".git/*", ".svn/*", ".hg/*",
-		"node_modules/*", "vendor/*", "venv/*", ".venv/*",
-		"__pycache__/*", "*.pyc",
-		"dist/*", "build/*", "target/*",
-		"*.min.js", "*.min.css",
-		"*.lock", "package-lock.json", "yarn.lock",
-	}
-	excludes = append(excludes, defaultExcludes...)
+	excludes = append(excludes, scanner.DefaultExcludeGlobs...)
 
 	// Parse ignore patterns from CLI flags
 	var ignoreIDs, ignoreCats []string

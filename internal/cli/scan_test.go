@@ -739,3 +739,69 @@ func TestRunScanInvalidPath(t *testing.T) {
 		t.Error("runScan should fail with invalid path")
 	}
 }
+
+// TestRunScanExcludesFromFlagConfigAndDefaults checks that the --exclude flag,
+// the config file ignore.files list and the default excludes all skip the
+// directories they name.
+func TestRunScanExcludesFromFlagConfigAndDefaults(t *testing.T) {
+	tmpDir := t.TempDir()
+	content := "key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\n"
+	for _, dir := range []string{"vendor", "venv", "test", "generated", "src"} {
+		if err := os.MkdirAll(filepath.Join(tmpDir, dir), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(tmpDir, dir, "keys.py"), []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	cfg := "ignore:\n  files:\n    - \"generated/*\"\n"
+	if err := os.WriteFile(filepath.Join(tmpDir, ".cryptoscan.yaml"), []byte(cfg), 0644); err != nil {
+		t.Fatal(err)
+	}
+	outDir := t.TempDir()
+
+	outputFormat = "json"
+	outputFile = filepath.Join(outDir, "findings.json")
+	excludeGlobs = "test/*"
+	minSeverity = ""
+	noColor = true
+	showProgress = false
+	t.Cleanup(func() {
+		outputFormat = "text"
+		outputFile = ""
+		excludeGlobs = ""
+	})
+
+	if err := runScan(&cobra.Command{}, []string{tmpDir}); err != nil {
+		t.Fatalf("runScan failed: %v", err)
+	}
+	data, err := os.ReadFile(outputFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		Findings []struct {
+			File string `json:"file"`
+		} `json:"findings"`
+	}
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatalf("output is not JSON: %v", err)
+	}
+
+	byDir := make(map[string]int)
+	for _, f := range report.Findings {
+		rel, err := filepath.Rel(tmpDir, f.File)
+		if err != nil {
+			t.Fatal(err)
+		}
+		byDir[strings.SplitN(filepath.ToSlash(rel), "/", 2)[0]]++
+	}
+	for _, dir := range []string{"vendor", "venv", "test", "generated"} {
+		if byDir[dir] != 0 {
+			t.Errorf("%s/ has %d finding(s); it should be excluded", dir, byDir[dir])
+		}
+	}
+	if byDir["src"] == 0 {
+		t.Error("src/ has no findings; nothing excludes it")
+	}
+}

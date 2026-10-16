@@ -10,6 +10,7 @@ import (
 	"io/fs"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"runtime"
 	"sort"
@@ -141,6 +142,18 @@ const (
 	configRuleMinSeverity
 	configRuleCount
 )
+
+// DefaultExcludeGlobs are the exclude patterns the scan command adds to every
+// scan: version control metadata, dependency and virtual environment trees,
+// build output, and generated or minified files.
+var DefaultExcludeGlobs = []string{
+	".git/*", ".svn/*", ".hg/*",
+	"node_modules/*", "vendor/*", "venv/*", ".venv/*",
+	"__pycache__/*", "*.pyc",
+	"dist/*", "build/*", "target/*",
+	"*.min.js", "*.min.css",
+	"*.lock", "package-lock.json", "yarn.lock",
+}
 
 // ToolInfo identifies the scanner build that produced a set of results.
 //
@@ -326,7 +339,7 @@ func (s *Scanner) Scan() (*Results, error) {
 	} else {
 		// Check if single file should be scanned (apply same filters as directory scan)
 		s.root = filepath.Dir(target)
-		if s.shouldScanFile(target) {
+		if s.shouldScanFile(filepath.Dir(target), target) {
 			err = s.scanFile(target)
 		}
 	}
@@ -495,7 +508,7 @@ func (s *Scanner) scanDirectory(root string) error {
 		if d.IsDir() {
 			return s.shouldSkipDir(root, path, d.Name())
 		}
-		if s.shouldScanFile(path) {
+		if s.shouldScanFile(root, path) {
 			filesToScan = append(filesToScan, path)
 		}
 		return nil
@@ -615,20 +628,13 @@ func (s *Scanner) shouldSkipDir(root, path, name string) error {
 		}
 	}
 
-	for _, pattern := range s.config.ExcludeGlobs {
-		if matched, _ := filepath.Match(pattern, relPath); matched {
-			return filepath.SkipDir
-		}
-		if matched, _ := filepath.Match(pattern, name); matched {
-			return filepath.SkipDir
-		}
+	if s.excluded(relPath, true) {
+		return filepath.SkipDir
 	}
 
 	if rules := s.config.ConfigFile; rules != nil {
 		for _, pattern := range rules.IgnoreFiles {
-			matchedRel, _ := filepath.Match(pattern, relPath)
-			matchedName, _ := filepath.Match(pattern, name)
-			if matchedRel || matchedName {
+			if matchesExclude(pattern, relPath, true) {
 				s.mu.Lock()
 				s.configSkipped.Directories++
 				s.mu.Unlock()
@@ -640,7 +646,77 @@ func (s *Scanner) shouldSkipDir(root, path, name string) error {
 	return nil
 }
 
-func (s *Scanner) shouldScanFile(path string) bool {
+// excluded reports whether any exclude pattern matches rel, a path relative to
+// the scan root.
+func (s *Scanner) excluded(rel string, isDir bool) bool {
+	for _, pattern := range s.config.ExcludeGlobs {
+		if matchesExclude(pattern, rel, isDir) {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesExclude reports whether the file or directory at rel, a path relative
+// to the scan root, is excluded by pattern.
+//
+//   - A pattern with no "/" matches a file or directory name at any depth
+//     ("*_test.go", "vendor").
+//   - A pattern ending in "/", "/*" or "/**" excludes the directories it names
+//     and everything inside them ("vendor/*"). The part before the suffix is
+//     matched by these same rules, so "vendor/*" names a vendor directory at
+//     any depth and "src/generated/*" names the one under the scan root.
+//   - Any other pattern is matched against the path from the scan root, and a
+//     directory it matches is excluded with everything inside it
+//     ("src/*.pb.go", "src/generated").
+//
+// The scan root itself is never excluded, so a directory can still be scanned
+// by passing it as the target. Each "/"-separated segment is matched with
+// path.Match, where "*" does not cross a "/".
+func matchesExclude(pattern, rel string, isDir bool) bool {
+	pattern = strings.TrimPrefix(pattern, "./")
+	rel = filepath.ToSlash(rel)
+	if rel == "" || rel == "." {
+		return false
+	}
+
+	dirOnly := false
+	for _, suffix := range []string{"/**", "/*", "/"} {
+		if strings.HasSuffix(pattern, suffix) {
+			pattern = strings.TrimSuffix(pattern, suffix)
+			dirOnly = true
+			break
+		}
+	}
+	if pattern == "" {
+		return false
+	}
+
+	// parts[:n] are the elements a match may land on. A file's own name is
+	// the last element, and a directory-only pattern cannot name a file.
+	parts := strings.Split(rel, "/")
+	n := len(parts)
+	if dirOnly && !isDir {
+		n--
+	}
+
+	if !strings.Contains(pattern, "/") {
+		for _, part := range parts[:n] {
+			if matched, _ := path.Match(pattern, part); matched {
+				return true
+			}
+		}
+		return false
+	}
+	for i := 1; i <= n; i++ {
+		if matched, _ := path.Match(pattern, strings.Join(parts[:i], "/")); matched {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Scanner) shouldScanFile(root, path string) bool {
 	name := filepath.Base(path)
 	nameLower := strings.ToLower(name)
 	ext := filepath.Ext(path)
@@ -719,10 +795,12 @@ func (s *Scanner) shouldScanFile(path string) bool {
 	}
 
 	// Check exclude patterns
-	for _, pattern := range s.config.ExcludeGlobs {
-		if matched, _ := filepath.Match(pattern, name); matched {
-			return false
-		}
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		rel = name
+	}
+	if s.excluded(rel, false) {
+		return false
 	}
 
 	// Check include patterns
@@ -743,7 +821,7 @@ func (s *Scanner) shouldScanFile(path string) bool {
 	// been scanned.
 	if rules := s.config.ConfigFile; rules != nil {
 		for _, pattern := range rules.IgnoreFiles {
-			if matched, _ := filepath.Match(pattern, name); matched {
+			if matchesExclude(pattern, rel, false) {
 				s.mu.Lock()
 				s.configSkipped.Files++
 				s.mu.Unlock()

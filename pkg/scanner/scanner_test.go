@@ -116,6 +116,148 @@ func init() {
 	}
 }
 
+// writeRSATree creates each relative path under a new temporary directory with
+// one RSA key generation line, so every file yields a finding unless an
+// exclude pattern removes it.
+func writeRSATree(t *testing.T, rels ...string) string {
+	t.Helper()
+	root := t.TempDir()
+	for _, rel := range rels {
+		content := "key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\n"
+		if strings.HasSuffix(rel, ".go") {
+			content = "package src\n\nvar key, _ = rsa.GenerateKey(rand.Reader, 2048)\n"
+		}
+		path := filepath.Join(root, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return root
+}
+
+// filesWithFindings scans root with the given exclude patterns and returns the
+// set of slash-separated paths, relative to root, that produced findings.
+func filesWithFindings(t *testing.T, root string, excludes []string) map[string]bool {
+	t.Helper()
+	results, err := New(Config{
+		Target:       root,
+		ExcludeGlobs: excludes,
+		MinSeverity:  SeverityInfo,
+	}).Scan()
+	if err != nil {
+		t.Fatalf("Scan failed: %v", err)
+	}
+	found := make(map[string]bool)
+	for _, f := range results.Findings {
+		rel, err := filepath.Rel(root, f.File)
+		if err != nil {
+			t.Fatal(err)
+		}
+		found[filepath.ToSlash(rel)] = true
+	}
+	return found
+}
+
+func TestScanExcludeDirectoryGlobs(t *testing.T) {
+	files := []string{"vendor/a.py", "test/b.py", "src/c_test.go", "src/d.py"}
+	root := writeRSATree(t, files...)
+
+	// Every file must yield a finding on its own, or the exclusion checks
+	// below would pass without excluding anything.
+	all := filesWithFindings(t, root, nil)
+	for _, rel := range files {
+		if !all[rel] {
+			t.Fatalf("%s yields no finding without excludes; the fixture does not exercise the exclude patterns", rel)
+		}
+	}
+
+	found := filesWithFindings(t, root, []string{"vendor/*", "test/*", "*_test.go"})
+	want := map[string]bool{"src/d.py": true}
+	for rel := range found {
+		if !want[rel] {
+			t.Errorf("%s has findings although --exclude \"vendor/*,test/*,*_test.go\" should exclude it", rel)
+		}
+	}
+	if !found["src/d.py"] {
+		t.Error("src/d.py has no findings although no exclude pattern names it")
+	}
+}
+
+func TestScanDefaultExcludesSkipDependencyAndBuildDirs(t *testing.T) {
+	skipped := []string{"vendor/a.py", "venv/e.py", ".venv/f.py", "target/g.py", "services/api/vendor/h.py"}
+	kept := []string{"test/b.py", "src/d.py"}
+	root := writeRSATree(t, append(skipped, kept...)...)
+
+	all := filesWithFindings(t, root, nil)
+	for _, rel := range skipped {
+		if !all[rel] {
+			t.Fatalf("%s yields no finding without excludes; the fixture does not exercise the default excludes", rel)
+		}
+	}
+
+	found := filesWithFindings(t, root, DefaultExcludeGlobs)
+	for _, rel := range skipped {
+		if found[rel] {
+			t.Errorf("%s has findings although the default excludes skip its directory", rel)
+		}
+	}
+	for _, rel := range kept {
+		if !found[rel] {
+			t.Errorf("%s has no findings; the default excludes must not skip it", rel)
+		}
+	}
+}
+
+func TestMatchesExclude(t *testing.T) {
+	tests := []struct {
+		pattern string
+		rel     string
+		isDir   bool
+		want    bool
+	}{
+		// No "/": a file or directory name at any depth.
+		{"*_test.go", "src/c_test.go", false, true},
+		{"*_test.go", "src/c.go", false, false},
+		{"vendor", "vendor", true, true},
+		{"vendor", "a/b/vendor", true, true},
+		{"vendor", "vendor/x.py", false, true},
+		{"vendor", "vendors", true, false},
+
+		// Ending in "/*", "/**" or "/": the directory and everything in it.
+		{"vendor/*", "vendor", true, true},
+		{"vendor/*", "vendor/a.py", false, true},
+		{"vendor/*", "services/api/vendor", true, true},
+		{"vendor/**", "vendor/deep/a.py", false, true},
+		{"vendor/", "vendor", true, true},
+		{"./vendor/*", "vendor", true, true},
+		{"build/*", "build", false, false}, // a build script, not a directory
+		{"build/*", "build.go", false, false},
+		{"src/generated/*", "src/generated", true, true},
+		{"src/generated/*", "src/generated/x.go", false, true},
+		{"src/generated/*", "lib/src/generated/x.go", false, false},
+
+		// Any other "/": the path from the scan root, and directories it names.
+		{"src/*.pb.go", "src/a.pb.go", false, true},
+		{"src/*.pb.go", "src/sub/a.pb.go", false, false},
+		{"src/generated", "src/generated", true, true},
+		{"src/generated", "src/generated/x.go", false, true},
+		{"src/generated", "lib/src/generated", true, false},
+
+		// The scan root and empty patterns exclude nothing.
+		{"*", ".", true, false},
+		{"", "a.py", false, false},
+		{"/*", "a.py", false, false},
+	}
+	for _, tt := range tests {
+		if got := matchesExclude(tt.pattern, tt.rel, tt.isDir); got != tt.want {
+			t.Errorf("matchesExclude(%q, %q, isDir=%v) = %v, want %v", tt.pattern, tt.rel, tt.isDir, got, tt.want)
+		}
+	}
+}
+
 func TestScanIncludePatterns(t *testing.T) {
 	tmpDir, err := os.MkdirTemp("", "cryptoscan-test")
 	if err != nil {

@@ -150,6 +150,7 @@ type Scanner struct {
 	mu       sync.Mutex
 	findings []Finding
 	tempDir  string // Temporary directory for cloned repos
+	root     string // Scan root; path rules see only paths below it (see relPath)
 	stats    struct {
 		filesScanned  int
 		linesScanned  int
@@ -207,9 +208,11 @@ func (s *Scanner) Scan() (*Results, error) {
 	}
 
 	if info.IsDir() {
+		s.root = target
 		err = s.scanDirectory(target)
 	} else {
 		// Check if single file should be scanned (apply same filters as directory scan)
+		s.root = filepath.Dir(target)
 		if s.shouldScanFile(target) {
 			err = s.scanFile(target)
 		}
@@ -356,9 +359,42 @@ func (s *Scanner) scanDirectory(root string) error {
 	return nil
 }
 
+// relPath returns path relative to the scan root, slash-separated and with a
+// leading slash, so that a segment rule such as "/docs/" also matches a
+// directory at the top of the target. The scan root itself is "/".
+//
+// Every built-in path rule tests this form, never the absolute path. A
+// directory above the scan root is not part of what the user asked to scan,
+// and its name must not change the result: tested against the absolute path,
+// a checkout under ~/work/docs/ scanned zero files and exited 0.
+func (s *Scanner) relPath(path string) string {
+	rel, err := filepath.Rel(s.root, path)
+	if err != nil {
+		rel = filepath.Base(path)
+	}
+	if rel == "." {
+		return "/"
+	}
+	return "/" + filepath.ToSlash(rel)
+}
+
+// analyzeFile classifies a file by its scan-relative path, so that the
+// documentation, test, vendor and generated rules see only directories inside
+// the target. The returned context keeps the real path.
+func (s *Scanner) analyzeFile(path string) *analyzer.FileContext {
+	ctx := analyzer.Analyze(s.relPath(path))
+	ctx.Path = path
+	return ctx
+}
+
 func (s *Scanner) shouldSkipDir(root, path, name string) error {
 	relPath, _ := filepath.Rel(root, path)
-	pathLower := strings.ToLower(path)
+	pathLower := strings.ToLower(s.relPath(path))
+
+	// The scan root is what the user asked to scan, so the built-in skip
+	// rules below never apply to it, whatever it is called. User exclude
+	// patterns still do.
+	isRoot := path == root
 
 	// Always skip these directory names
 	skipDirs := map[string]bool{
@@ -382,7 +418,7 @@ func (s *Scanner) shouldSkipDir(root, path, name string) error {
 		// Terraform/infrastructure state
 		".terraform": true,
 	}
-	if skipDirs[name] {
+	if !isRoot && skipDirs[name] {
 		return filepath.SkipDir
 	}
 
@@ -486,7 +522,7 @@ func (s *Scanner) shouldScanFile(path string) bool {
 	}
 
 	// Get file context
-	ctx := analyzer.Analyze(path)
+	ctx := s.analyzeFile(path)
 
 	// Skip documentation if not explicitly included
 	if !s.config.IncludeDocs && ctx.FileType == analyzer.FileTypeDocumentation {
@@ -532,7 +568,7 @@ func (s *Scanner) scanFile(path string) error {
 	fileSize := fileInfo.Size()
 
 	// Analyze file context
-	fileCtx := analyzer.Analyze(path)
+	fileCtx := s.analyzeFile(path)
 
 	s.mu.Lock()
 	s.stats.filesScanned++
@@ -982,7 +1018,7 @@ func (s *Scanner) shouldIncludeFinding(f types.Finding) bool {
 	}
 
 	// Skip findings in files whose names indicate API docs or documentation
-	fileLower := strings.ToLower(f.File)
+	fileLower := strings.ToLower(s.relPath(f.File))
 	if strings.Contains(fileLower, "-documentation") || strings.Contains(fileLower, "-docs") ||
 		strings.Contains(fileLower, "_documentation") || strings.Contains(fileLower, "_docs") ||
 		strings.Contains(fileLower, "/docs/") || strings.Contains(fileLower, "/documentation/") {

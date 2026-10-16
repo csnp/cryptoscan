@@ -51,6 +51,14 @@ var (
 	noConfig         bool   // --no-config
 )
 
+// formatNames lists the values --format accepts and severityNames the values
+// --min-severity and --fail-on accept, lowest first. The flag help and the
+// error for an unknown value are both built from these lists.
+var (
+	formatNames   = []string{"text", "json", "csv", "sarif", "cbom"}
+	severityNames = []string{"info", "low", "medium", "high", "critical"}
+)
+
 var scanCmd = &cobra.Command{
 	Use:   "scan [path or URL]",
 	Short: "Scan a directory or repository for cryptographic usage",
@@ -77,6 +85,7 @@ such as RSAPrivateKey or AESCipher is not matched either.
 Output formats:
   - text:  Human-readable console output (default)
   - json:  JSON format for programmatic processing
+  - csv:   Comma-separated values, one finding per row
   - sarif: SARIF format for security tool integration
   - cbom:  Cryptographic Bill of Materials
 
@@ -111,13 +120,13 @@ Examples:
 }
 
 func init() {
-	scanCmd.Flags().StringVarP(&outputFormat, "format", "f", "text", "Output format: text, json, csv, sarif, cbom")
+	scanCmd.Flags().StringVarP(&outputFormat, "format", "f", "text", "Output format: "+strings.Join(formatNames, ", "))
 	scanCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
 	scanCmd.Flags().StringVarP(&includeGlobs, "include", "i", "", "File patterns to include (comma-separated)")
 	scanCmd.Flags().StringVarP(&excludeGlobs, "exclude", "e", "", "File and directory patterns to exclude (comma-separated): a pattern without / matches a name at any depth (vendor, *_test.go), a pattern ending in /* or /** skips that directory and everything in it (vendor/*), and any other pattern is matched against the path from the scan root (src/*.pb.go)")
 	scanCmd.Flags().IntVarP(&maxDepth, "max-depth", "d", 0, "Maximum directory depth (0 = unlimited). NOT YET IMPLEMENTED: the value is accepted and ignored")
 	scanCmd.Flags().BoolVarP(&showProgress, "progress", "p", false, "Show scan progress")
-	scanCmd.Flags().StringVar(&minSeverity, "min-severity", "info", "Minimum severity to report: info, low, medium, high, critical")
+	scanCmd.Flags().StringVar(&minSeverity, "min-severity", "info", "Minimum severity to report: "+strings.Join(severityNames, ", "))
 	scanCmd.Flags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 	scanCmd.Flags().BoolVar(&jsonPretty, "pretty", false, "Pretty print JSON output")
 	scanCmd.Flags().BoolVar(&scanGitHistory, "git-history", false, "Scan Git history (slower). NOT YET IMPLEMENTED: only the working tree is scanned")
@@ -132,7 +141,7 @@ func init() {
 	// CI/CD flexibility flags
 	scanCmd.Flags().StringVar(&ignorePatterns, "ignore", "", "Pattern IDs to ignore (comma-separated, e.g., \"RSA-001,CERT-*\")")
 	scanCmd.Flags().StringVar(&ignoreCategories, "ignore-category", "", "Categories to ignore (comma-separated, e.g., \"Certificate,Library Import\")")
-	scanCmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero if findings at this severity or higher (info, low, medium, high, critical), or if any file could not be analyzed")
+	scanCmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero if findings at this severity or higher ("+strings.Join(severityNames, ", ")+"), or if any file could not be analyzed")
 	scanCmd.Flags().StringVar(&baselineFile, "baseline", "", "Baseline JSON file - only report new findings")
 	scanCmd.Flags().StringVar(&configFile, "config", "", "Config file path (default: auto-detect .cryptoscan.yaml)")
 	scanCmd.Flags().BoolVar(&noConfig, "no-config", false, "Do not read a config file; use only command-line options")
@@ -227,6 +236,12 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		}
 	}
 
+	// Reject an unknown format or severity, from a flag or the config file,
+	// before anything is scanned or printed.
+	if err := checkOptionValues(cfgFile, cfgPath); err != nil {
+		return nil, "", err
+	}
+
 	// Parse include/exclude patterns
 	var includes, excludes []string
 	if includeGlobs != "" {
@@ -280,7 +295,11 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 
 		// Use config file settings if CLI flags not set
 		if minSeverity == "info" && cfgFile.MinSeverity != "" && !opts.inventory {
-			cfgRules.MinSeverity = parseSeverity(cfgFile.MinSeverity)
+			sev, err := parseSeverity(cfgFile.MinSeverity)
+			if err != nil {
+				return nil, "", err
+			}
+			cfgRules.MinSeverity = sev
 			cfgRules.HasMinSeverity = true
 		}
 		if effectiveFailOn == "" && cfgFile.FailOn != "" {
@@ -295,6 +314,14 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 			outputFormat = cfgFile.Format
 		}
 	}
+	outputFormat = strings.ToLower(outputFormat)
+	minSev, err := parseSeverity(minSeverity)
+	if err != nil {
+		return nil, "", err
+	}
+	if _, err := parseSeverity(effectiveFailOn); err != nil {
+		return nil, "", err
+	}
 
 	// Create scanner config
 	cfg := scanner.Config{
@@ -304,7 +331,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		MaxDepth:           maxDepth,
 		ShowProgress:       showProgress,
 		ScanGitHistory:     scanGitHistory,
-		MinSeverity:        parseSeverity(minSeverity),
+		MinSeverity:        minSev,
 		IncludeImports:     includeImports || verbose,                         // Include if explicitly set or verbose mode
 		IncludeQuantumSafe: includeQuantumSafe || verbose || opts.quantumSafe, // Include if explicitly set, verbose mode, or forced by the command
 		IncludeNarrative:   includeNarrative || verbose,                       // Include if explicitly set or verbose mode
@@ -429,10 +456,14 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		rep = reporter.NewSARIFReporter()
 	case outputFormat == "cbom":
 		rep = reporter.NewCBOMReporter()
-	default:
+	case outputFormat == "text":
 		textRep := reporter.NewTextReporter(!noColor)
 		textRep.SetGroupBy(groupBy)
 		rep = textRep
+	default:
+		// checkOptionValues accepts only formatNames, so this is reached only
+		// when a name is added to that list without a reporter here.
+		return nil, "", fmt.Errorf("no reporter for format %q", outputFormat)
 	}
 
 	// Add metadata
@@ -476,7 +507,10 @@ func exitCode(results *scanner.Results, failOn string, gateFindings bool) int {
 	// analyzed: that file is a coverage gap, and a gate that passes over it
 	// would be passing on a partial scan.
 	if failOn != "" {
-		if results.HasFindingsAtOrAbove(parseSeverity(failOn)) || len(results.UnanalyzedFiles) > 0 {
+		// The threshold was checked before the scan ran, so an unknown name
+		// cannot reach this point.
+		threshold, _ := parseSeverity(failOn)
+		if results.HasFindingsAtOrAbove(threshold) || len(results.UnanalyzedFiles) > 0 {
 			return 1
 		}
 		return 0
@@ -746,19 +780,72 @@ func truncate(s string, max int) string {
 	return s[:max-3] + "..."
 }
 
-func parseSeverity(s string) scanner.Severity {
+// parseSeverity maps a severity name to its level, ignoring case. An empty
+// string means the option was not set and maps to info. Any other name is an
+// error rather than a silent info, which would make --fail-on fail on every
+// finding and --min-severity report all of them.
+func parseSeverity(s string) (scanner.Severity, error) {
 	switch strings.ToLower(s) {
 	case "critical":
-		return scanner.SeverityCritical
+		return scanner.SeverityCritical, nil
 	case "high":
-		return scanner.SeverityHigh
+		return scanner.SeverityHigh, nil
 	case "medium":
-		return scanner.SeverityMedium
+		return scanner.SeverityMedium, nil
 	case "low":
-		return scanner.SeverityLow
+		return scanner.SeverityLow, nil
+	case "info", "":
+		return scanner.SeverityInfo, nil
 	default:
-		return scanner.SeverityInfo
+		return scanner.SeverityInfo, fmt.Errorf("unknown severity %q (valid: %s)", s, strings.Join(severityNames, ", "))
 	}
+}
+
+// checkOptionValues checks --format, --min-severity and --fail-on, then the
+// format, minSeverity and failOn settings of the config file at cfgPath, and
+// returns an error for the first value that is not one of the accepted names.
+func checkOptionValues(cfgFile *config.Config, cfgPath string) error {
+	type option struct {
+		name, value, source string
+		valid               []string
+		emptyIsUnset        bool
+	}
+	// --format defaults to text, so an empty value was typed on purpose. For
+	// the other options an empty value means the option was not set.
+	options := []option{
+		{"--format", outputFormat, "", formatNames, false},
+		{"--min-severity", minSeverity, "", severityNames, true},
+		{"--fail-on", failOn, "", severityNames, true},
+	}
+	if cfgFile != nil {
+		// Named by their keys in the config file.
+		options = append(options,
+			option{"format", cfgFile.Format, cfgPath, formatNames, true},
+			option{"minSeverity", cfgFile.MinSeverity, cfgPath, severityNames, true},
+			option{"failOn", cfgFile.FailOn, cfgPath, severityNames, true},
+		)
+	}
+
+	for _, o := range options {
+		if (o.value == "" && o.emptyIsUnset) || containsFold(o.valid, o.value) {
+			continue
+		}
+		where := ""
+		if o.source != "" {
+			where = " in " + o.source
+		}
+		return fmt.Errorf("unknown %s %q%s (valid: %s)", o.name, o.value, where, strings.Join(o.valid, ", "))
+	}
+	return nil
+}
+
+func containsFold(list []string, s string) bool {
+	for _, v := range list {
+		if strings.EqualFold(v, s) {
+			return true
+		}
+	}
+	return false
 }
 
 // calculateSummary recalculates the summary after filtering findings

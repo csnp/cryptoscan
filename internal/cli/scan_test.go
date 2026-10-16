@@ -23,31 +23,83 @@ import (
 
 func TestParseSeverity(t *testing.T) {
 	tests := []struct {
-		input string
-		want  scanner.Severity
+		input   string
+		want    scanner.Severity
+		wantErr bool
 	}{
-		{"critical", scanner.SeverityCritical},
-		{"CRITICAL", scanner.SeverityCritical},
-		{"Critical", scanner.SeverityCritical},
-		{"high", scanner.SeverityHigh},
-		{"HIGH", scanner.SeverityHigh},
-		{"medium", scanner.SeverityMedium},
-		{"MEDIUM", scanner.SeverityMedium},
-		{"low", scanner.SeverityLow},
-		{"LOW", scanner.SeverityLow},
-		{"info", scanner.SeverityInfo},
-		{"INFO", scanner.SeverityInfo},
-		{"", scanner.SeverityInfo},
-		{"invalid", scanner.SeverityInfo},
+		{"critical", scanner.SeverityCritical, false},
+		{"CRITICAL", scanner.SeverityCritical, false},
+		{"Critical", scanner.SeverityCritical, false},
+		{"high", scanner.SeverityHigh, false},
+		{"HIGH", scanner.SeverityHigh, false},
+		{"medium", scanner.SeverityMedium, false},
+		{"MEDIUM", scanner.SeverityMedium, false},
+		{"low", scanner.SeverityLow, false},
+		{"LOW", scanner.SeverityLow, false},
+		{"info", scanner.SeverityInfo, false},
+		{"INFO", scanner.SeverityInfo, false},
+		{"", scanner.SeverityInfo, false},
+		{"invalid", scanner.SeverityInfo, true},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			got := parseSeverity(tt.input)
+			got, err := parseSeverity(tt.input)
+			if tt.wantErr {
+				if err == nil {
+					t.Fatalf("parseSeverity(%q) = %v, want an error", tt.input, got)
+				}
+				want := `unknown severity "` + tt.input + `" (valid: info, low, medium, high, critical)`
+				if err.Error() != want {
+					t.Errorf("parseSeverity(%q) error = %q, want %q", tt.input, err.Error(), want)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("parseSeverity(%q) returned error: %v", tt.input, err)
+			}
 			if got != tt.want {
 				t.Errorf("parseSeverity(%q) = %v, want %v", tt.input, got, tt.want)
 			}
 		})
+	}
+}
+
+// The accepted values are listed once. The flag help, the error for an unknown
+// value and the code that acts on the value must all agree with that list.
+func TestOptionValueListsMatchHelpAndCode(t *testing.T) {
+	for _, name := range severityNames {
+		if _, err := parseSeverity(name); err != nil {
+			t.Errorf("severity %q is listed as valid but parseSeverity rejects it: %v", name, err)
+		}
+	}
+
+	helpWants := map[string]string{
+		"format":       strings.Join(formatNames, ", "),
+		"min-severity": strings.Join(severityNames, ", "),
+		"fail-on":      strings.Join(severityNames, ", "),
+	}
+	for flag, list := range helpWants {
+		usage := scanCmd.Flags().Lookup(flag).Usage
+		if !strings.Contains(usage, list) {
+			t.Errorf("--%s help %q does not list %q", flag, usage, list)
+		}
+	}
+
+	_, formatSection, _ := strings.Cut(scanCmd.Long, "Output formats:")
+	formatSection, _, _ = strings.Cut(formatSection, "\n\n")
+	for _, name := range formatNames {
+		if !strings.Contains(formatSection, "  - "+name+":") {
+			t.Errorf("scan help's Output formats section does not describe %q", name)
+		}
+	}
+
+	// Every listed format must reach a reporter rather than an error.
+	for _, name := range formatNames {
+		dir := t.TempDir()
+		if _, _, err := executeScan(t, dir, "--format", name); err != nil {
+			t.Errorf("scan --format %s: %v", name, err)
+		}
 	}
 }
 
@@ -924,4 +976,151 @@ func TestStreamFooterMatchesReportTotal(t *testing.T) {
 	if !strings.Contains(output, wantListed) {
 		t.Errorf("footer should say %q, got:\n%s", wantListed, output)
 	}
+}
+
+// executeScan runs "cryptoscan scan <args>" through the root command, the way
+// the binary does. It returns what the scan wrote to stdout, what cobra printed
+// (the error line and usage), and the error. The flag variables it can change
+// are restored afterwards so later tests start from the same state.
+func executeScan(t *testing.T, args ...string) (stdout, cobraOutput string, err error) {
+	t.Helper()
+	savedFormat, savedMinSeverity, savedFailOn, savedConfig := outputFormat, minSeverity, failOn, configFile
+	t.Cleanup(func() {
+		outputFormat, minSeverity, failOn, configFile = savedFormat, savedMinSeverity, savedFailOn, savedConfig
+		rootCmd.SetArgs(nil)
+		rootCmd.SetOut(nil)
+		rootCmd.SetErr(nil)
+	})
+
+	var cobraBuf bytes.Buffer
+	rootCmd.SetOut(&cobraBuf)
+	rootCmd.SetErr(&cobraBuf)
+	rootCmd.SetArgs(append([]string{"scan"}, args...))
+	stdout = captureStdout(func() {
+		err = rootCmd.Execute()
+	})
+	return stdout, cobraBuf.String(), err
+}
+
+func TestScanRejectsUnknownFormat(t *testing.T) {
+	dir := t.TempDir()
+
+	stdout, cobraOutput, err := executeScan(t, dir, "--format", "xml")
+	if err == nil {
+		t.Fatalf("scan --format xml returned no error; stdout began %q", firstLine(stdout))
+	}
+	want := `unknown --format "xml" (valid: text, json, csv, sarif, cbom)`
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+	if !strings.Contains(cobraOutput, "Error: "+want) {
+		t.Errorf("cobra output does not carry the error line; got %q", firstLine(cobraOutput))
+	}
+	if stdout != "" {
+		t.Errorf("scan wrote to stdout before rejecting --format: %q", firstLine(stdout))
+	}
+}
+
+// --format defaults to text, so an empty value (an unset CI variable, say) is a
+// mistake to report, not a reason to scan and then fail to pick a reporter.
+func TestScanRejectsEmptyFormat(t *testing.T) {
+	dir := t.TempDir()
+
+	stdout, _, err := executeScan(t, dir, "--format", "")
+	if err == nil {
+		t.Fatalf("scan --format \"\" returned no error; stdout began %q", firstLine(stdout))
+	}
+	want := `unknown --format "" (valid: text, json, csv, sarif, cbom)`
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+	if stdout != "" {
+		t.Errorf("scan wrote output before rejecting --format: %q", firstLine(stdout))
+	}
+}
+
+func TestScanRejectsUnknownFailOnBeforeAnyOutput(t *testing.T) {
+	dir := t.TempDir()
+
+	stdout, _, err := executeScan(t, dir, "--fail-on", "extreme", "--format", "json")
+	if err == nil {
+		t.Fatalf("scan --fail-on extreme returned no error; stdout began %q", firstLine(stdout))
+	}
+	want := `unknown --fail-on "extreme" (valid: info, low, medium, high, critical)`
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+	if stdout != "" {
+		t.Errorf("scan wrote output before rejecting --fail-on: %q", firstLine(stdout))
+	}
+}
+
+func TestScanRejectsUnknownMinSeverity(t *testing.T) {
+	dir := t.TempDir()
+
+	stdout, _, err := executeScan(t, dir, "--min-severity", "extreme", "--format", "json")
+	if err == nil {
+		t.Fatalf("scan --min-severity extreme returned no error; stdout began %q", firstLine(stdout))
+	}
+	want := `unknown --min-severity "extreme" (valid: info, low, medium, high, critical)`
+	if err.Error() != want {
+		t.Errorf("error = %q, want %q", err.Error(), want)
+	}
+	if stdout != "" {
+		t.Errorf("scan wrote output before rejecting --min-severity: %q", firstLine(stdout))
+	}
+}
+
+func TestScanRejectsUnknownConfigFileValues(t *testing.T) {
+	tests := []struct {
+		yaml string
+		want string // the error, with %s standing for the config file path
+	}{
+		{"failOn: extreme\n", `unknown failOn "extreme" in %s (valid: info, low, medium, high, critical)`},
+		{"minSeverity: extreme\n", `unknown minSeverity "extreme" in %s (valid: info, low, medium, high, critical)`},
+		{"format: xml\n", `unknown format "xml" in %s (valid: text, json, csv, sarif, cbom)`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.yaml, func(t *testing.T) {
+			dir := t.TempDir()
+			cfgPath := filepath.Join(dir, ".cryptoscan.yaml")
+			if err := os.WriteFile(cfgPath, []byte(tt.yaml), 0644); err != nil {
+				t.Fatal(err)
+			}
+
+			stdout, _, err := executeScan(t, dir)
+			if err == nil {
+				t.Fatalf("scan with %q in the config file returned no error; stdout began %q", tt.yaml, firstLine(stdout))
+			}
+			want := fmt.Sprintf(tt.want, cfgPath)
+			if err.Error() != want {
+				t.Errorf("error = %q, want %q", err.Error(), want)
+			}
+			if stdout != "" {
+				t.Errorf("scan wrote output before rejecting the config file: %q", firstLine(stdout))
+			}
+		})
+	}
+}
+
+func TestScanAcceptsValuesInAnyCase(t *testing.T) {
+	dir := t.TempDir()
+
+	stdout, _, err := executeScan(t, dir, "--fail-on", "HIGH", "--min-severity", "Low", "--format", "JSON")
+	if err != nil {
+		t.Fatalf("scan --fail-on HIGH --min-severity Low --format JSON: %v", err)
+	}
+	if !strings.HasPrefix(stdout, "{") {
+		t.Errorf("--format JSON did not produce JSON; stdout began %q", firstLine(stdout))
+	}
+}
+
+// firstLine shortens output for a failure message.
+func firstLine(s string) string {
+	line, _, _ := strings.Cut(s, "\n")
+	if len(line) > 80 {
+		line = line[:80] + "..."
+	}
+	return line
 }

@@ -89,6 +89,18 @@ All notable changes to CryptoScan are recorded here. This project follows
   key generation through. A `failOn` in `.cryptoscan.yaml` applies when
   `--fail-on` is not given. `--baseline`, `--ignore`, `--ignore-category` and
   `--config` work as they do on `scan`.
+- **`cryptoscan pqc <path or URL>`** shows post-quantum readiness. It lists
+  the post-quantum algorithms found (ML-KEM, ML-DSA, SLH-DSA, FN-DSA, XMSS,
+  LMS and post-quantum library imports, each with a count and up to three
+  `file:line` locations), the hybrid constructions found, and the
+  quantum-vulnerable algorithms with a count each, then the migration score
+  line and the QRAMM Dimension 1 practice levels as the `scan` report prints
+  them. Quantum-safe findings are always included, so its score can differ
+  from the score of a default `scan`. `--format json` writes `tool`,
+  `migrationScore` and `pqcFindings`, the findings whose IDs start with
+  `PQC-` or `HYBRID-`. It exits 0 whatever it finds, and non-zero only when
+  the scan fails. A baseline or minimum severity set in `.cryptoscan.yaml`
+  does not filter the view; ignore rules still apply.
 
 `scan` is unchanged: no flag was removed or renamed, and its exit codes are
 the same.

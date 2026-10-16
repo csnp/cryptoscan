@@ -390,38 +390,7 @@ func (r *TextReporter) generateGroupedByFile(results *scanner.Results, b *string
 func (r *TextReporter) writeMigrationScore(b *strings.Builder, score *scanner.MigrationScore) {
 	// Migration Readiness Score box
 	b.WriteString(r.color(colorBold+colorCyan, "┌─ QUANTUM MIGRATION READINESS ──────────────────────────────────┐\n"))
-
-	// Score visualization
-	scoreInt := int(score.Score)
-	filledBars := scoreInt / 4 // 25 bars = 100%
-	emptyBars := 25 - filledBars
-
-	scoreColor := colorRed
-	if score.Score >= 75 {
-		scoreColor = colorGreen
-	} else if score.Score >= 50 {
-		scoreColor = colorYellow
-	} else if score.Score >= 25 {
-		scoreColor = colorYellow
-	}
-
-	progressBar := r.color(scoreColor, strings.Repeat("█", filledBars)) + strings.Repeat("░", emptyBars)
-	b.WriteString(r.color(colorCyan, "│") + r.color(colorBold, fmt.Sprintf("  Score: %s %.1f%% ", progressBar, score.Score)))
-
-	// Risk level badge
-	levelColor := colorRed
-	switch score.Level {
-	case "LOW":
-		levelColor = colorGreen
-	case "MEDIUM":
-		levelColor = colorYellow
-	case "HIGH":
-		levelColor = colorRed
-	case "CRITICAL":
-		levelColor = colorRed + colorBold
-	}
-	b.WriteString(r.color(levelColor, fmt.Sprintf("[%s]", score.Level)))
-	b.WriteString(r.color(colorCyan, fmt.Sprintf("%s│\n", strings.Repeat(" ", 8-len(score.Level)))))
+	r.writeScoreLine(b, score)
 
 	b.WriteString(r.color(colorCyan, "│") + r.color(colorCyan, "─────────────────────────────────────────────────────────────────") + r.color(colorCyan, "│\n"))
 
@@ -431,16 +400,7 @@ func (r *TextReporter) writeMigrationScore(b *strings.Builder, score *scanner.Mi
 	b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    %s Hybrid:            %-5d", r.color(colorGreen, "◐"), score.HybridCount) + fmt.Sprintf("    %s Critical:      %-5d", r.color(colorRed+colorBold, "[!]"), score.CriticalCount) + r.color(colorCyan, "   │\n"))
 	b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    %s Partial:           %-5d", r.color(colorYellow, "◑"), score.PartialCount) + fmt.Sprintf("    Total:          %-5d", score.TotalCount) + r.color(colorCyan, "   │\n"))
 
-	// QRAMM Readiness
-	if score.QRAMMReadiness != nil {
-		b.WriteString(r.color(colorCyan, "│") + r.color(colorCyan, "─────────────────────────────────────────────────────────────────") + r.color(colorCyan, "│\n"))
-		b.WriteString(r.color(colorCyan, "│") + r.color(colorBold, "  QRAMM DIMENSION 1: Cryptographic Visibility & Inventory (CVI) ") + r.color(colorCyan, "│\n"))
-
-		// Practice levels
-		b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    Practice 1.1 Discovery:   Level %d/5 %s", score.QRAMMReadiness.DiscoveryLevel, r.maturityIndicator(score.QRAMMReadiness.DiscoveryLevel)) + r.color(colorCyan, "                    │\n"))
-		b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    Practice 1.2 Assessment:  Level %d/5 %s", score.QRAMMReadiness.AssessmentLevel, r.maturityIndicator(score.QRAMMReadiness.AssessmentLevel)) + r.color(colorCyan, "                    │\n"))
-		b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    Practice 1.3 Mapping:     Level %d/5 %s", score.QRAMMReadiness.MappingLevel, r.maturityIndicator(score.QRAMMReadiness.MappingLevel)) + r.color(colorCyan, "                    │\n"))
-	}
+	r.writeQRAMMLevels(b, score)
 
 	// Top risk files
 	if len(score.TopRiskFiles) > 0 {
@@ -473,6 +433,58 @@ func (r *TextReporter) writeMigrationScore(b *strings.Builder, score *scanner.Mi
 
 	b.WriteString(r.color(colorBold+colorCyan, "└─────────────────────────────────────────────────────────────────┘\n"))
 	b.WriteString("\n")
+}
+
+// writeScoreLine writes the migration score bar and risk level, one line of
+// the readiness box.
+func (r *TextReporter) writeScoreLine(b *strings.Builder, score *scanner.MigrationScore) {
+	// Score visualization
+	scoreInt := int(score.Score)
+	filledBars := scoreInt / 4 // 25 bars = 100%
+	emptyBars := 25 - filledBars
+
+	scoreColor := colorRed
+	if score.Score >= 75 {
+		scoreColor = colorGreen
+	} else if score.Score >= 50 {
+		scoreColor = colorYellow
+	} else if score.Score >= 25 {
+		scoreColor = colorYellow
+	}
+
+	progressBar := r.color(scoreColor, strings.Repeat("█", filledBars)) + strings.Repeat("░", emptyBars)
+	b.WriteString(r.color(colorCyan, "│") + r.color(colorBold, fmt.Sprintf("  Score: %s %.1f%% ", progressBar, score.Score)))
+
+	// Risk level badge
+	levelColor := colorRed
+	switch score.Level {
+	case "LOW":
+		levelColor = colorGreen
+	case "MEDIUM":
+		levelColor = colorYellow
+	case "HIGH":
+		levelColor = colorRed
+	case "CRITICAL":
+		levelColor = colorRed + colorBold
+	}
+	b.WriteString(r.color(levelColor, fmt.Sprintf("[%s]", score.Level)))
+	b.WriteString(r.color(colorCyan, fmt.Sprintf("%s│\n", strings.Repeat(" ", 8-len(score.Level)))))
+}
+
+// writeQRAMMLevels writes the QRAMM Dimension 1 practice levels of the
+// readiness box, with the separator above them. It writes nothing when the
+// score carries no QRAMM readiness.
+func (r *TextReporter) writeQRAMMLevels(b *strings.Builder, score *scanner.MigrationScore) {
+	// QRAMM Readiness
+	if score.QRAMMReadiness != nil {
+		b.WriteString(r.color(colorCyan, "│") + r.color(colorCyan, "─────────────────────────────────────────────────────────────────") + r.color(colorCyan, "│\n"))
+		b.WriteString(r.color(colorCyan, "│") + r.color(colorBold, "  QRAMM DIMENSION 1: Cryptographic Visibility & Inventory (CVI) ") + r.color(colorCyan, "│\n"))
+
+		// Practice levels
+		b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    Practice 1.1 Discovery:   Level %d/5 %s", score.QRAMMReadiness.DiscoveryLevel, r.maturityIndicator(score.QRAMMReadiness.DiscoveryLevel)) + r.color(colorCyan, "                    │\n"))
+		b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    Practice 1.2 Assessment:  Level %d/5 %s", score.QRAMMReadiness.AssessmentLevel, r.maturityIndicator(score.QRAMMReadiness.AssessmentLevel)) + r.color(colorCyan, "                    │\n"))
+		b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    Practice 1.3 Mapping:     Level %d/5 %s", score.QRAMMReadiness.MappingLevel, r.maturityIndicator(score.QRAMMReadiness.MappingLevel)) + r.color(colorCyan, "                    │\n"))
+	}
 }
 
 func (r *TextReporter) maturityIndicator(level int) string {

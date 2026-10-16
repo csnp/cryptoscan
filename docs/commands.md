@@ -99,6 +99,25 @@ Flags:
       --config string           Config file path (default: auto-detect .cryptoscan.yaml)
 ```
 
+```
+cryptoscan pqc [path or URL] [flags]
+
+Shows post-quantum readiness: the post-quantum algorithms found (ML-KEM,
+ML-DSA, SLH-DSA, FN-DSA, XMSS, LMS, library imports) with up to three
+file:line locations each, the hybrid constructions found, the
+quantum-vulnerable algorithms with a count each, then the migration score and
+the QRAMM Dimension 1 practice levels. Quantum-safe findings are always
+included. Exits 0 whatever it finds; non-zero only when the scan fails. To
+fail a build on findings, use cryptoscan gate.
+
+Flags:
+  -f, --format string           Output format: text, json (default "text")
+  -i, --include string          File patterns to include (comma-separated globs)
+  -e, --exclude string          File patterns to exclude (comma-separated globs)
+      --ignore string           Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*")
+      --config string           Config file path (default: auto-detect .cryptoscan.yaml)
+```
+
 ## Common workflows
 
 ```bash

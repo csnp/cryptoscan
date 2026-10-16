@@ -65,6 +65,7 @@ func init() {
 	rootCmd.AddCommand(scanCmd)
 	rootCmd.AddCommand(cbomCmd)
 	rootCmd.AddCommand(gateCmd)
+	rootCmd.AddCommand(pqcCmd)
 	rootCmd.AddCommand(versionCmd)
 }
 

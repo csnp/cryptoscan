@@ -156,6 +156,13 @@ type pipelineOptions struct {
 	// inventory marks a report that lists everything found. A baseline or a
 	// minimum severity from the config file does not filter it.
 	inventory bool
+	// quantumSafe includes the quantum-safe findings whatever
+	// --include-quantum-safe says.
+	quantumSafe bool
+	// view, when set, builds the report for the output format in place of the
+	// scan reports. A view is printed alone: no banner, and no findings
+	// streamed while the scan runs.
+	view func(format string) reporter.Reporter
 }
 
 // scanPipeline scans target, writes the report, and returns the results with
@@ -271,18 +278,22 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		ShowProgress:       showProgress,
 		ScanGitHistory:     scanGitHistory,
 		MinSeverity:        parseSeverity(effectiveMinSeverity),
-		IncludeImports:     includeImports || verbose,     // Include if explicitly set or verbose mode
-		IncludeQuantumSafe: includeQuantumSafe || verbose, // Include if explicitly set or verbose mode
-		IncludeNarrative:   includeNarrative || verbose,   // Include if explicitly set or verbose mode
+		IncludeImports:     includeImports || verbose,                         // Include if explicitly set or verbose mode
+		IncludeQuantumSafe: includeQuantumSafe || verbose || opts.quantumSafe, // Include if explicitly set, verbose mode, or forced by the command
+		IncludeNarrative:   includeNarrative || verbose,                       // Include if explicitly set or verbose mode
 		IgnoreIDs:          ignoreIDs,
 		IgnoreCategories:   ignoreCats,
 	}
+
+	// The banner and streamed findings belong to the scan's text report, not
+	// to a view.
+	textReport := outputFormat == "text" && opts.view == nil
 
 	// Setup streaming output for text format (thread-safe for parallel scanning)
 	findingCount := 0
 	fileCount := 0
 	var outputMu sync.Mutex
-	if streamFindings && outputFormat == "text" {
+	if streamFindings && textReport {
 		cfg.OnFinding = func(f scanner.Finding) {
 			outputMu.Lock()
 			findingCount++
@@ -323,12 +334,12 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	}
 
 	// Print banner
-	if outputFormat == "text" && !noColor {
+	if textReport && !noColor {
 		printBanner()
 	}
 
 	// Print streaming header
-	if streamFindings && outputFormat == "text" {
+	if streamFindings && textReport {
 		printScanningHeader(!noColor)
 	}
 
@@ -342,7 +353,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	duration := time.Since(startTime)
 
 	// Print streaming footer with summary
-	if streamFindings && outputFormat == "text" {
+	if streamFindings && textReport {
 		// Clear any remaining progress line
 		clearProgressLine()
 		printScanningFooter(findingCount, fileCount, duration, !noColor)
@@ -362,14 +373,16 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 
 	// Create reporter
 	var rep reporter.Reporter
-	switch outputFormat {
-	case "json":
+	switch {
+	case opts.view != nil:
+		rep = opts.view(outputFormat)
+	case outputFormat == "json":
 		rep = reporter.NewJSONReporter(jsonPretty)
-	case "csv":
+	case outputFormat == "csv":
 		rep = reporter.NewCSVReporter()
-	case "sarif":
+	case outputFormat == "sarif":
 		rep = reporter.NewSARIFReporter()
-	case "cbom":
+	case outputFormat == "cbom":
 		rep = reporter.NewCBOMReporter()
 	default:
 		textRep := reporter.NewTextReporter(!noColor)

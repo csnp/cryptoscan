@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -130,8 +131,36 @@ func init() {
 }
 
 func runScan(cmd *cobra.Command, args []string) error {
-	target := args[0]
+	return exitWith(scanTarget(cmd, args[0]))
+}
 
+// scanTarget runs the scan command and returns the exit code it ends with.
+func scanTarget(cmd *cobra.Command, target string) (int, error) {
+	results, threshold, err := scanPipeline(cmd, target, pipelineOptions{failOn: failOn})
+	if err != nil {
+		return 0, err
+	}
+	return exitCode(results, threshold, true), nil
+}
+
+// pipelineOptions is what a command presets before the scan pipeline runs.
+// scan, cbom and gate are one pipeline with three entry points; they differ
+// only in these fields and in the flags they offer.
+type pipelineOptions struct {
+	// failOn is the threshold given on the command line, or empty when none
+	// was given. A failOn in the config file applies only when it is empty.
+	failOn string
+	// formats lists the output formats the command writes. A config file
+	// format outside it is ignored. Nil accepts every format.
+	formats []string
+	// inventory marks a report that lists everything found. A baseline or a
+	// minimum severity from the config file does not filter it.
+	inventory bool
+}
+
+// scanPipeline scans target, writes the report, and returns the results with
+// the fail-on threshold that the command line and config file settled on.
+func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*scanner.Results, string, error) {
 	// Disable colour when the output is not a terminal, so that redirecting to
 	// a file or piping into another tool produces clean text rather than ANSI
 	// escape sequences. An explicit --no-color still wins, and NO_COLOR is
@@ -160,7 +189,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 			cfgFile = loaded
 		} else if configFile != "" {
 			// Only error if explicitly specified
-			return fmt.Errorf("failed to load config file %s: %w", cfgPath, err)
+			return nil, "", fmt.Errorf("failed to load config file %s: %w", cfgPath, err)
 		}
 	}
 
@@ -209,7 +238,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 	// Merge config file settings (CLI flags take precedence)
 	effectiveMinSeverity := minSeverity
-	effectiveFailOn := failOn
+	effectiveFailOn := opts.failOn
 	effectiveBaseline := baselineFile
 	if cfgFile != nil {
 		// Add config file ignore patterns (CLI patterns take precedence)
@@ -218,16 +247,17 @@ func runScan(cmd *cobra.Command, args []string) error {
 		excludes = append(excludes, cfgFile.Ignore.Files...)
 
 		// Use config file settings if CLI flags not set
-		if effectiveMinSeverity == "info" && cfgFile.MinSeverity != "" {
+		if effectiveMinSeverity == "info" && cfgFile.MinSeverity != "" && !opts.inventory {
 			effectiveMinSeverity = cfgFile.MinSeverity
 		}
 		if effectiveFailOn == "" && cfgFile.FailOn != "" {
 			effectiveFailOn = cfgFile.FailOn
 		}
-		if effectiveBaseline == "" && cfgFile.Baseline != "" {
+		if effectiveBaseline == "" && cfgFile.Baseline != "" && !opts.inventory {
 			effectiveBaseline = cfgFile.Baseline
 		}
-		if outputFormat == "text" && cfgFile.Format != "" {
+		if outputFormat == "text" && cfgFile.Format != "" &&
+			(opts.formats == nil || slices.Contains(opts.formats, cfgFile.Format)) {
 			outputFormat = cfgFile.Format
 		}
 	}
@@ -287,7 +317,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if !isURL(target) {
 		absPath, err := filepath.Abs(target)
 		if err != nil {
-			return fmt.Errorf("invalid path: %w", err)
+			return nil, "", fmt.Errorf("invalid path: %w", err)
 		}
 		cfg.Target = absPath
 	}
@@ -307,7 +337,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 	s := scanner.New(cfg)
 	results, err := s.Scan()
 	if err != nil {
-		return fmt.Errorf("scan failed: %w", err)
+		return nil, "", fmt.Errorf("scan failed: %w", err)
 	}
 	duration := time.Since(startTime)
 
@@ -322,7 +352,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 	if effectiveBaseline != "" {
 		baseline, err := loadBaseline(effectiveBaseline)
 		if err != nil {
-			return fmt.Errorf("failed to load baseline: %w", err)
+			return nil, "", fmt.Errorf("failed to load baseline: %w", err)
 		}
 		results.Findings = filterNewFindings(results.Findings, results.Metadata[scanner.MetadataScanRoot], baseline)
 		// Recalculate summary and migration score after filtering
@@ -355,13 +385,13 @@ func runScan(cmd *cobra.Command, args []string) error {
 	// Generate report
 	report, err := rep.Generate(results)
 	if err != nil {
-		return fmt.Errorf("failed to generate report: %w", err)
+		return nil, "", fmt.Errorf("failed to generate report: %w", err)
 	}
 
 	// Output
 	if outputFile != "" {
 		if err := os.WriteFile(outputFile, []byte(report), 0644); err != nil {
-			return fmt.Errorf("failed to write output: %w", err)
+			return nil, "", fmt.Errorf("failed to write output: %w", err)
 		}
 		if outputFormat == "text" {
 			fmt.Printf("\nReport written to: %s\n", outputFile)
@@ -370,19 +400,38 @@ func runScan(cmd *cobra.Command, args []string) error {
 		fmt.Println(report)
 	}
 
-	// Exit code control based on --fail-on flag
-	if effectiveFailOn != "" {
-		failSeverity := parseSeverity(effectiveFailOn)
-		if results.HasFindingsAtOrAbove(failSeverity) {
-			os.Exit(1)
-		}
-	} else {
-		// Default: exit non-zero only for critical findings
-		if results.HasCritical() {
-			os.Exit(1)
-		}
-	}
+	return results, effectiveFailOn, nil
+}
 
+// exitCode decides the code a command ends with once its report is written.
+// When gateFindings is false the report is an inventory, not a verdict, and
+// the code is 0 whatever was found. Otherwise the code is 1 when a finding is
+// at or above failOn; with failOn empty, only a CRITICAL finding fails.
+func exitCode(results *scanner.Results, failOn string, gateFindings bool) int {
+	if !gateFindings {
+		return 0
+	}
+	if failOn != "" {
+		if results.HasFindingsAtOrAbove(parseSeverity(failOn)) {
+			return 1
+		}
+		return 0
+	}
+	if results.HasCritical() {
+		return 1
+	}
+	return 0
+}
+
+// exitWith ends the process with code once a command has finished. Commands
+// return their code instead of exiting, so tests can check the decision.
+func exitWith(code int, err error) error {
+	if err != nil {
+		return err
+	}
+	if code != 0 {
+		os.Exit(code)
+	}
 	return nil
 }
 

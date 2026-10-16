@@ -23,6 +23,7 @@ func NewRemediationEngine() *RemediationEngine {
 // Remediation contains language-specific remediation details
 type Remediation struct {
 	Summary         string            `json:"summary"`
+	Fix             string            `json:"fix,omitempty"` // One-line change for this algorithm in this language
 	Priority        string            `json:"priority"`
 	Effort          string            `json:"effort"`
 	NISTReference   string            `json:"nistReference,omitempty"`
@@ -60,8 +61,75 @@ func (r *RemediationEngine) GetRemediation(finding *types.Finding, lang Language
 	}
 }
 
+// Apply fills the fields a reader needs to act on one finding: Verify, a
+// command that prints the matched line, and Fix, one concrete change taken
+// from the language-specific text when the engine has it and from the
+// pattern's remediation otherwise.
+func (r *RemediationEngine) Apply(f *types.Finding) {
+	f.Verify = VerifyCommand(f)
+	f.Fix = f.Remediation
+
+	// A dependency finding names a library rather than a call site, so the
+	// library-level remediation is the fix.
+	if f.FindingType == types.FindingTypeDependency {
+		return
+	}
+
+	if rem := r.GetRemediation(f, DetectLanguageFromFile(f.File)); rem.Fix != "" {
+		f.Fix = rem.Fix
+	}
+}
+
+// EstimateEffort returns the engine's effort estimate for the algorithm
+// classes it has specific guidance for, and "" for everything else.
+func (r *RemediationEngine) EstimateEffort(f *types.Finding) string {
+	if !isAsymmetricVulnerable(f) && !isHashBroken(f) && !isSymmetricWeak(f) && !isKDFWeak(f) {
+		return ""
+	}
+	return r.GetRemediation(f, LangUnknown).Effort
+}
+
+// VerifyCommand returns a POSIX shell command that prints the line a finding
+// points at, using the same path the report prints. Dependency findings carry
+// no real line number, so for those it searches the manifest for the package.
+func VerifyCommand(f *types.Finding) string {
+	if f.File == "" {
+		return ""
+	}
+	if f.FindingType == types.FindingTypeDependency && f.Match != "" {
+		return fmt.Sprintf("grep -n -F -e %s %s", shellQuote(f.Match), shellPath(f.File))
+	}
+	if f.Line < 1 {
+		return ""
+	}
+	return fmt.Sprintf("sed -n '%dp' %s", f.Line, shellPath(f.File))
+}
+
+// shellPath quotes a path as a command argument, and keeps a path that starts
+// with "-" from being read as an option.
+func shellPath(p string) string {
+	if strings.HasPrefix(p, "-") {
+		p = "./" + p
+	}
+	return shellQuote(p)
+}
+
+// shellQuote returns s unchanged when every character is safe in a POSIX
+// shell word, and single-quoted otherwise.
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	for _, c := range s {
+		if !(c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= '0' && c <= '9' || strings.ContainsRune("_-./+,:@%=", c)) {
+			return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+		}
+	}
+	return s
+}
+
 func isAsymmetricVulnerable(f *types.Finding) bool {
-	vulnAlgos := []string{"RSA", "ECDSA", "DSA", "ECDH", "DH", "Ed25519", "X25519"}
+	vulnAlgos := []string{"RSA", "ECDSA", "DSA", "ECDH", "DH", "Ed25519", "X25519", "ECC"}
 	for _, algo := range vulnAlgos {
 		if strings.Contains(strings.ToUpper(f.Algorithm), strings.ToUpper(algo)) {
 			return f.Quantum == types.QuantumVulnerable
@@ -288,7 +356,25 @@ let verified = open(&signature, &pk).is_ok();`
 		rem.CodeExample = "// See NIST PQC documentation for language-specific implementations"
 	}
 
+	if rem.Library != "" {
+		rem.Fix = asymmetricFix(f.Algorithm, isKeyExchange, rem.Library)
+	}
+
 	return rem
+}
+
+// asymmetricFix names the post-quantum replacement for alg. RSA and ECC
+// serve both encryption and signatures, so their fix names both targets.
+func asymmetricFix(alg string, isKeyExchange bool, library string) string {
+	upper := strings.ToUpper(alg)
+	switch {
+	case isKeyExchange:
+		return fmt.Sprintf("Migrate %s key exchange to ML-KEM-768 using %s", alg, library)
+	case strings.Contains(upper, "DSA") || strings.Contains(upper, "ED25519"):
+		return fmt.Sprintf("Migrate %s signatures to ML-DSA-65 using %s", alg, library)
+	default:
+		return fmt.Sprintf("Migrate %s to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using %s", alg, library)
+	}
 }
 
 func (r *RemediationEngine) getHashRemediation(f *types.Finding, lang Language) *Remediation {
@@ -301,8 +387,15 @@ func (r *RemediationEngine) getHashRemediation(f *types.Finding, lang Language) 
 		MigrationPath:  fmt.Sprintf("%s -> SHA-256 (or SHA-3 for quantum safety)", f.Algorithm),
 	}
 
+	// Names of the broken hash in each language's standard API.
+	digest, short := "MD5", "md5"
+	if strings.Contains(strings.ToUpper(f.Algorithm), "SHA") {
+		digest, short = "SHA-1", "sha1"
+	}
+
 	switch lang {
 	case LangPython:
+		rem.Fix = fmt.Sprintf("Replace hashlib.%s() with hashlib.sha256()", short)
 		rem.CodeExample = `# Replace MD5/SHA-1 with SHA-256
 import hashlib
 
@@ -313,6 +406,7 @@ hash_value = hashlib.sha256(data).hexdigest()
 hash_value = hashlib.sha3_256(data).hexdigest()`
 
 	case LangGo:
+		rem.Fix = fmt.Sprintf("Replace %s.Sum(data) with sha256.Sum256(data) from crypto/sha256", short)
 		rem.CodeExample = `// Replace MD5/SHA-1 with SHA-256
 import "crypto/sha256"
 
@@ -324,6 +418,7 @@ import "golang.org/x/crypto/sha3"
 hash := sha3.Sum256(data)`
 
 	case LangJava:
+		rem.Fix = fmt.Sprintf(`Replace MessageDigest.getInstance(%q) with MessageDigest.getInstance("SHA-256")`, digest)
 		rem.CodeExample = `// Replace MD5/SHA-1 with SHA-256
 import java.security.MessageDigest;
 
@@ -335,6 +430,7 @@ byte[] hash = digest.digest(data);
 MessageDigest digest = MessageDigest.getInstance("SHA3-256");`
 
 	case LangJavaScript, LangTypeScript:
+		rem.Fix = fmt.Sprintf("Replace crypto.createHash('%s') with crypto.createHash('sha256')", short)
 		rem.CodeExample = `// Replace MD5/SHA-1 with SHA-256
 const crypto = require('crypto');
 
@@ -350,6 +446,15 @@ const hash = sha3_256(data);`
 	return rem
 }
 
+// weakCipherNames gives each weak cipher's name in the standard API of each
+// language, keyed by the pattern Algorithm.
+var weakCipherNames = map[string]struct{ java, python, golang, node string }{
+	"DES":      {"DES", "DES", "des.NewCipher", "des-cbc"},
+	"3DES":     {"DESede", "TripleDES", "des.NewTripleDESCipher", "des-ede3-cbc"},
+	"RC4":      {"RC4", "ARC4", "rc4.NewCipher", "rc4"},
+	"Blowfish": {"Blowfish", "Blowfish", "blowfish.NewCipher", "bf-cbc"},
+}
+
 func (r *RemediationEngine) getSymmetricRemediation(f *types.Finding, lang Language) *Remediation {
 	rem := &Remediation{
 		Summary:        "Replace weak symmetric cipher with AES-256-GCM",
@@ -360,8 +465,15 @@ func (r *RemediationEngine) getSymmetricRemediation(f *types.Finding, lang Langu
 		MigrationPath:  fmt.Sprintf("%s -> AES-256-GCM (or ChaCha20-Poly1305)", f.Algorithm),
 	}
 
+	// A missing entry leaves Fix empty, and Apply falls back to the
+	// pattern's remediation sentence.
+	names, known := weakCipherNames[f.Algorithm]
+
 	switch lang {
 	case LangPython:
+		if known {
+			rem.Fix = fmt.Sprintf("Replace the %s cipher with AESGCM from cryptography.hazmat.primitives.ciphers.aead and a 32-byte key", names.python)
+		}
 		rem.Library = "cryptography"
 		rem.LibraryInstall = "pip install cryptography"
 		rem.CodeExample = `# Replace DES/3DES/RC4 with AES-256-GCM
@@ -380,6 +492,9 @@ ciphertext = aesgcm.encrypt(nonce, plaintext, associated_data)
 plaintext = aesgcm.decrypt(nonce, ciphertext, associated_data)`
 
 	case LangGo:
+		if known {
+			rem.Fix = fmt.Sprintf("Replace %s(key) with aes.NewCipher(key) on a 32-byte key, wrapped in cipher.NewGCM", names.golang)
+		}
 		rem.CodeExample = `// Replace DES/3DES/RC4 with AES-256-GCM
 import (
     "crypto/aes"
@@ -400,6 +515,9 @@ ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
 plaintext, _ := gcm.Open(nil, nonce, ciphertext[gcm.NonceSize():], nil)`
 
 	case LangJava:
+		if known {
+			rem.Fix = fmt.Sprintf(`Replace the %q transformation in Cipher.getInstance with "AES/GCM/NoPadding" and a 32-byte key`, names.java)
+		}
 		rem.CodeExample = `// Replace DES/3DES/RC4 with AES-256-GCM
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
@@ -414,6 +532,9 @@ cipher.init(Cipher.ENCRYPT_MODE, keySpec, new GCMParameterSpec(128, iv));
 byte[] ciphertext = cipher.doFinal(plaintext);`
 
 	case LangJavaScript, LangTypeScript:
+		if known {
+			rem.Fix = fmt.Sprintf("Replace the '%s' cipher in crypto.createCipheriv with 'aes-256-gcm' and a 32-byte key", names.node)
+		}
 		rem.CodeExample = `// Replace DES/3DES/RC4 with AES-256-GCM
 const crypto = require('crypto');
 
@@ -447,6 +568,7 @@ func (r *RemediationEngine) getKDFRemediation(f *types.Finding, lang Language) *
 
 	switch lang {
 	case LangPython:
+		rem.Fix = "Replace PBKDF1 with Argon2id through PasswordHasher from argon2-cffi"
 		rem.Library = "argon2-cffi"
 		rem.LibraryInstall = "pip install argon2-cffi"
 		rem.CodeExample = `# Replace PBKDF1 with Argon2id (RFC 9106)
@@ -468,6 +590,7 @@ except argon2.exceptions.VerifyMismatchError:
     print("Invalid password")`
 
 	case LangGo:
+		rem.Fix = "Replace PBKDF1 with argon2.IDKey from golang.org/x/crypto/argon2"
 		rem.Library = "golang.org/x/crypto/argon2"
 		rem.LibraryInstall = "go get golang.org/x/crypto/argon2"
 		rem.CodeExample = `// Replace PBKDF1 with Argon2id (RFC 9106)
@@ -487,6 +610,7 @@ hash := argon2.IDKey(
 )`
 
 	case LangJava:
+		rem.Fix = "Replace PBKDF1 with Argon2id through Argon2BytesGenerator from BouncyCastle"
 		rem.CodeExample = `// Replace PBKDF1 with Argon2id
 // Using BouncyCastle for Argon2
 import org.bouncycastle.crypto.generators.Argon2BytesGenerator;
@@ -504,6 +628,7 @@ byte[] hash = new byte[32];
 gen.generateBytes(password.toCharArray(), hash);`
 
 	case LangJavaScript, LangTypeScript:
+		rem.Fix = "Replace PBKDF1 with argon2.hash(password, { type: argon2.argon2id }) from the argon2 package"
 		rem.Library = "argon2"
 		rem.LibraryInstall = "npm install argon2"
 		rem.CodeExample = `// Replace PBKDF1 with Argon2id (RFC 9106)

@@ -297,10 +297,22 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 		b.WriteString(fmt.Sprintf("  │ %s\n", r.color(colorBold, "Description:")))
 		b.WriteString(fmt.Sprintf("  │   %s\n", f.Description))
 
-		// Remediation
-		if f.Remediation != "" {
+		// Remediation, unless the fix line below already says it
+		if f.Remediation != "" && f.Remediation != f.Fix {
 			b.WriteString(fmt.Sprintf("  │ %s\n", r.color(colorGreen+colorBold, "Remediation:")))
 			b.WriteString(fmt.Sprintf("  │   %s\n", r.color(colorGreen, f.Remediation)))
+		}
+
+		// One concrete change, and a command that shows the matched line
+		if f.Fix != "" {
+			b.WriteString(fmt.Sprintf("  │ %s %s\n",
+				r.color(colorGreen+colorBold, "Fix:"),
+				r.color(colorGreen, f.Fix)))
+		}
+		if f.Verify != "" {
+			b.WriteString(fmt.Sprintf("  │ %s %s\n",
+				r.color(colorBold, "Verify:"),
+				f.Verify))
 		}
 
 		// Impact and Effort if present
@@ -398,11 +410,20 @@ func (r *TextReporter) generateGroupedByFile(results *scanner.Results, b *string
 				r.color(colorMagenta, f.Match),
 				r.quantumIcon(f.Quantum)))
 
-			// Remediation (compact)
-			if f.Remediation != "" {
+			// Fix and verify command (compact)
+			fix := f.Fix
+			if fix == "" {
+				fix = f.Remediation
+			}
+			if fix != "" {
 				b.WriteString(fmt.Sprintf("    %s %s\n",
 					r.color(colorGreen+colorBold, "Fix:"),
-					r.color(colorGreen, f.Remediation)))
+					r.color(colorGreen, fix)))
+			}
+			if f.Verify != "" {
+				b.WriteString(fmt.Sprintf("    %s %s\n",
+					r.color(colorBold, "Verify:"),
+					f.Verify))
 			}
 
 			b.WriteString("\n")

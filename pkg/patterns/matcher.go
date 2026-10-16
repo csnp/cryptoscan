@@ -198,6 +198,18 @@ func adjustSeverityDown(s types.Severity, n int) types.Severity {
 	return types.Severity(newSev)
 }
 
+// classicalBreaks maps each pattern Algorithm that is broken by classical
+// attacks to the practical attack, phrased to follow "Broken by classical
+// attacks today: ".
+var classicalBreaks = map[string]string{
+	"MD5":      "practical collisions let an attacker create different data with the same MD5 hash",
+	"SHA-1":    "practical collisions let an attacker create different data with the same SHA-1 hash",
+	"DES":      "its 56-bit key can be recovered by brute force",
+	"3DES":     "its 64-bit block lets an attacker recover data from long sessions (the Sweet32 attack)",
+	"RC4":      "biases in its keystream let an attacker recover encrypted data",
+	"Blowfish": "its 64-bit block lets an attacker recover data from long sessions (the Sweet32 attack)",
+}
+
 // determineImpact returns business impact description
 func determineImpact(f types.Finding) string {
 	if f.FindingType == types.FindingTypeSecret {
@@ -223,6 +235,11 @@ func determineImpact(f types.Finding) string {
 		default:
 			return "PKI infrastructure - include in cryptographic inventory"
 		}
+	}
+	// Algorithms that classical attacks already break: the risk is today,
+	// not a future quantum computer (checked before the quantum status).
+	if reason, ok := classicalBreaks[f.Algorithm]; ok {
+		return "Broken by classical attacks today: " + reason + ", without a quantum computer."
 	}
 	switch f.Quantum {
 	case types.QuantumVulnerable:
@@ -279,17 +296,13 @@ func determineEffort(f types.Finding) string {
 	if f.FindingType == types.FindingTypeDependency {
 		return "Library upgrade - medium effort, requires testing"
 	}
-	// Category-based effort
-	switch f.Category {
-	case "Asymmetric Encryption", "Key Exchange":
-		return "Algorithm replacement - high effort, requires PKI changes"
-	case "Symmetric Encryption", "Hash Function":
-		return "Algorithm replacement - medium effort"
-	case "Deprecated Protocol":
-		return "Protocol upgrade - medium to high effort depending on infrastructure"
-	}
-	return "Assessment needed"
+	// The remediation engine's estimate for the algorithms it covers
+	// (Low, Medium, Medium to High). Anything else carries no Effort line
+	// rather than a placeholder such as "Assessment needed".
+	return remediationEngine.EstimateEffort(&f)
 }
+
+var remediationEngine = analyzer.NewRemediationEngine()
 
 func (m *Matcher) loadPatterns() {
 	// ============================================

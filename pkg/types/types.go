@@ -164,6 +164,8 @@ type Finding struct {
 	FileType        string             `json:"fileType,omitempty"` // code, config, docs, etc.
 	Description     string             `json:"description"`
 	Remediation     string             `json:"remediation,omitempty"`
+	Fix             string             `json:"fix"`              // One concrete change for this algorithm in this language
+	Verify          string             `json:"verify"`           // Shell command that prints the matched line
 	Impact          string             `json:"impact,omitempty"` // Business impact description
 	Effort          string             `json:"effort,omitempty"` // Migration effort estimate
 	References      []string           `json:"references,omitempty"`

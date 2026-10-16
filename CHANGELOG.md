@@ -163,6 +163,36 @@ change how `scan` decides its exit code.
   `dist`, `build`) were already skipped by name and behave as before. The default patterns
   skip directories only: a file named `build` or `target` is not excluded.
 
+- **Every finding now says how to check it and what to change.** Each finding
+  in the text report has a `Verify:` line with a command that prints the
+  matched line (`sed -n '96p' <file>`, using the path the finding prints, or a
+  `grep` of the manifest for a dependency), and a `Fix:` line with one change
+  for that algorithm in that language, for example
+  `Replace MessageDigest.getInstance("MD5") with MessageDigest.getInstance("SHA-256")`.
+  Where no language-specific text exists, the pattern's remediation sentence
+  is the fix, and it is no longer printed twice. `--group-by file` prints both
+  lines, and JSON findings carry them in the new `verify` and `fix` fields.
+  SARIF and CSV output are unchanged.
+
+- **Effort no longer says "Assessment needed".** On `crypto-samples/`, 65 of
+  the 110 findings ended in that placeholder. Effort now comes from the
+  remediation engine for the algorithms it covers: `Low` for MD5 and SHA-1,
+  `Medium` for DES, 3DES, RC4 and Blowfish, and `Medium to High` for RSA,
+  ECC, DSA and DH. Secrets, certificates and configuration findings keep
+  their existing guidance. Every other finding has no Effort line, so
+  category guesses such as "Algorithm replacement - medium effort" no longer
+  appear on AES-GCM and other algorithms that need no replacement. ECC
+  findings now get the same post-quantum remediation as RSA.
+
+- **MD5, SHA-1, DES, 3DES, RC4 and Blowfish findings name the attack that
+  breaks them today.** Their Impact line said "Data protected by this
+  algorithm is vulnerable to harvest-now-decrypt-later attacks" or warned
+  about future quantum computers. These algorithms are already broken
+  without one, so the line now reads, for example, "Broken by classical
+  attacks today: its 56-bit key can be recovered by brute force, without a
+  quantum computer." RSA, ECC, DH and DSA keep the harvest-now-decrypt-later
+  wording. Severity, quantum risk, scores and exit codes are unchanged.
+
 ### Documentation
 
 - **The CBOM fields are documented, and a test keeps the page accurate.**

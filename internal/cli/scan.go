@@ -4,8 +4,11 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -168,6 +171,11 @@ type pipelineOptions struct {
 // scanPipeline scans target, writes the report, and returns the results with
 // the fail-on threshold that the command line and config file settled on.
 func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*scanner.Results, string, error) {
+	// Cobra has parsed the arguments and flags by the time RunE runs, so an
+	// error from here on is a runtime failure. The usage block would bury the
+	// message and does not help fix it.
+	cmd.SilenceUsage = true
+
 	// Disable colour when the output is not a terminal, so that redirecting to
 	// a file or piping into another tool produces clean text rather than ANSI
 	// escape sequences. An explicit --no-color still wins, and NO_COLOR is
@@ -196,7 +204,8 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 			cfgFile = loaded
 		} else if configFile != "" {
 			// Only error if explicitly specified
-			return nil, "", fmt.Errorf("failed to load config file %s: %w", cfgPath, err)
+			return nil, "", withHint(fmt.Errorf("failed to load config file %s: %w", cfgPath, err),
+				"Check the --config path, or leave out --config to look for .cryptoscan.yaml automatically.")
 		}
 	}
 
@@ -348,7 +357,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	s := scanner.New(cfg)
 	results, err := s.Scan()
 	if err != nil {
-		return nil, "", fmt.Errorf("scan failed: %w", err)
+		return nil, "", withHint(fmt.Errorf("scan failed: %w", err), scanErrorHint(err))
 	}
 	duration := time.Since(startTime)
 
@@ -363,7 +372,8 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	if effectiveBaseline != "" {
 		baseline, err := loadBaseline(effectiveBaseline)
 		if err != nil {
-			return nil, "", fmt.Errorf("failed to load baseline: %w", err)
+			return nil, "", withHint(fmt.Errorf("failed to load baseline: %w", err),
+				"Check the --baseline path. To create a baseline: cryptoscan scan . --format json --output baseline.json")
 		}
 		results.Findings = filterNewFindings(results.Findings, results.Metadata[scanner.MetadataScanRoot], baseline)
 		// Recalculate summary and migration score after filtering
@@ -404,7 +414,8 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	// Output
 	if outputFile != "" {
 		if err := os.WriteFile(outputFile, []byte(report), 0644); err != nil {
-			return nil, "", fmt.Errorf("failed to write output: %w", err)
+			return nil, "", withHint(fmt.Errorf("failed to write output: %w", err),
+				"Check that the folder for --output exists and that you can write to it.")
 		}
 		if outputFormat == "text" {
 			fmt.Printf("\nReport written to: %s\n", outputFile)
@@ -493,6 +504,22 @@ func printBanner() {
 
 func isURL(s string) bool {
 	return strings.HasPrefix(s, "http://") || strings.HasPrefix(s, "https://") || strings.HasPrefix(s, "git@")
+}
+
+// scanErrorHint names the next step for a scan that could not run, or returns
+// "" when there is no specific step to suggest.
+func scanErrorHint(err error) string {
+	switch {
+	case errors.Is(err, scanner.ErrCloneFailed):
+		return "Check the URL. For a private repository, check that git clone works for it in this shell, or clone it yourself and scan the local folder."
+	case errors.Is(err, exec.ErrNotFound):
+		return "Install git, or clone the repository yourself and scan the local folder."
+	case errors.Is(err, fs.ErrNotExist):
+		return "Check the path, or pass a repository URL such as https://github.com/org/repo."
+	case errors.Is(err, fs.ErrPermission):
+		return "Check that you have permission to read the path."
+	}
+	return ""
 }
 
 func printScanningHeader(useColor bool) {

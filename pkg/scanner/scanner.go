@@ -5,6 +5,7 @@ package scanner
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io/fs"
 	"os"
@@ -303,6 +304,12 @@ func (s *Scanner) Scan() (*Results, error) {
 	return results, nil
 }
 
+// ErrCloneFailed reports that git could not clone the repository URL given as
+// the scan target. git clone exits with status 128 both when the repository
+// is not found and when the host cannot be reached, so the error does not try
+// to tell those apart.
+var ErrCloneFailed = errors.New("repository not found or not accessible")
+
 // cloneRepository clones a Git repository to a temporary directory
 func (s *Scanner) cloneRepository(url string) (string, error) {
 	// Create temp directory
@@ -317,7 +324,10 @@ func (s *Scanner) cloneRepository(url string) (string, error) {
 
 	if err := cmd.Run(); err != nil {
 		os.RemoveAll(tempDir)
-		return "", fmt.Errorf("git clone failed: %w", err)
+		if errors.Is(err, exec.ErrNotFound) {
+			return "", fmt.Errorf("git is required to scan a repository URL: %w", err)
+		}
+		return "", fmt.Errorf("%w (git clone: %v)", ErrCloneFailed, err)
 	}
 
 	return tempDir, nil

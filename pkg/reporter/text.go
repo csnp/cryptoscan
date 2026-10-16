@@ -158,6 +158,9 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 		}
 		b.WriteString("  Report this at https://github.com/csnp/cryptoscan/issues with the line shown.\n")
 	}
+	if results.Config != nil {
+		r.writeConfigSummary(&b, results)
+	}
 	b.WriteString("\n")
 
 	r.writeFindingsByContext(&b, &results.Summary)
@@ -197,7 +200,11 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 	b.WriteString("\n")
 
 	if len(results.Findings) == 0 {
-		b.WriteString(r.color(colorGreen, "  ✓ No cryptographic findings detected\n"))
+		if results.Config.Any() {
+			b.WriteString(r.color(colorYellow, "  ! "+noFindingsHeadline(results.Config)+"\n"))
+		} else {
+			b.WriteString(r.color(colorGreen, "  ✓ No cryptographic findings detected\n"))
+		}
 		b.WriteString("\n")
 		r.writeFooter(&b)
 		return b.String(), nil
@@ -404,6 +411,25 @@ func (r *TextReporter) generateGroupedByFile(results *scanner.Results, b *string
 
 	r.writeFooter(b)
 	return b.String(), nil
+}
+
+// writeConfigSummary names the config file the scan applied and what each of
+// its settings removed. The file may sit in a directory above the scan target,
+// where a reader of the report would not think to look.
+func (r *TextReporter) writeConfigSummary(b *strings.Builder, results *scanner.Results) {
+	c := results.Config
+	b.WriteString(r.color(colorCyan, fmt.Sprintf("\n  Config file applied: %s\n", c.Path)))
+	b.WriteString(r.color(colorCyan, fmt.Sprintf("    (%s)\n", configSourceText(c.Source))))
+	effects := configEffects(c)
+	if len(effects) == 0 {
+		b.WriteString(r.color(colorCyan, "    It removed no findings and kept no files out of the scan.\n"))
+	}
+	for _, e := range effects {
+		b.WriteString(r.color(colorCyan, "    "+e+"\n"))
+	}
+	if c.Source != scanner.ConfigSourceFlag && len(effects) > 0 {
+		b.WriteString(r.color(colorCyan, fmt.Sprintf("  Scan without it: cryptoscan scan %s --no-config\n", results.ScanTarget)))
+	}
 }
 
 func (r *TextReporter) writeMigrationScore(b *strings.Builder, score *scanner.MigrationScore) {

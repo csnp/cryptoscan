@@ -5,9 +5,11 @@ package cli
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -141,6 +143,8 @@ func TestScanCmdFlags(t *testing.T) {
 		"min-severity",
 		"no-color",
 		"pretty",
+		"config",
+		"no-config",
 	}
 
 	for _, flag := range expectedFlags {
@@ -500,6 +504,224 @@ func TestExitCode(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := exitCode(tt.results, tt.failOn, tt.gateFindings); got != tt.want {
 				t.Errorf("exitCode(%s, %q, %v) = %d, want %d", tt.name, tt.failOn, tt.gateFindings, got, tt.want)
+			}
+		})
+	}
+}
+
+// captureStderr captures stderr during function execution
+func captureStderr(f func()) string {
+	old := os.Stderr
+	r, w, _ := os.Pipe()
+	os.Stderr = w
+
+	f()
+
+	w.Close()
+	os.Stderr = old
+
+	var buf bytes.Buffer
+	_, _ = io.Copy(&buf, r)
+	return buf.String()
+}
+
+// configScanDir writes the tree from the issue: one Python file calling
+// rsa.generate_private_key, and a .cryptoscan.yaml with the given content.
+func configScanDir(t *testing.T, yaml string) string {
+	t.Helper()
+	dir := t.TempDir()
+	code := "from cryptography.hazmat.primitives.asymmetric import rsa\n\n" +
+		"key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\n"
+	if err := os.WriteFile(filepath.Join(dir, "app.py"), []byte(code), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".cryptoscan.yaml"), []byte(yaml), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return dir
+}
+
+func resetConfigScanFlags() {
+	outputFormat = "text"
+	outputFile = ""
+	minSeverity = "info"
+	failOn = ""
+	baselineFile = ""
+	configFile = ""
+	noConfig = false
+	noColor = true
+	showProgress = false
+}
+
+// TestRunScanReportsAutoDetectedConfigFile is the reproduction from the issue:
+// a .cryptoscan.yaml that ignores every pattern used to leave the report with
+// a check mark and no mention of the file.
+func TestRunScanReportsAutoDetectedConfigFile(t *testing.T) {
+	dir := configScanDir(t, "ignore:\n  patterns: [\"*\"]\n")
+	resetConfigScanFlags()
+	defer resetConfigScanFlags()
+
+	output := captureStdout(func() {
+		if err := runScan(&cobra.Command{}, []string{dir}); err != nil {
+			t.Errorf("runScan failed: %v", err)
+		}
+	})
+
+	for _, want := range []string{
+		"Config file applied: " + filepath.Join(dir, ".cryptoscan.yaml"),
+		"(found in the scan target)",
+		"ignore.patterns removed",
+		"No findings reported: the config file removed",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("report lacks %q", want)
+		}
+	}
+	if strings.Contains(output, "No cryptographic findings detected") {
+		t.Error("report claims nothing was detected although the config file removed every finding")
+	}
+}
+
+func TestRunScanNoConfigIgnoresTheFile(t *testing.T) {
+	dir := configScanDir(t, "ignore:\n  patterns: [\"*\"]\n")
+	resetConfigScanFlags()
+	defer resetConfigScanFlags()
+	outputFormat = "json"
+	noConfig = true
+
+	output := captureStdout(func() {
+		if err := runScan(&cobra.Command{}, []string{dir}); err != nil {
+			t.Errorf("runScan failed: %v", err)
+		}
+	})
+
+	var report struct {
+		Findings []scanner.Finding `json:"findings"`
+		Config   *json.RawMessage  `json:"config"`
+	}
+	if err := json.Unmarshal([]byte(output), &report); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if report.Config != nil {
+		t.Errorf("--no-config still applied a config file: %s", *report.Config)
+	}
+	if len(report.Findings) == 0 {
+		t.Error("--no-config scan reported no findings; the file's ignore rule was applied")
+	}
+}
+
+// TestRunScanCountsBaselineFromConfigFile checks that a baseline named in the
+// config file is counted against the file, since it removes findings the same
+// way the ignore rules do.
+func TestRunScanCountsBaselineFromConfigFile(t *testing.T) {
+	dir := configScanDir(t, "")
+	resetConfigScanFlags()
+	defer resetConfigScanFlags()
+	outputFormat = "json"
+	noConfig = true
+
+	first := captureStdout(func() {
+		if err := runScan(&cobra.Command{}, []string{dir}); err != nil {
+			t.Errorf("runScan failed: %v", err)
+		}
+	})
+	var prior struct {
+		Findings []scanner.Finding `json:"findings"`
+	}
+	if err := json.Unmarshal([]byte(first), &prior); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if len(prior.Findings) == 0 {
+		t.Fatal("fixture produced no findings to put in a baseline")
+	}
+
+	// The baseline lives outside the scanned tree so it is not scanned itself.
+	baselinePath := filepath.Join(t.TempDir(), "baseline.json")
+	if err := os.WriteFile(baselinePath, []byte(first), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, ".cryptoscan.yaml"), []byte("baseline: "+baselinePath+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	noConfig = false
+	second := captureStdout(func() {
+		if err := runScan(&cobra.Command{}, []string{dir}); err != nil {
+			t.Errorf("runScan failed: %v", err)
+		}
+	})
+	var report struct {
+		Findings []scanner.Finding     `json:"findings"`
+		Config   *scanner.ConfigReport `json:"config"`
+	}
+	if err := json.Unmarshal([]byte(second), &report); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if report.Config == nil {
+		t.Fatal("JSON report has no config object")
+	}
+	if len(report.Findings) != 0 {
+		t.Errorf("baseline left %d findings, want 0", len(report.Findings))
+	}
+	removed := report.Config.FindingsRemoved
+	if removed.Baseline != len(prior.Findings) || removed.Total != len(prior.Findings) {
+		t.Errorf("baseline removed %d (total %d), want %d", removed.Baseline, removed.Total, len(prior.Findings))
+	}
+}
+
+func TestRunScanRejectsConfigWithNoConfig(t *testing.T) {
+	dir := configScanDir(t, "minSeverity: high\n")
+	resetConfigScanFlags()
+	defer resetConfigScanFlags()
+	configFile = filepath.Join(dir, ".cryptoscan.yaml")
+	noConfig = true
+
+	err := runScan(&cobra.Command{}, []string{dir})
+	if err == nil || !strings.Contains(err.Error(), "--no-config") {
+		t.Errorf("want an error naming --no-config, got %v", err)
+	}
+}
+
+// TestRunScanWarnsAboutUnparsableConfigFile covers an auto-detected file that
+// is not valid YAML, which used to be dropped without any output.
+func TestRunScanWarnsAboutUnparsableConfigFile(t *testing.T) {
+	dir := configScanDir(t, "ignore: [unclosed\n")
+	resetConfigScanFlags()
+	defer resetConfigScanFlags()
+	outputFormat = "json"
+
+	var stderr string
+	captureStdout(func() {
+		stderr = captureStderr(func() {
+			if err := runScan(&cobra.Command{}, []string{dir}); err != nil {
+				t.Errorf("runScan failed: %v", err)
+			}
+		})
+	})
+
+	want := "Warning: config file " + filepath.Join(dir, ".cryptoscan.yaml") + " could not be parsed and was not applied"
+	if !strings.Contains(stderr, want) {
+		t.Errorf("stderr = %q, want it to contain %q", stderr, want)
+	}
+}
+
+func TestAutoConfigSource(t *testing.T) {
+	tests := []struct {
+		name     string
+		cfgPath  string
+		start    string
+		isURL    bool
+		expected string
+	}{
+		{"in the target", "/repo/.cryptoscan.yaml", "/repo", false, scanner.ConfigSourceScanTarget},
+		{"above the target", "/repo/.cryptoscan.yaml", "/repo/service", false, scanner.ConfigSourceParentDirectory},
+		{"above a file target", "/repo/.cryptoscan.yaml", "/repo/app.py", false, scanner.ConfigSourceParentDirectory},
+		{"repository URL", "/work/.cryptoscan.yaml", "/work", true, scanner.ConfigSourceWorkingDirectory},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := autoConfigSource(tt.cfgPath, tt.start, tt.isURL); got != tt.expected {
+				t.Errorf("autoConfigSource(%q, %q, %v) = %q, want %q", tt.cfgPath, tt.start, tt.isURL, got, tt.expected)
 			}
 		})
 	}

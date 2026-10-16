@@ -35,16 +35,25 @@ type sarifRun struct {
 }
 
 // sarifInvocation carries the files the scanner could not analyze, as SARIF
-// 2.1.0 toolExecutionNotifications. It is written only when there are some.
+// 2.1.0 toolExecutionNotifications, and records how the run was configured
+// when a config file was applied, so that a consumer of the SARIF file can see
+// that rules from outside the command line shaped the results. It is written
+// only when there is something to say.
 type sarifInvocation struct {
-	ExecutionSuccessful        bool                `json:"executionSuccessful"`
-	ToolExecutionNotifications []sarifNotification `json:"toolExecutionNotifications,omitempty"`
+	ExecutionSuccessful            bool                       `json:"executionSuccessful"`
+	ToolExecutionNotifications     []sarifNotification        `json:"toolExecutionNotifications,omitempty"`
+	ToolConfigurationNotifications []sarifNotification        `json:"toolConfigurationNotifications,omitempty"`
+	Properties                     *sarifInvocationProperties `json:"properties,omitempty"`
 }
 
 type sarifNotification struct {
 	Level     string          `json:"level"`
 	Message   sarifMessage    `json:"message"`
 	Locations []sarifLocation `json:"locations,omitempty"`
+}
+
+type sarifInvocationProperties struct {
+	ConfigFile *scanner.ConfigReport `json:"configFile"`
 }
 
 type sarifTool struct {
@@ -233,6 +242,14 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 			ToolExecutionNotifications: notifications,
 		}}
 	}
+	if cfg := sarifConfigInvocations(results.Config); len(cfg) > 0 {
+		if len(invocations) == 0 {
+			invocations = cfg
+		} else {
+			invocations[0].ToolConfigurationNotifications = cfg[0].ToolConfigurationNotifications
+			invocations[0].Properties = cfg[0].Properties
+		}
+	}
 
 	report := sarifReport{
 		Schema:  "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",
@@ -260,4 +277,32 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 	}
 
 	return string(data), nil
+}
+
+// sarifConfigInvocations describes the applied config file as a SARIF
+// invocation, or returns nil when no config file was applied. The notification
+// is a warning when the file removed findings or kept files out of the scan.
+func sarifConfigInvocations(c *scanner.ConfigReport) []sarifInvocation {
+	if c == nil {
+		return nil
+	}
+
+	text := fmt.Sprintf("Config file %s applied (%s).", c.Path, configSourceText(c.Source))
+	level := "note"
+	if effects := configEffects(c); len(effects) > 0 {
+		text += " " + strings.Join(effects, "; ") + "."
+		level = "warning"
+	} else {
+		text += " It removed no findings and kept no files out of the scan."
+	}
+
+	return []sarifInvocation{
+		{
+			ExecutionSuccessful: true,
+			ToolConfigurationNotifications: []sarifNotification{
+				{Level: level, Message: sarifMessage{Text: text}},
+			},
+			Properties: &sarifInvocationProperties{ConfigFile: c},
+		},
+	}
 }

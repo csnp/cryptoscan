@@ -36,6 +36,12 @@ cryptoscan scan . --fail-on critical
 cryptoscan scan . --fail-on medium
 ```
 
+With `--fail-on` set, the scan also exits 1 when a file could not be analyzed,
+because its findings may be incomplete. The file is listed in the text summary,
+under `unanalyzedFiles` in JSON, and as an error in the SARIF run's
+`invocations[].toolExecutionNotifications`. Without `--fail-on`, such a file
+does not change the exit code.
+
 Without `--fail-on`, the scan exits 1 on any CRITICAL finding. The full table is in [Exit codes](commands.md#exit-codes).
 
 ## Suppressing known issues

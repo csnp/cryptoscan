@@ -29,8 +29,22 @@ type sarifReport struct {
 }
 
 type sarifRun struct {
-	Tool    sarifTool     `json:"tool"`
-	Results []sarifResult `json:"results"`
+	Tool        sarifTool         `json:"tool"`
+	Invocations []sarifInvocation `json:"invocations,omitempty"`
+	Results     []sarifResult     `json:"results"`
+}
+
+// sarifInvocation carries the files the scanner could not analyze, as SARIF
+// 2.1.0 toolExecutionNotifications. It is written only when there are some.
+type sarifInvocation struct {
+	ExecutionSuccessful        bool                `json:"executionSuccessful"`
+	ToolExecutionNotifications []sarifNotification `json:"toolExecutionNotifications,omitempty"`
+}
+
+type sarifNotification struct {
+	Level     string          `json:"level"`
+	Message   sarifMessage    `json:"message"`
+	Locations []sarifLocation `json:"locations,omitempty"`
 }
 
 type sarifTool struct {
@@ -89,7 +103,8 @@ type sarifLocation struct {
 
 type sarifPhysicalLocation struct {
 	ArtifactLocation sarifArtifactLocation `json:"artifactLocation"`
-	Region           sarifRegion           `json:"region"`
+	// Region is omitted when no line is known; SARIF requires startLine >= 1.
+	Region *sarifRegion `json:"region,omitempty"`
 }
 
 type sarifArtifactLocation struct {
@@ -112,6 +127,17 @@ func severityToSARIFLevel(s scanner.Severity) string {
 	default:
 		return "none"
 	}
+}
+
+// sarifURI converts an absolute path to a URI relative to the scan target.
+func sarifURI(scanTarget, path string) string {
+	uri := path
+	if filepath.IsAbs(uri) {
+		if rel, err := filepath.Rel(scanTarget, uri); err == nil {
+			uri = rel
+		}
+	}
+	return strings.ReplaceAll(uri, "\\", "/")
 }
 
 // Generate creates the SARIF report
@@ -152,14 +178,7 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 	// Build results
 	sarifResults := make([]sarifResult, 0, len(results.Findings))
 	for _, f := range results.Findings {
-		// Convert absolute path to relative URI
-		uri := f.File
-		if filepath.IsAbs(uri) {
-			if rel, err := filepath.Rel(results.ScanTarget, uri); err == nil {
-				uri = rel
-			}
-		}
-		uri = strings.ReplaceAll(uri, "\\", "/")
+		uri := sarifURI(results.ScanTarget, f.File)
 
 		result := sarifResult{
 			RuleID: f.ID,
@@ -173,7 +192,7 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 						ArtifactLocation: sarifArtifactLocation{
 							URI: uri,
 						},
-						Region: sarifRegion{
+						Region: &sarifRegion{
 							StartLine:   f.Line,
 							StartColumn: f.Column,
 						},
@@ -187,6 +206,32 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 			},
 		}
 		sarifResults = append(sarifResults, result)
+	}
+
+	// The run itself completed, so executionSuccessful stays true; each file
+	// that could not be analyzed is an error-level notification.
+	var invocations []sarifInvocation
+	if len(results.UnanalyzedFiles) > 0 {
+		notifications := make([]sarifNotification, 0, len(results.UnanalyzedFiles))
+		for _, u := range results.UnanalyzedFiles {
+			location := sarifLocation{
+				PhysicalLocation: sarifPhysicalLocation{
+					ArtifactLocation: sarifArtifactLocation{URI: sarifURI(results.ScanTarget, u.File)},
+				},
+			}
+			if u.Line > 0 {
+				location.PhysicalLocation.Region = &sarifRegion{StartLine: u.Line}
+			}
+			notifications = append(notifications, sarifNotification{
+				Level:     "error",
+				Message:   sarifMessage{Text: "File could not be analyzed, so findings for it may be incomplete: " + u.Reason},
+				Locations: []sarifLocation{location},
+			})
+		}
+		invocations = []sarifInvocation{{
+			ExecutionSuccessful:        true,
+			ToolExecutionNotifications: notifications,
+		}}
 	}
 
 	report := sarifReport{
@@ -203,7 +248,8 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 						Rules:           rules,
 					},
 				},
-				Results: sarifResults,
+				Invocations: invocations,
+				Results:     sarifResults,
 			},
 		},
 	}

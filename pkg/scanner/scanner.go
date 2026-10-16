@@ -97,6 +97,21 @@ type Results struct {
 	BytesScanned   int64                 `json:"bytesScanned"`
 	LanguageStats  map[string]int        `json:"languageStats"`
 	Metadata       map[string]string     `json:"metadata,omitempty"`
+
+	// UnanalyzedFiles lists files whose analysis stopped on an internal
+	// error. The rest of the scan still runs, but findings for these files
+	// may be incomplete, so the gap is reported rather than hidden.
+	UnanalyzedFiles []UnanalyzedFile `json:"unanalyzedFiles"`
+}
+
+// UnanalyzedFile is a file the scanner could not analyze to the end.
+type UnanalyzedFile struct {
+	File string `json:"file"`
+	// Line is the 1-based line being analyzed when the error occurred, or 0
+	// when it occurred before line-by-line analysis began. Findings the file
+	// produced before the error are kept in the report.
+	Line   int    `json:"line,omitempty"`
+	Reason string `json:"reason"`
 }
 
 // MetadataScanRoot is the Results.Metadata entry holding the directory the
@@ -181,6 +196,9 @@ type Scanner struct {
 	// rather than counted so that the reported number is exactly what
 	// --include-narrative would add, after deduplication.
 	narrativeWithheld []Finding
+
+	// unanalyzed holds files whose analysis stopped on an internal error.
+	unanalyzed []UnanalyzedFile
 }
 
 // New creates a new Scanner instance
@@ -283,16 +301,25 @@ func (s *Scanner) Scan() (*Results, error) {
 	// Calculate migration score and enhance findings with QRAMM mapping
 	migrationScore := analyzer.CalculateMigrationScore(s.findings)
 
+	// Sorted for the same reason as the findings: files are scanned in
+	// parallel, and the report must not depend on which worker finished first.
+	unanalyzed := make([]UnanalyzedFile, len(s.unanalyzed))
+	copy(unanalyzed, s.unanalyzed)
+	sort.Slice(unanalyzed, func(i, j int) bool {
+		return unanalyzed[i].File < unanalyzed[j].File
+	})
+
 	// Build results
 	results := &Results{
-		Tool:           ToolInfo{Name: "CryptoScan", Version: version.Get()},
-		Findings:       s.findings,
-		MigrationScore: migrationScore,
-		FilesScanned:   s.stats.filesScanned,
-		LinesScanned:   s.stats.linesScanned,
-		BytesScanned:   s.stats.bytesScanned,
-		LanguageStats:  s.stats.languageStats,
-		Metadata:       map[string]string{MetadataScanRoot: s.root},
+		Tool:            ToolInfo{Name: "CryptoScan", Version: version.Get()},
+		Findings:        s.findings,
+		MigrationScore:  migrationScore,
+		FilesScanned:    s.stats.filesScanned,
+		LinesScanned:    s.stats.linesScanned,
+		BytesScanned:    s.stats.bytesScanned,
+		LanguageStats:   s.stats.languageStats,
+		Metadata:        map[string]string{MetadataScanRoot: s.root},
+		UnanalyzedFiles: unanalyzed,
 	}
 
 	results.Summary = s.calculateSummary()
@@ -586,6 +613,22 @@ func (s *Scanner) shouldScanFile(path string) bool {
 }
 
 func (s *Scanner) scanFile(path string) error {
+	// An internal error while analyzing one file must not end the run for
+	// every other file. Recover, record the file as not analyzed, and let the
+	// caller go on to the next one.
+	currentLine := 0
+	defer func() {
+		if r := recover(); r != nil {
+			s.mu.Lock()
+			s.unanalyzed = append(s.unanalyzed, UnanalyzedFile{
+				File:   path,
+				Line:   currentLine,
+				Reason: fmt.Sprintf("internal error: %v", r),
+			})
+			s.mu.Unlock()
+		}
+	}()
+
 	file, err := os.Open(path)
 	if err != nil {
 		return nil
@@ -633,6 +676,7 @@ func (s *Scanner) scanFile(path string) error {
 
 	for lineNum, line := range allLines {
 		lineNum++ // Convert to 1-based
+		currentLine = lineNum
 
 		s.mu.Lock()
 		s.stats.linesScanned++
@@ -794,7 +838,8 @@ func isNextLineDirective(line string) bool {
 
 // isBlanketIgnore checks if an ignore directive is a blanket ignore (no specific pattern)
 func (s *Scanner) isBlanketIgnore(line string) bool {
-	lowerLine := strings.ToLower(line)
+	// idx is found in lowerLine and used to slice line.
+	lowerLine := analyzer.LowerSameOffsets(line)
 
 	// Find the ignore directive
 	idx := strings.Index(lowerLine, "cryptoscan:ignore")
@@ -857,7 +902,8 @@ func (s *Scanner) hasPatternSpecificIgnore(line string, allLines []string, lineN
 //	"// cryptoscan:ignore RSA-001,CERT-*" -> ["RSA-001", "CERT-*"]
 //	"// cryptoscan:ignore" -> [] (blanket ignore, no specific patterns)
 func (s *Scanner) extractIgnorePatterns(line string) []string {
-	lowerLine := strings.ToLower(line)
+	// idx is found in lowerLine and used to slice line.
+	lowerLine := analyzer.LowerSameOffsets(line)
 
 	// Find the ignore directive
 	var idx int

@@ -6,6 +6,7 @@ package cli
 import (
 	"errors"
 	"fmt"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -81,7 +82,8 @@ Output formats:
 CI/CD Integration:
   --ignore              Suppress specific pattern IDs (e.g., "RSA-001,CERT-*")
   --ignore-category     Suppress entire categories (e.g., "Certificate,Library Import")
-  --fail-on             Exit non-zero if findings at this severity or higher
+  --fail-on             Exit non-zero if findings at this severity or higher,
+                        or if any file could not be analyzed
   --baseline            Only report new findings compared to baseline JSON
   --config              Path to .cryptoscan.yaml config file
 
@@ -128,7 +130,7 @@ func init() {
 	// CI/CD flexibility flags
 	scanCmd.Flags().StringVar(&ignorePatterns, "ignore", "", "Pattern IDs to ignore (comma-separated, e.g., \"RSA-001,CERT-*\")")
 	scanCmd.Flags().StringVar(&ignoreCategories, "ignore-category", "", "Categories to ignore (comma-separated, e.g., \"Certificate,Library Import\")")
-	scanCmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero if findings at this severity or higher (info, low, medium, high, critical)")
+	scanCmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero if findings at this severity or higher (info, low, medium, high, critical), or if any file could not be analyzed")
 	scanCmd.Flags().StringVar(&baselineFile, "baseline", "", "Baseline JSON file - only report new findings")
 	scanCmd.Flags().StringVar(&configFile, "config", "", "Config file path (default: auto-detect .cryptoscan.yaml)")
 }
@@ -424,6 +426,8 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		fmt.Println(report)
 	}
 
+	writeUnanalyzedNotice(os.Stderr, outputFormat, results.UnanalyzedFiles)
+
 	return results, effectiveFailOn, nil
 }
 
@@ -435,8 +439,11 @@ func exitCode(results *scanner.Results, failOn string, gateFindings bool) int {
 	if !gateFindings {
 		return 0
 	}
+	// With --fail-on set, the run also fails when any file could not be
+	// analyzed: that file is a coverage gap, and a gate that passes over it
+	// would be passing on a partial scan.
 	if failOn != "" {
-		if results.HasFindingsAtOrAbove(parseSeverity(failOn)) {
+		if results.HasFindingsAtOrAbove(parseSeverity(failOn)) || len(results.UnanalyzedFiles) > 0 {
 			return 1
 		}
 		return 0
@@ -457,6 +464,24 @@ func exitWith(code int, err error) error {
 		os.Exit(code)
 	}
 	return nil
+}
+
+// writeUnanalyzedNotice names the files the scanner could not analyze. The
+// text report lists them itself. CSV and CBOM have no place for them, and a
+// JSON or SARIF report written to a file is not read on the console, so every
+// other format gets the list on w.
+func writeUnanalyzedNotice(w io.Writer, format string, files []scanner.UnanalyzedFile) {
+	if format == "text" || len(files) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "cryptoscan: %d file(s) could not be analyzed, so findings for them may be incomplete:\n", len(files))
+	for _, u := range files {
+		location := u.File
+		if u.Line > 0 {
+			location = fmt.Sprintf("%s:%d", u.File, u.Line)
+		}
+		fmt.Fprintf(w, "  %s  %s\n", location, u.Reason)
+	}
 }
 
 func printBanner() {

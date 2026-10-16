@@ -75,6 +75,31 @@ change how `scan` decides its exit code.
   suggests checking the URL. When git is not installed, the error says
   `git is required to scan a repository URL`.
 
+- **A line with certain Unicode letters stopped the whole scan.**
+  `IsURLOrPath` and `IsVariableOrFunctionName` found the match in a lowercased
+  copy of the line and then sliced the original line at that position. U+023A
+  and U+023E are two bytes long and lowercase to three-byte letters, so the
+  line `var s = "` followed by four U+023A letters and `"; _ = rsa` made
+  `cryptoscan scan` exit 2 with `slice bounds out of range` and write no
+  report. Where the position stayed inside the line, the checks read the wrong
+  bytes: with one U+023A first, `= rsa` was treated as part of an identifier
+  and `rsa.pem` was not treated as a file name. The inline ignore parser had
+  the same defect: one U+023A before `cryptoscan:ignore` panicked, and with two
+  of them `cryptoscan:ignore RSA-*` was read as `SA-*` and did not suppress the
+  finding. These positions are now found in a lowercased copy that keeps the
+  byte offsets of the original line, and the line above reports its `rsa`
+  finding.
+- **An internal error in one file ended the run for every file.** The scanner
+  now recovers, finishes the other files, and reports the file as not
+  analyzed: under `unanalyzedFiles` in JSON (with the line it stopped at and
+  the error), in the text summary, and as an error-level
+  `toolExecutionNotifications` entry in SARIF. For JSON, SARIF, CSV and CBOM
+  output the files are also named on stderr. With `--fail-on` set, an
+  unanalyzed file makes the scan exit 1, since its findings may be incomplete.
+  Without `--fail-on` the exit code does not change. JSON reports now carry
+  `unanalyzedFiles` on every scan, as an empty array when every file was
+  analyzed.
+
 ### Documentation
 
 - **The CBOM fields are documented, and a test keeps the page accurate.**

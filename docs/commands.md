@@ -53,7 +53,7 @@ CI/CD flags:
 |------|-------------|
 | `--ignore string` | Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*") |
 | `--ignore-category string` | Categories to ignore (comma-separated, e.g., "Certificate,Library Import") |
-| `--fail-on string` | Exit non-zero if findings at this severity or higher (info, low, medium, high, critical) |
+| `--fail-on string` | Exit non-zero if findings at this severity or higher (info, low, medium, high, critical), or if any file could not be analyzed |
 | `--baseline string` | Baseline JSON file - only report new findings |
 | `--config string` | Config file path (default: auto-detect .cryptoscan.yaml) |
 

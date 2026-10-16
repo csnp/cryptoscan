@@ -51,6 +51,27 @@ All notable changes to CryptoScan are recorded here. This project follows
     `.` used to include a top-level `docs/` directory that scanning the same
     tree by its absolute path left out. Both now leave it out.
 
+- **`--baseline` reported reviewed findings as new on another checkout.** Each
+  baseline entry was matched on the file's absolute path and the finding's line
+  number. A copy of the same repository at another path, which is what every CI
+  runner sees, or one line added above a reviewed finding made it read as new,
+  so `--baseline baseline.json --fail-on high` exited 1 with no new
+  cryptography. The CI recipe in the README uses `--baseline` and inherited
+  this.
+
+  A finding now matches a baseline entry on its path relative to the scanned
+  tree, the pattern that found it, and the text of its line with runs of
+  whitespace collapsed. The line number is no longer part of the match. Each
+  entry covers one finding, so a second copy of a reviewed line is reported as
+  new. JSON reports now record the scanned directory as `metadata.scanRoot`,
+  which is what makes a saved report portable.
+
+  Baselines written by 1.4.0 keep working for this release. They do not record
+  `metadata.scanRoot`, so an absolute `scanTarget` is used as the root, and a
+  relative one such as `.` is worked out from the paths the current scan
+  reports. Regenerate the baseline once with this release so it records the
+  root directly. The fallback is planned for removal in the next release.
+
 ## [1.4.0] - 2026-07-28
 
 ### Fixed

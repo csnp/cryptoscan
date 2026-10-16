@@ -63,6 +63,8 @@ func Execute() error {
 
 func init() {
 	rootCmd.AddCommand(scanCmd)
+	rootCmd.AddCommand(cbomCmd)
+	rootCmd.AddCommand(gateCmd)
 	rootCmd.AddCommand(versionCmd)
 }
 

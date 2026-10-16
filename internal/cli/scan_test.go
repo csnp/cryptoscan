@@ -446,6 +446,65 @@ func TestRunScanEmptyDir(t *testing.T) {
 	}
 }
 
+// resetPipelineFlags puts the flag variables the scan pipeline reads back to
+// their defaults, so a test does not inherit another test's settings.
+func resetPipelineFlags(t *testing.T) {
+	t.Helper()
+	outputFormat = "text"
+	outputFile = ""
+	includeGlobs = ""
+	excludeGlobs = ""
+	minSeverity = "info"
+	noColor = true
+	showProgress = false
+	ignorePatterns = ""
+	ignoreCategories = ""
+	failOn = ""
+	baselineFile = ""
+	configFile = ""
+	gateFailOn = "high"
+	t.Cleanup(func() {
+		outputFormat = "text"
+		outputFile = ""
+	})
+}
+
+func TestExitCode(t *testing.T) {
+	results := func(sevs ...scanner.Severity) *scanner.Results {
+		var findings []scanner.Finding
+		for _, s := range sevs {
+			findings = append(findings, scanner.Finding{Severity: s})
+		}
+		return &scanner.Results{Findings: findings, Summary: calculateSummary(findings)}
+	}
+
+	tests := []struct {
+		name         string
+		results      *scanner.Results
+		failOn       string
+		gateFindings bool
+		want         int
+	}{
+		{"no findings", results(), "", true, 0},
+		{"default fails on critical", results(scanner.SeverityCritical), "", true, 1},
+		{"default passes high", results(scanner.SeverityHigh), "", true, 0},
+		{"high threshold fails high", results(scanner.SeverityHigh), "high", true, 1},
+		{"high threshold fails critical", results(scanner.SeverityCritical), "high", true, 1},
+		{"high threshold passes medium", results(scanner.SeverityMedium, scanner.SeverityLow), "high", true, 0},
+		{"critical threshold passes high", results(scanner.SeverityHigh), "critical", true, 0},
+		{"inventory passes critical", results(scanner.SeverityCritical), "", false, 0},
+		{"inventory ignores a threshold", results(scanner.SeverityCritical), "info", false, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := exitCode(tt.results, tt.failOn, tt.gateFindings); got != tt.want {
+				t.Errorf("exitCode(%s, %q, %v) = %d, want %d", tt.name, tt.failOn, tt.gateFindings, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestRunScanInvalidPath(t *testing.T) {
 	// Reset flags
 	outputFormat = "text"

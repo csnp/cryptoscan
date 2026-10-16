@@ -72,6 +72,27 @@ All notable changes to CryptoScan are recorded here. This project follows
   reports. Regenerate the baseline once with this release so it records the
   root directly. The fallback is planned for removal in the next release.
 
+### Added
+
+- **`cryptoscan cbom <path or URL>`** writes a CycloneDX 1.6 Cryptographic
+  Bill of Materials. It runs the same scan as `scan --format cbom`, writes the
+  JSON to standard output or to `-o <file>`, and prints nothing else to
+  standard output. It exits 0 whatever it finds, because an inventory is not a
+  verdict, and non-zero only when the scan or the write fails. `--fail-on` is
+  not offered. A baseline or minimum severity set in `.cryptoscan.yaml` does
+  not filter the CBOM; ignore rules still apply.
+- **`cryptoscan gate <path or URL>`** fails a build when findings reach a
+  severity. It runs the same scan as `scan --fail-on high`, prints the text,
+  JSON or SARIF report, and exits 1 when any finding is at or above
+  `--fail-on`. The default threshold is `high`, where `scan` on its own fails
+  only on CRITICAL; at that default `scan` lets HIGH findings such as RSA-2048
+  key generation through. A `failOn` in `.cryptoscan.yaml` applies when
+  `--fail-on` is not given. `--baseline`, `--ignore`, `--ignore-category` and
+  `--config` work as they do on `scan`.
+
+`scan` is unchanged: no flag was removed or renamed, and its exit codes are
+the same.
+
 ## [1.4.0] - 2026-07-28
 
 ### Fixed

@@ -65,6 +65,40 @@ By default the scan exits 1 on any CRITICAL finding and 0 otherwise. `--fail-on`
 
 An invalid `--fail-on` value is accepted silently in release 1.4.0 (see the known limitations in [CHANGELOG.md](../CHANGELOG.md)), so check the spelling of the severity in your pipeline.
 
+```
+cryptoscan cbom [path or URL] [flags]
+
+Writes a CycloneDX 1.6 Cryptographic Bill of Materials (equivalent to
+scan --format cbom). Prints only the CBOM JSON. Exits 0 whatever it finds;
+non-zero only when the scan or the write fails. To fail a build on findings,
+use cryptoscan gate.
+
+Flags:
+  -o, --output string           Output file (default: stdout)
+  -i, --include string          File patterns to include (comma-separated globs)
+  -e, --exclude string          File patterns to exclude (comma-separated globs)
+      --ignore string           Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*")
+      --ignore-category string  Categories to ignore (e.g., "Certificate,Library Import")
+      --config string           Config file path (default: auto-detect .cryptoscan.yaml)
+```
+
+```
+cryptoscan gate [path or URL] [flags]
+
+Fails a build when findings reach a severity (equivalent to
+scan --fail-on high). Prints the report and exits 1 when any finding is at or
+above --fail-on. The default is high: scan on its own fails only on CRITICAL,
+which lets HIGH findings such as RSA-2048 key generation through.
+
+Flags:
+      --fail-on string          Exit 1 if findings at this severity or higher (default "high")
+      --baseline string         Baseline JSON file - only report new findings
+  -f, --format string           Output format: text, json, sarif (default "text")
+      --ignore string           Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*")
+      --ignore-category string  Categories to ignore (e.g., "Certificate,Library Import")
+      --config string           Config file path (default: auto-detect .cryptoscan.yaml)
+```
+
 ## Common workflows
 
 ```bash

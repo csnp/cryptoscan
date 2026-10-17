@@ -132,7 +132,8 @@ func TestMatchQuantumVulnerable(t *testing.T) {
 		wantQuantum types.QuantumRisk
 	}{
 		{"RSA", "RSA.generate(2048)", types.QuantumVulnerable},
-		{"ECC", "ECDSA.generate(curve='P-256')", types.QuantumVulnerable},		{"AES", "AES.new(key, mode)", types.QuantumPartial},
+		{"ECC", "ECDSA.generate(curve='P-256')", types.QuantumVulnerable},
+		{"AES", "AES.new(key, mode)", types.QuantumPartial},
 	}
 
 	for _, tt := range tests {

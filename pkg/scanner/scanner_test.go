@@ -722,3 +722,25 @@ func gen() { rsa.GenerateKey(nil, 2048) }
 		t.Error("MaxDepth config should be 1")
 	}
 }
+
+func TestScanUnicodeBeforeCryptoMatch(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "unicode.go")
+	content := "var s = \"ȺȺȺȺ\"; _ = rsa\n"
+	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	results, err := New(Config{Target: dir, MinSeverity: SeverityInfo}).Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if results.FilesScanned != 1 {
+		t.Fatalf("FilesScanned = %d, want 1", results.FilesScanned)
+	}
+	for _, finding := range results.Findings {
+		if finding.Algorithm == "RSA" && finding.Match == "rsa" && finding.File == path && finding.Line == 1 {
+			return
+		}
+	}
+	t.Fatal("RSA finding missing after Unicode prefix")
+}

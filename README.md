@@ -1,6 +1,6 @@
 # CryptoScan
 
-[![CI](https://github.com/csnp/cryptoscan/actions/workflows/ci.yml/badge.svg)](https://github.com/csnp/cryptoscan/actions/workflows/ci.yml) [![Go Report Card](https://goreportcard.com/badge/github.com/csnp/cryptoscan?v=2)](https://goreportcard.com/report/github.com/csnp/cryptoscan) [![License](https://img.shields.io/github/license/csnp/cryptoscan)](LICENSE)
+[![CI](https://github.com/csnp/cryptoscan/actions/workflows/ci.yml/badge.svg)](https://github.com/csnp/cryptoscan/actions/workflows/ci.yml) [![License](https://img.shields.io/github/license/csnp/cryptoscan)](LICENSE) [![Release](https://img.shields.io/github/v/release/csnp/cryptoscan)](https://github.com/csnp/cryptoscan/releases/latest)
 
 > Part of the **QRAMM** toolkit by CSNP: CryptoScan, [CryptoDeps](https://github.com/csnp/cryptodeps), [TLS Analyzer](https://github.com/csnp/tls-analyzer). Framework: [qramm.org](https://qramm.org).
 

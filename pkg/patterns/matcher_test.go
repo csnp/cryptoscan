@@ -132,16 +132,14 @@ func TestMatchQuantumVulnerable(t *testing.T) {
 		wantQuantum types.QuantumRisk
 	}{
 		{"RSA", "RSA.generate(2048)", types.QuantumVulnerable},
-		{"ECC", "ECDSA_generate_key()", types.QuantumVulnerable},
-		{"AES", "AES.new(key, mode)", types.QuantumPartial},
+		{"ECC", "ECDSA.generate(curve='P-256')", types.QuantumVulnerable},		{"AES", "AES.new(key, mode)", types.QuantumPartial},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			matches := m.Match(tt.content, "crypto.go", 1)
 			if len(matches) == 0 {
-				t.Skip("Pattern not matched")
-				return
+				t.Fatalf("Expected a match for %q, got none", tt.content)
 			}
 			if matches[0].Quantum != tt.wantQuantum {
 				t.Errorf("Quantum = %v, want %v", matches[0].Quantum, tt.wantQuantum)

@@ -71,7 +71,7 @@ func TestPqcCmdExists(t *testing.T) {
 }
 
 func TestPqcCmdFlags(t *testing.T) {
-	for _, name := range []string{"format", "include", "exclude", "ignore", "config"} {
+	for _, name := range []string{"format", "include", "exclude", "ignore", "config", "no-color"} {
 		if pqcCmd.Flags().Lookup(name) == nil {
 			t.Errorf("pqcCmd missing expected flag: %s", name)
 		}

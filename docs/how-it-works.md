@@ -147,7 +147,7 @@ cryptoscan/
 ├── pkg/
 │   ├── analyzer/        # File context, line analysis, and migration scoring
 │   ├── config/          # .cryptoscan.yaml loading and ignore matching
-│   ├── patterns/        # Cryptographic pattern definitions (100+)
+│   ├── patterns/        # Cryptographic pattern definitions (90)
 │   ├── reporter/        # Output formatters (text, json, csv, sarif, cbom)
 │   ├── scanner/         # Core scanning engine with parallel processing
 │   ├── types/           # Shared type definitions (findings, QRAMM mappings)

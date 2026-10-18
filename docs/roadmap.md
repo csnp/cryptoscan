@@ -2,7 +2,7 @@
 
 This page lists what CryptoScan already does and what the maintainers plan next; for installation and a first scan, start with the [README](../README.md).
 
-Status as of 2026-10-15, when 1.4.0 is the latest release. What each release changed, and its known limitations, is in [CHANGELOG.md](../CHANGELOG.md).
+Status as of 2026-10-18, when 1.4.0 is the latest release. What each release changed, and its known limitations, is in [CHANGELOG.md](../CHANGELOG.md).
 
 ## v1.3
 - [x] Local and remote repository scanning
@@ -29,7 +29,7 @@ Status as of 2026-10-15, when 1.4.0 is the latest release. What each release cha
 
 ## v1.4
 - [x] Enhanced CBOM output (CycloneDX 1.6 cryptoProperties), shipped in 1.4.0
-- [ ] Smart remediation engine with language-specific recommendations
+- [x] Smart remediation engine with language-specific recommendations, on main and not yet in a release. Where the engine has text for the algorithm in the file's language, the finding's `Fix:` line names the change, for example `Replace hashlib.md5() with hashlib.sha256()` in Python.
 - [ ] Git history scanning (find crypto in past commits). The `--git-history` flag is accepted today and ignored.
 
 ## v2.0 (future)

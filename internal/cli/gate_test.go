@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 // highFixture generates an RSA-2048 key. RSA key generation is reported at
@@ -49,7 +51,7 @@ func TestGateCmdExists(t *testing.T) {
 }
 
 func TestGateCmdFlags(t *testing.T) {
-	for _, name := range []string{"fail-on", "baseline", "format", "ignore", "ignore-category", "config"} {
+	for _, name := range []string{"fail-on", "baseline", "format", "ignore", "ignore-category", "config", "no-color"} {
 		if gateCmd.Flags().Lookup(name) == nil {
 			t.Errorf("gateCmd missing expected flag: %s", name)
 		}
@@ -61,6 +63,59 @@ func TestGateCmdFlags(t *testing.T) {
 		t.Errorf("gate --format default = %q, want text", got)
 	}
 	assertSubsetOfScan(t, gateCmd.Flags())
+}
+
+// TestGateAndPqcNoColorFlag runs gate and pqc through the root command with
+// --no-color, as a user types it. Both print a text report, so both take the
+// flag scan takes. --no-color=false turns colour on although the test's
+// stdout is a pipe, which shows that the flag, not the pipe, decides.
+func TestGateAndPqcNoColorFlag(t *testing.T) {
+	// ML-KEM is reported at INFO, below gate's default threshold, so gate
+	// exits 0 and the run returns to the test.
+	dir := writeFixture(t, "kem.py", "kem = ML_KEM_768\n")
+	scanUsage := scanCmd.Flags().Lookup("no-color").Usage
+	// Cleanup functions run in reverse order, so this one runs after the
+	// flags below are reset.
+	savedNoColor := noColor
+	t.Cleanup(func() { noColor = savedNoColor })
+
+	for _, cmd := range []*cobra.Command{gateCmd, pqcCmd} {
+		flag := cmd.Flags().Lookup("no-color")
+		if flag == nil {
+			t.Errorf("%s has no --no-color flag", cmd.Name())
+			continue
+		}
+		if flag.Usage != scanUsage {
+			t.Errorf("%s --no-color help = %q, scan prints %q", cmd.Name(), flag.Usage, scanUsage)
+		}
+		reset := func() {
+			_ = flag.Value.Set(flag.DefValue)
+			flag.Changed = false
+		}
+		t.Cleanup(reset)
+
+		for _, tc := range []struct {
+			arg       string
+			wantColor bool
+		}{
+			{"--no-color", false},
+			{"--no-color=false", true},
+		} {
+			resetPipelineFlags(t)
+			out, err := executeRoot(t, cmd.Name(), tc.arg, dir)
+			reset()
+			if err != nil {
+				t.Errorf("cryptoscan %s %s: %v\n%s", cmd.Name(), tc.arg, err, out)
+				continue
+			}
+			if !strings.Contains(out, "ML-KEM") {
+				t.Errorf("cryptoscan %s %s did not print the report:\n%s", cmd.Name(), tc.arg, out)
+			}
+			if got := strings.Contains(out, "\x1b["); got != tc.wantColor {
+				t.Errorf("cryptoscan %s %s: colour escape sequences printed = %v, want %v", cmd.Name(), tc.arg, got, tc.wantColor)
+			}
+		}
+	}
 }
 
 func TestGateDefaultThresholdIsHigh(t *testing.T) {

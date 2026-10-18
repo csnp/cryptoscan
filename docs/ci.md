@@ -105,7 +105,7 @@ jobs:
           sarif_file: results.sarif
 ```
 
-In release 1.4.0, SARIF rule IDs are unique per occurrence rather than per pattern, so GitHub Code Scanning does not group results and a dismissal does not carry across runs (see the known limitations in [CHANGELOG.md](../CHANGELOG.md)).
+SARIF rule IDs are unique per occurrence rather than per pattern: each carries the line and column of its match, such as `MD5-001-96-8` for the pattern `MD5-001`. GitHub Code Scanning therefore does not group results by pattern, and a result whose line moves gets a new rule ID, so its dismissal does not follow it (see the known limitations in [CHANGELOG.md](../CHANGELOG.md)).
 
 ## GitLab CI
 

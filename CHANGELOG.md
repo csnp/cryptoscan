@@ -37,8 +37,8 @@ All notable changes to CryptoScan are recorded here. This project follows
   `--fail-on`. The default threshold is `high`, where `scan` on its own fails
   only on CRITICAL; at that default `scan` lets HIGH findings such as RSA-2048
   key generation through. A `failOn` in `.cryptoscan.yaml` applies when
-  `--fail-on` is not given. `--baseline`, `--ignore`, `--ignore-category` and
-  `--config` work as they do on `scan`.
+  `--fail-on` is not given. `--baseline`, `--ignore`, `--ignore-category`,
+  `--config` and `--no-color` work as they do on `scan`.
 - **`cryptoscan pqc <path or URL>`** shows post-quantum readiness. It lists
   the post-quantum algorithms found (ML-KEM, ML-DSA, SLH-DSA, FN-DSA, XMSS,
   LMS and post-quantum library imports, each with a count and up to three
@@ -50,7 +50,8 @@ All notable changes to CryptoScan are recorded here. This project follows
   `migrationScore` and `pqcFindings`, the findings whose IDs start with
   `PQC-` or `HYBRID-`. It exits 0 whatever it finds, and non-zero only when
   the scan fails. A baseline or minimum severity set in `.cryptoscan.yaml`
-  does not filter the view; ignore rules still apply.
+  does not filter the view; ignore rules still apply. `--no-color` works as it
+  does on `scan`.
 
 Adding `cbom`, `gate` and `pqc` removed or renamed no `scan` flag and did not
 change how `scan` decides its exit code.
@@ -234,39 +235,6 @@ change how `scan` decides its exit code.
   even when the inventory listed hybrid findings. It now prints only when the
   scan finds neither.
 
-### Changed
-
-- **The migration readiness score now says how it was computed.** The text
-  report prints a Method line directly under the score with the scan's own
-  counts, for example `Method: (safe 32 + 0.8 x hybrid 3 + 0.3 x partial 23)
-  / 110 findings, as a percentage. Every finding counts once; test and example
-  files count the same as production code.` When findings sit in a directory
-  named `test`, `tests`, `__tests__`, `spec` or `specs` below the scanned
-  directory, a second line says how many, for example `3 of 6 findings are in
-  test directories.` JSON output carries the same text as
-  `migrationScore.method` and the count as
-  `migrationScore.testDirectoryFindings`. The formula, weights and levels are
-  unchanged, and CBOM and SARIF output are unchanged.
-
-### Documentation
-
-- **The CBOM fields are documented, and a test keeps the page accurate.**
-  `docs/cbom-fields.md` lists every field the CBOM output writes, the line in
-  the reporter that sets it and its CycloneDX 1.6 definition, and maps the
-  output to the 2021 NTIA minimum elements for an SBOM. Supplier, component
-  version and dependency relationships are not written today, and the page
-  says so and names the follow-up work for each. The page also records that
-  certificate and TLS findings carry no `certificateProperties` or
-  `protocolProperties` yet.
-
-  `pkg/reporter/cbom_fields_test.go` runs the real scanner over a small
-  fixture, generates a CBOM, and fails if the page marks a field as written
-  that the CBOM does not contain, or as not written when it does. CISA and
-  NIST have not yet published minimum elements for a CBOM; the page is where
-  CryptoScan will track them once they do.
-
-### Fixed
-
 - **A scan target inside a `docs` directory reported nothing.** The path rules
   that keep documentation, build output and test code out of the report were
   tested against the absolute path of each file, so directories above the scan
@@ -314,6 +282,98 @@ change how `scan` decides its exit code.
   relative one such as `.` is worked out from the paths the current scan
   reports. Regenerate the baseline once with this release so it records the
   root directly. The fallback is planned for removal in the next release.
+
+### Changed
+
+- **The migration readiness score now says how it was computed.** The text
+  report prints a Method line directly under the score with the scan's own
+  counts, for example `Method: (safe 32 + 0.8 x hybrid 3 + 0.3 x partial 23)
+  / 110 findings, as a percentage. Every finding counts once; test and example
+  files count the same as production code.` When findings sit in a directory
+  named `test`, `tests`, `__tests__`, `spec` or `specs` below the scanned
+  directory, a second line says how many, for example `3 of 6 findings are in
+  test directories.` JSON output carries the same text as
+  `migrationScore.method` and the count as
+  `migrationScore.testDirectoryFindings`. The formula, weights and levels are
+  unchanged, and CBOM and SARIF output are unchanged.
+
+### Documentation
+
+- **The CBOM fields are documented, and a test keeps the page accurate.**
+  `docs/cbom-fields.md` lists every field the CBOM output writes, the line in
+  the reporter that sets it and its CycloneDX 1.6 definition, and maps the
+  output to the 2021 NTIA minimum elements for an SBOM. Supplier, component
+  version and dependency relationships are not written today, and the page
+  says so and names the follow-up work for each. The page also records that
+  certificate and TLS findings carry no `certificateProperties` or
+  `protocolProperties` yet.
+
+  `pkg/reporter/cbom_fields_test.go` runs the real scanner over a small
+  fixture, generates a CBOM, and fails if the page marks a field as written
+  that the CBOM does not contain, or as not written when it does. CISA and
+  NIST have not yet published minimum elements for a CBOM; the page is where
+  CryptoScan will track them once they do.
+
+- **The Scan flags table and the pattern count match the code, and tests
+  check both.** The `-e, --exclude` row of the Scan flags table in
+  `docs/commands.md` now carries the text `cryptoscan scan --help` prints,
+  and `internal/cli/commands_doc_test.go` fails when a row of the Scan flags
+  tables differs from the help. `PATTERNS.md` and `docs/how-it-works.md`
+  said 90+ and 100+ patterns; both now say 90, and
+  `pkg/patterns/patterns_doc_test.go` fails when either differs from the
+  number of pattern IDs the matcher defines. The notes on invalid `--fail-on`
+  values and malformed config files say they apply before 1.5.0 rather than
+  naming 1.4.0 alone. The SARIF rule ID note in `docs/ci.md` no longer names
+  a release, and it now says that a dismissal is lost when a result's line
+  moves, where it said a dismissal does not carry across runs.
+  `docs/roadmap.md` marks the language-specific remediation engine as done.
+
+- **The README says how to build a working binary on macOS 26.** On an
+  Apple silicon Mac running macOS 26, the README's build-from-source block run
+  with Go 1.21 or 1.22 builds a binary that stops at launch with `missing
+  LC_UUID load command`. The section now says so and gives two ways to build
+  one that starts: Go 1.23 or later, or `CGO_ENABLED=0`, the setting the
+  release binaries are built with.
+
+### Known limitations
+
+- A scan target containing no cryptography reports a migration readiness of
+  `0.0% [CRITICAL]`. Nothing was measured, so the number describes an absence
+  of evidence rather than a risk. The Method line under the score reads
+  `No findings to score, so the score is 0.`
+
+- SARIF `ruleId` values are unique per occurrence rather than per pattern.
+  Each carries the line and column of its match, such as `MD5-001-96-8` for
+  the pattern `MD5-001`, and the 110 results for `crypto-samples/` carry 110
+  rule IDs. GitHub Code Scanning therefore cannot group results by pattern,
+  and a result whose line moves gets a new rule ID, so its dismissal does not
+  follow it.
+
+- **DSA is not detected.** Standalone DSA key generation, such as
+  `DSA.generate(2048)`, matches no pattern under any combination of flags, so
+  a codebase using DSA is not told that it is quantum vulnerable. Detection
+  also matches whole words only, so compound identifiers such as
+  `RSAPrivateKey` and `AESCipher` are not matched.
+
+- **Four flags are accepted and ignored:** `--context`, `--max-depth`,
+  `--git-history`, and `--group-by` for the values `severity`, `category` and
+  `quantum`. Their help text says so. `--group-by file` works.
+
+- **Two text reports of an unchanged tree can differ beyond their timing
+  lines.** The findings listed while the scan runs appear in the order the
+  parallel workers find them, and the "Categories Found" block is rendered
+  from a map: six runs on `crypto-samples/` listed the findings in six
+  orders, and ten runs printed "Categories Found" in ten. With
+  `--stream=false`, only the "Categories Found" order and the timing lines
+  change. To compare runs, use `--format json`, which lists the findings in
+  the same order on every run.
+
+- **A file the scanner cannot read is skipped silently.** A file without read
+  permission in the scanned tree produces no warning, nothing on stderr and
+  no `unanalyzedFiles` entry, so `--fail-on` does not fail the scan for it: a
+  tree whose only MD5 call sits in such a file exits 0 with `--fail-on low`.
+  The only sign is that the file is left out of the `Scanned:` count and of
+  `filesScanned` in JSON.
 
 ## [1.4.0] - 2026-07-28
 

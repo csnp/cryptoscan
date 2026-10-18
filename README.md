@@ -147,6 +147,8 @@ The first example on this page installs with `go install`. You can also build fr
 
 Requires Go at the version named in [go.mod](go.mod) or newer ([install Go](https://go.dev/dl/)). Always use the latest patch version for security fixes.
 
+On macOS 26, the block below run with Go 1.21 or 1.22 builds a binary that stops at launch with `missing LC_UUID load command` (seen on Apple silicon with 1.21.13, 1.22.0 and 1.22.12, and not with 1.23.0, 1.24.0, 1.25.0 or 1.26.5). Build with Go 1.23 or later, or put `CGO_ENABLED=0` in front of `go build`, which is how the release binaries are built.
+
 Copy and paste this entire block. It moves the binary into `/usr/local/bin`, so `sudo` asks for your password:
 
 ```bash

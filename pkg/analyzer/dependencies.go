@@ -194,23 +194,12 @@ func withoutError(read func(data []byte, path string) []DependencyFinding) readM
 }
 
 func scanPackageJSON(data []byte, path string) ([]DependencyFinding, error) {
-	var pkg struct {
-		Dependencies    map[string]string `json:"dependencies"`
-		DevDependencies map[string]string `json:"devDependencies"`
-	}
-	if err := json.Unmarshal(data, &pkg); err != nil {
+	allDeps, err := packageDependencies(data)
+	if err != nil {
 		return nil, manifestError(path, data, err)
 	}
 
 	var findings []DependencyFinding
-	allDeps := make(map[string]string)
-	for k, v := range pkg.Dependencies {
-		allDeps[k] = v
-	}
-	for k, v := range pkg.DevDependencies {
-		allDeps[k] = v
-	}
-
 	for dep, version := range allDeps {
 		for _, lib := range KnownCryptoLibraries {
 			if lib.Language == LangJavaScript && strings.EqualFold(dep, lib.Package) {
@@ -221,6 +210,104 @@ func scanPackageJSON(data []byte, path string) ([]DependencyFinding, error) {
 	}
 
 	return findings, nil
+}
+
+// packageJSONKeys are the top-level keys of a package.json whose packages are
+// scanned, in the order they are read.
+var packageJSONKeys = []string{"dependencies", "devDependencies"}
+
+// packageDependencies returns the packages a package.json lists under the
+// keys in packageJSONKeys, with their version ranges. A key is read only when
+// it matches exactly, as npm reads it, so a key that matches only when case
+// is ignored, such as "Dependencies" or "DevDependencies", is another key
+// whose value is not decoded. A file that cannot be decoded returns the error
+// json.Unmarshal reports for it, with the offset in data where decoding
+// stopped.
+func packageDependencies(data []byte) (map[string]string, error) {
+	values, err := topLevelValues(data)
+	if err != nil {
+		return nil, err
+	}
+
+	allDeps := make(map[string]string)
+	for _, key := range packageJSONKeys {
+		value, ok := values[key]
+		if !ok {
+			continue
+		}
+		var deps map[string]string
+		if err := json.Unmarshal(value.encoding, &deps); err != nil {
+			return nil, errorUnderKey(key, value, err)
+		}
+		for dep, version := range deps {
+			allDeps[dep] = version
+		}
+	}
+	return allDeps, nil
+}
+
+// rawValue is the encoding of one value in a JSON file and the offset in the
+// file where the encoding starts.
+type rawValue struct {
+	encoding json.RawMessage
+	offset   int64
+}
+
+// topLevelValues returns the values of the JSON object in data by key, as
+// written. A struct decoded with json.Unmarshal would match a key without
+// regard to case. When a key is repeated the last value is kept. A file that
+// is not valid JSON, or whose top level is not an object, returns the error
+// json.Unmarshal reports for it.
+func topLevelValues(data []byte) (map[string]rawValue, error) {
+	// The whole file is decoded first, so that a file that is not valid JSON,
+	// or whose top level is not an object, is reported with the message and
+	// offset json.Unmarshal gives for the whole file.
+	var object map[string]json.RawMessage
+	if err := json.Unmarshal(data, &object); err != nil {
+		return nil, err
+	}
+	// The JSON null decodes into a nil map, with no object to walk.
+	if object == nil {
+		return nil, nil
+	}
+
+	values := make(map[string]rawValue, len(object))
+	dec := json.NewDecoder(bytes.NewReader(data))
+	if _, err := dec.Token(); err != nil { // the opening brace
+		return nil, err
+	}
+	for dec.More() {
+		tok, err := dec.Token()
+		if err != nil {
+			return nil, err
+		}
+		key, _ := tok.(string)
+		var encoding json.RawMessage
+		if err := dec.Decode(&encoding); err != nil {
+			return nil, err
+		}
+		// The decoder has read to the end of the value, and the encoding
+		// carries no white space around it.
+		values[key] = rawValue{
+			encoding: encoding,
+			offset:   dec.InputOffset() - int64(len(encoding)),
+		}
+	}
+	return values, nil
+}
+
+// errorUnderKey returns err, which json.Unmarshal returned for value, the
+// value under key at the top level of a JSON file, with the offset counted
+// from the start of the file and key as the field it names, so that
+// manifestError reports the line in the file and the key.
+func errorUnderKey(key string, value rawValue, err error) error {
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &typeErr) {
+		typeErr.Offset += value.offset
+		typeErr.Field = key
+		return typeErr
+	}
+	return err
 }
 
 // manifestError describes err, the error json.Unmarshal returned for the

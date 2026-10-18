@@ -183,8 +183,9 @@ type Results struct {
 	Config         *ConfigReport         `json:"config,omitempty"`
 
 	// UnanalyzedFiles lists files whose analysis stopped on an internal
-	// error. The rest of the scan still runs, but findings for these files
-	// may be incomplete, so the gap is reported rather than hidden.
+	// error, and dependency manifests that could not be decoded. The rest of
+	// the scan still runs, but findings for these files may be incomplete, so
+	// the gap is reported rather than hidden.
 	UnanalyzedFiles []UnanalyzedFile `json:"unanalyzedFiles"`
 
 	// SkippedFiles lists files left out of the scan because they look
@@ -203,9 +204,22 @@ type UnanalyzedFile struct {
 	File string `json:"file"`
 	// Line is the 1-based line being analyzed when the error occurred, or 0
 	// when it occurred before line-by-line analysis began. Findings the file
-	// produced before the error are kept in the report.
+	// produced before the error are kept in the report. For a dependency
+	// manifest that could not be decoded, it is the line where decoding
+	// stopped, and the manifest gives no findings.
 	Line   int    `json:"line,omitempty"`
 	Reason string `json:"reason"`
+}
+
+// internalErrorReason starts the Reason of a file whose analysis stopped on
+// an internal error.
+const internalErrorReason = "internal error: "
+
+// IsInternalError reports whether the file's analysis stopped on an internal
+// error, which is a defect in the scanner, rather than on a dependency
+// manifest that could not be decoded.
+func (u UnanalyzedFile) IsInternalError() bool {
+	return strings.HasPrefix(u.Reason, internalErrorReason)
 }
 
 // SkippedFile is a file the scanner did not search for cryptography because
@@ -904,7 +918,7 @@ func (s *Scanner) scanFile(path string) error {
 			s.unanalyzed = append(s.unanalyzed, UnanalyzedFile{
 				File:   path,
 				Line:   currentLine,
-				Reason: fmt.Sprintf("internal error: %v", r),
+				Reason: internalErrorReason + fmt.Sprint(r),
 			})
 			s.mu.Unlock()
 		}
@@ -943,8 +957,8 @@ func (s *Scanner) scanFile(path string) error {
 
 	// Check if this is a dependency file
 	if fileCtx.FileType == analyzer.FileTypeDependency {
-		countScanned()
-		return s.scanDependencyFile(path, fileCtx)
+		s.scanDependencyFile(path, countScanned)
+		return nil
 	}
 
 	// Read all lines first for context extraction
@@ -1299,11 +1313,28 @@ func (s *Scanner) extractSourceContext(allLines []string, lineNum int, contextLi
 	return ctx
 }
 
-func (s *Scanner) scanDependencyFile(path string, fileCtx *analyzer.FileContext) error {
+// scanDependencyFile reports the crypto libraries a dependency manifest lists,
+// calling countScanned once the manifest has been read and decoded. A
+// manifest that cannot be decoded is listed as not analyzed, with the line
+// where decoding stopped, rather than counted as a scanned file with nothing
+// in it. One that cannot be read is left out of the counts without a notice,
+// as an unreadable source file is.
+func (s *Scanner) scanDependencyFile(path string, countScanned func()) {
 	deps, err := analyzer.ScanDependencies(path)
 	if err != nil {
-		return nil // Don't fail on dependency scanning errors
+		var manifestErr *analyzer.ManifestError
+		if errors.As(err, &manifestErr) {
+			s.mu.Lock()
+			s.unanalyzed = append(s.unanalyzed, UnanalyzedFile{
+				File:   path,
+				Line:   manifestErr.Line,
+				Reason: manifestErr.Reason,
+			})
+			s.mu.Unlock()
+		}
+		return
 	}
+	countScanned()
 
 	for _, dep := range deps {
 		finding := Finding{
@@ -1341,8 +1372,6 @@ func (s *Scanner) scanDependencyFile(path string, fileCtx *analyzer.FileContext)
 			s.config.OnFinding(finding)
 		}
 	}
-
-	return nil
 }
 
 func (s *Scanner) meetsConfidenceThreshold(conf types.Confidence) bool {

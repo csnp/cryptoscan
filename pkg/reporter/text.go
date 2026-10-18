@@ -150,14 +150,21 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 		b.WriteString(r.color(colorYellow, fmt.Sprintf(
 			"\n  %d file(s) could not be analyzed, so findings for them may be incomplete:\n",
 			len(results.UnanalyzedFiles))))
+		internal := false
 		for _, u := range results.UnanalyzedFiles {
 			location := u.File
 			if u.Line > 0 {
 				location = fmt.Sprintf("%s:%d", u.File, u.Line)
 			}
 			b.WriteString(fmt.Sprintf("    %s  %s\n", location, u.Reason))
+			internal = internal || u.IsInternalError()
 		}
-		b.WriteString("  Report this at https://github.com/csnp/cryptoscan/issues with the line shown.\n")
+		// An internal error is a scanner defect, worth reporting. For a
+		// manifest that could not be decoded, the line and reason point at
+		// the part of the file to check.
+		if internal {
+			b.WriteString("  Report this at https://github.com/csnp/cryptoscan/issues with the line shown.\n")
+		}
 	}
 	// A file left out as minified or generated is a gap in coverage too: its
 	// lines were not searched, so a count of 0 lines must not read as a clean

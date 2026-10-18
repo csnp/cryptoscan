@@ -4,6 +4,9 @@
 package analyzer
 
 import (
+	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -360,6 +363,128 @@ func TestScanDependenciesNonexistent(t *testing.T) {
 	_, err := ScanDependencies("/nonexistent/path/file.json")
 	if err == nil {
 		t.Error("Expected error for nonexistent file")
+	}
+}
+
+// A UTF-8 byte order mark at the start of a manifest is not part of its
+// content. Before it was removed, the package.json below failed to decode and
+// the requirements.txt line did not match a package name.
+func TestScanDependenciesRemovesAByteOrderMark(t *testing.T) {
+	tests := []struct {
+		name        string
+		content     string
+		wantLibrary string
+		wantVersion string
+	}{
+		{
+			name:        "package.json",
+			content:     "\xef\xbb\xbf" + `{"name": "fixture", "dependencies": {"crypto-js": "^4.2.0"}}` + "\n",
+			wantLibrary: "crypto-js",
+			wantVersion: "^4.2.0",
+		},
+		{
+			name:        "requirements.txt",
+			content:     "\xef\xbb\xbfcryptography==41.0.0\n",
+			wantLibrary: "cryptography",
+			wantVersion: "41.0.0",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), tt.name)
+			if err := os.WriteFile(path, []byte(tt.content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			findings, err := ScanDependencies(path)
+			if err != nil {
+				t.Fatalf("ScanDependencies failed: %v", err)
+			}
+			if len(findings) != 1 || findings[0].Library.Name != tt.wantLibrary || findings[0].Version != tt.wantVersion {
+				t.Errorf("findings = %+v, want one for %s %s", findings, tt.wantLibrary, tt.wantVersion)
+			}
+		})
+	}
+}
+
+// A package.json that cannot be decoded returns a *ManifestError with the
+// line where decoding stopped. It used to return no findings and no error.
+func TestScanDependenciesReportsPackageJSONThatCannotBeDecoded(t *testing.T) {
+	tests := []struct {
+		name     string
+		content  string
+		wantLine int
+		// wantReason is the reason for a value of the wrong type. When it is
+		// empty the file is not valid JSON, and the reason is the decoder's
+		// own message after "not valid JSON: ".
+		wantReason string
+	}{
+		{name: "empty file", content: "", wantLine: 1},
+		{name: "unclosed object", content: `{"dependencies": {"crypto-js": "^4.2.0"}` + "\n", wantLine: 1},
+		{
+			name:     "comma before a closing brace",
+			content:  "{\n  \"dependencies\": {\n    \"crypto-js\": \"^4.2.0\",\n  }\n}\n",
+			wantLine: 4,
+		},
+		{
+			name:     "merge conflict marker",
+			content:  "{\n<<<<<<< HEAD\n  \"dependencies\": {}\n}\n",
+			wantLine: 2,
+		},
+		// Only the UTF-8 byte order mark is removed. A UTF-16 file is not
+		// decoded.
+		{name: "UTF-16 byte order mark", content: "\xff\xfe{\x00}\x00", wantLine: 1},
+		{
+			name:       "array at the top level",
+			content:    "[]\n",
+			wantLine:   1,
+			wantReason: "unexpected JSON array at the top level",
+		},
+		{
+			name:       "dependencies as an array",
+			content:    "{\n  \"name\": \"fixture\",\n  \"dependencies\": [\"crypto-js\"]\n}\n",
+			wantLine:   3,
+			wantReason: `unexpected JSON array in "dependencies"`,
+		},
+		{
+			name:       "version as a number",
+			content:    "{\"devDependencies\": {\n  \"crypto-js\": 4\n}}\n",
+			wantLine:   2,
+			wantReason: `unexpected JSON number in "devDependencies"`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "package.json")
+			if err := os.WriteFile(path, []byte(tt.content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			want := tt.wantReason
+			if want == "" {
+				var v any
+				var syntaxErr *json.SyntaxError
+				if err := json.Unmarshal([]byte(tt.content), &v); !errors.As(err, &syntaxErr) {
+					t.Fatalf("fixture is not a JSON syntax error: %v", err)
+				}
+				want = "not valid JSON: " + syntaxErr.Error()
+			}
+
+			findings, err := ScanDependencies(path)
+
+			var manifestErr *ManifestError
+			if !errors.As(err, &manifestErr) {
+				t.Fatalf("err = %v, want a *ManifestError", err)
+			}
+			if manifestErr.Path != path || manifestErr.Line != tt.wantLine || manifestErr.Reason != want {
+				t.Errorf("error = %+v, want path %s, line %d and reason %q", *manifestErr, path, tt.wantLine, want)
+			}
+			if wantText := fmt.Sprintf("%s:%d: %s", path, tt.wantLine, want); err.Error() != wantText {
+				t.Errorf("err.Error() = %q, want %q", err.Error(), wantText)
+			}
+			if len(findings) != 0 {
+				t.Errorf("findings = %+v, want none", findings)
+			}
+		})
 	}
 }
 

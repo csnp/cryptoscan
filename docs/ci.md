@@ -42,6 +42,11 @@ under `unanalyzedFiles` in JSON, and as an error in the SARIF run's
 `invocations[].toolExecutionNotifications`. Without `--fail-on`, such a file
 does not change the exit code.
 
+A file skipped because it looks minified or generated, such as `app.min.js`,
+is named in the text summary or, for the other formats, on stderr (up to ten
+files, with a count of the rest), and JSON output also carries it under
+`skippedFiles`. It does not change the exit code, with or without `--fail-on`.
+
 Without `--fail-on`, the scan exits 1 on any CRITICAL finding. The full table is in [Exit codes](commands.md#exit-codes).
 
 ## Suppressing known issues

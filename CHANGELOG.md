@@ -81,6 +81,23 @@ change how `scan` decides its exit code.
 
 ### Fixed
 
+- **A file skipped as minified is now named in the report.** Scanning a
+  directory that held only `app.js`, one 674-byte line calling
+  `crypto.createHash("md5")`, printed `Scanned:  1 files • 0 lines • 675 B`
+  and `No cryptographic findings detected`, and nothing said the file had
+  been skipped as minified. A file named `app.min.js` was left out without a
+  word as well. The text report of `scan` and `gate` now lists each such file
+  after the severity breakdown, with the reason:
+  `minified or generated: its lines average 674 bytes`,
+  `minified: the file name ends in .min.js`, or, for a file with a line too
+  long for the scanner to read, `minified or generated: a line is 1 MB or
+  longer`. It names up to ten files and counts the rest. The JSON reports of
+  `scan` and `gate` carry the files under `skippedFiles` on every scan, as an
+  empty array when nothing was skipped, and for JSON, SARIF, CSV and CBOM
+  output the files are also named on stderr. A minified file that `--include` or the documentation
+  rule would have left out anyway is not listed. The exit code does not
+  change, with or without `--fail-on`.
+
 - **SARIF rules are listed in a stable order.** `runs[0].tool.driver.rules`
   was listed in a different order on each run of an unchanged tree. Rules are
   now written in the order of their first result, so two SARIF files of
@@ -176,18 +193,27 @@ change how `scan` decides its exit code.
   were already skipped by name and behave as before. The default patterns
   skip directories only: a file named `build` or `target` is not excluded.
 
-- **Every finding now says how to check it and what to change.** Each finding
-  in the text report has a `Verify:` line with a command that prints the
-  matched line (`sed -n '96p' <file>`, using the path the finding prints, or a
-  `grep` of the manifest for a dependency), and a `Fix:` line with one change
-  for that algorithm in that language, for example
+- **Every finding now says how to check it and what, if anything, to
+  change.** Each finding in the text report has a `Verify:` line with a
+  command that prints the matched line (`sed -n '96p' <file>`, using the path
+  the finding prints, or a `grep` of the manifest for a dependency), and a
+  `Fix:` line with one change for that algorithm in that language, for
+  example
   `Replace MessageDigest.getInstance("MD5") with MessageDigest.getInstance("SHA-256")`.
   Where no language-specific text exists, the pattern's remediation sentence
-  is the fix, and it is no longer printed twice. `--group-by file` prints both
-  lines, and JSON findings carry them in the new `verify` and `fix` fields.
-  SARIF output is unchanged. CSV output has no new column; its rows carry the
-  new Impact and Effort text (on `crypto-samples`, 109 of the 110 rows differ
-  from 1.4.0, all of them in those two columns only).
+  is the fix, and it is no longer printed twice. A finding that needs no
+  change, one at INFO severity whose algorithm is not quantum vulnerable and
+  has no language-specific replacement, such as a use of ML-KEM or
+  AES-256-GCM, prints that sentence on a `Guidance:` line instead, so
+  `ML-KEM is NIST-approved and quantum-safe.` is no longer labelled a fix. On `crypto-samples`, 53 of the 110 findings print `Fix:`
+  and 57 print `Guidance:`. The `crypto-js` dependency finding names its
+  replacement:
+  `Replace crypto-js with node:crypto in Node.js or the Web Crypto API (crypto.subtle) in the browser, then remove crypto-js from package.json`.
+  `--group-by file` prints these lines, and JSON findings carry them in the
+  new `verify`, `fix` and `guidance` fields, with `fix` empty when `guidance`
+  is set. SARIF output is unchanged. CSV output has no new column; its rows
+  carry the new Impact and Effort text (on `crypto-samples`, 109 of the 110
+  rows differ from 1.4.0, all of them in those two columns only).
 
 - **Effort no longer says "Assessment needed".** On `crypto-samples/`, 65 of
   the 110 findings ended in that placeholder. Effort now comes from the

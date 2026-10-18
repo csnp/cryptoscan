@@ -491,6 +491,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	}
 
 	writeUnanalyzedNotice(os.Stderr, outputFormat, results.UnanalyzedFiles)
+	writeSkippedNotice(os.Stderr, outputFormat, results.SkippedFiles)
 
 	return results, effectiveFailOn, nil
 }
@@ -548,6 +549,26 @@ func writeUnanalyzedNotice(w io.Writer, format string, files []scanner.Unanalyze
 			location = fmt.Sprintf("%s:%d", u.File, u.Line)
 		}
 		fmt.Fprintf(w, "  %s  %s\n", location, u.Reason)
+	}
+}
+
+// maxSkippedNamed is the number of skipped files writeSkippedNotice names.
+const maxSkippedNamed = 10
+
+// writeSkippedNotice names the files the scan left out as minified or
+// generated, for the same formats and reasons as writeUnanalyzedNotice. The
+// exit code does not depend on them.
+func writeSkippedNotice(w io.Writer, format string, files []scanner.SkippedFile) {
+	if format == "text" || len(files) == 0 {
+		return
+	}
+	fmt.Fprintf(w, "cryptoscan: %d file(s) were not scanned, so cryptography in them is not in this report:\n", len(files))
+	for i, sk := range files {
+		if i == maxSkippedNamed {
+			fmt.Fprintf(w, "  and %d more, listed under skippedFiles in --format json\n", len(files)-maxSkippedNamed)
+			break
+		}
+		fmt.Fprintf(w, "  %s  %s\n", sk.File, sk.Reason)
 	}
 }
 

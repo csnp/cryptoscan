@@ -165,6 +165,7 @@ type Finding struct {
 	Description     string             `json:"description"`
 	Remediation     string             `json:"remediation,omitempty"`
 	Fix             string             `json:"fix"`              // One concrete change for this algorithm in this language
+	Guidance        string             `json:"guidance"`         // Advice for a finding that needs no change, set instead of Fix
 	Verify          string             `json:"verify"`           // Shell command that prints the matched line
 	Impact          string             `json:"impact,omitempty"` // Business impact description
 	Effort          string             `json:"effort,omitempty"` // Migration effort estimate

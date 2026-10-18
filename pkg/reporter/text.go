@@ -159,6 +159,12 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 		}
 		b.WriteString("  Report this at https://github.com/csnp/cryptoscan/issues with the line shown.\n")
 	}
+	// A file left out as minified or generated is a gap in coverage too: its
+	// lines were not searched, so a count of 0 lines must not read as a clean
+	// file.
+	if len(results.SkippedFiles) > 0 {
+		r.writeSkippedFiles(&b, results.SkippedFiles)
+	}
 	if results.Config != nil {
 		r.writeConfigSummary(&b, results)
 	}
@@ -319,17 +325,23 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 		b.WriteString(fmt.Sprintf("  │ %s\n", r.color(colorBold, "Description:")))
 		b.WriteString(fmt.Sprintf("  │   %s\n", f.Description))
 
-		// Remediation, unless the fix line below already says it
-		if f.Remediation != "" && f.Remediation != f.Fix {
+		// Remediation, unless the fix or guidance line below already says it
+		if f.Remediation != "" && f.Remediation != f.Fix && f.Remediation != f.Guidance {
 			b.WriteString(fmt.Sprintf("  │ %s\n", r.color(colorGreen+colorBold, "Remediation:")))
 			b.WriteString(fmt.Sprintf("  │   %s\n", r.color(colorGreen, f.Remediation)))
 		}
 
-		// One concrete change, and a command that shows the matched line
+		// One concrete change, or advice when the finding needs no change,
+		// and a command that shows the matched line
 		if f.Fix != "" {
 			b.WriteString(fmt.Sprintf("  │ %s %s\n",
 				r.color(colorGreen+colorBold, "Fix:"),
 				r.color(colorGreen, f.Fix)))
+		}
+		if f.Guidance != "" {
+			fmt.Fprintf(&b, "  │ %s %s\n",
+				r.color(colorCyan+colorBold, "Guidance:"),
+				r.color(colorCyan, f.Guidance))
 		}
 		if f.Verify != "" {
 			b.WriteString(fmt.Sprintf("  │ %s %s\n",
@@ -432,15 +444,19 @@ func (r *TextReporter) generateGroupedByFile(results *scanner.Results, b *string
 				r.color(colorMagenta, f.Match),
 				r.quantumIcon(f.Quantum)))
 
-			// Fix and verify command (compact)
+			// Fix or guidance, and verify command (compact)
 			fix := f.Fix
-			if fix == "" {
+			if fix == "" && f.Guidance == "" {
 				fix = f.Remediation
 			}
 			if fix != "" {
 				b.WriteString(fmt.Sprintf("    %s %s\n",
 					r.color(colorGreen+colorBold, "Fix:"),
 					r.color(colorGreen, fix)))
+			} else if f.Guidance != "" {
+				fmt.Fprintf(b, "    %s %s\n",
+					r.color(colorCyan+colorBold, "Guidance:"),
+					r.color(colorCyan, f.Guidance))
 			}
 			if f.Verify != "" {
 				b.WriteString(fmt.Sprintf("    %s %s\n",
@@ -454,6 +470,26 @@ func (r *TextReporter) generateGroupedByFile(results *scanner.Results, b *string
 
 	r.writeFooter(b)
 	return b.String(), nil
+}
+
+// maxSkippedListed is the number of skipped files the text summary names. A
+// tree can hold many minified bundles, and the JSON report lists them all.
+const maxSkippedListed = 10
+
+// writeSkippedFiles names the files the scan left out as minified or
+// generated, and why.
+func (r *TextReporter) writeSkippedFiles(b *strings.Builder, files []scanner.SkippedFile) {
+	b.WriteString(r.color(colorYellow, fmt.Sprintf(
+		"\n  %d file(s) were not scanned, so cryptography in them is not in this report:\n",
+		len(files))))
+	for i, sk := range files {
+		if i == maxSkippedListed {
+			fmt.Fprintf(b, "    and %d more, listed under skippedFiles in --format json\n", len(files)-maxSkippedListed)
+			break
+		}
+		fmt.Fprintf(b, "    %s  %s\n", sk.File, sk.Reason)
+	}
+	b.WriteString("  Scan the source these files were built from, or search them for algorithm names.\n")
 }
 
 // writeConfigSummary names the config file the scan applied and what each of

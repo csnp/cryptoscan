@@ -137,7 +137,7 @@ CryptoScan goes beyond simple pattern matching:
 - **Confidence scoring**: Findings in comments, logs, or docs are marked low confidence
 - **File type awareness**: Different severity for code vs. test vs. documentation
 - **Language detection**: 15+ programming languages recognized
-- **Noise reduction**: Automatically filters minified files, lock files, and build artifacts
+- **Noise reduction**: Automatically filters minified files, lock files, and build artifacts. The scan summary counts the minified files it left out and names up to ten; JSON output lists them under `skippedFiles`
 
 Algorithm names that appear only in prose, logs or comments are held back from the default report, and the scan summary says how many. [How CryptoScan works](docs/how-it-works.md) explains the rule.
 

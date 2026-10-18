@@ -62,22 +62,39 @@ func (r *RemediationEngine) GetRemediation(finding *types.Finding, lang Language
 }
 
 // Apply fills the fields a reader needs to act on one finding: Verify, a
-// command that prints the matched line, and Fix, one concrete change taken
-// from the language-specific text when the engine has it and from the
-// pattern's remediation otherwise.
+// command that prints the matched line, and either Fix, one concrete change,
+// or Guidance, for a finding that needs no change. The change is taken from
+// the language-specific text when the engine has it and from the pattern's
+// remediation otherwise.
 func (r *RemediationEngine) Apply(f *types.Finding) {
 	f.Verify = VerifyCommand(f)
-	f.Fix = f.Remediation
+	f.Fix, f.Guidance = "", ""
 
 	// A dependency finding names a library rather than a call site, so the
 	// library-level remediation is the fix.
-	if f.FindingType == types.FindingTypeDependency {
-		return
+	if f.FindingType != types.FindingTypeDependency {
+		if rem := r.GetRemediation(f, DetectLanguageFromFile(f.File)); rem.Fix != "" {
+			f.Fix = rem.Fix
+			return
+		}
 	}
 
-	if rem := r.GetRemediation(f, DetectLanguageFromFile(f.File)); rem.Fix != "" {
-		f.Fix = rem.Fix
+	// A language-specific replacement above is always a fix. Without one,
+	// the pattern's remediation sentence is advice when the finding needs no
+	// change.
+	if needsNoChange(f) {
+		f.Guidance = f.Remediation
+		return
 	}
+	f.Fix = f.Remediation
+}
+
+// needsNoChange reports whether a finding asks for no change: it is
+// informational and its algorithm is not quantum vulnerable, such as a use of
+// ML-KEM or AES-256-GCM, whose remediation sentence reads "ML-KEM is
+// NIST-approved and quantum-safe" or "AES-256-GCM is recommended".
+func needsNoChange(f *types.Finding) bool {
+	return f.Severity == types.SeverityInfo && f.Quantum != types.QuantumVulnerable
 }
 
 // EstimateEffort returns the engine's effort estimate for the algorithm

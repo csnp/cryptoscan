@@ -187,6 +187,11 @@ type Results struct {
 	// may be incomplete, so the gap is reported rather than hidden.
 	UnanalyzedFiles []UnanalyzedFile `json:"unanalyzedFiles"`
 
+	// SkippedFiles lists files left out of the scan because they look
+	// minified or generated. Cryptography in them is not in the report, so
+	// they are named rather than dropped without a word.
+	SkippedFiles []SkippedFile `json:"skippedFiles"`
+
 	// ScanRoot is the directory finding paths were walked from (a temporary
 	// clone for a Git URL). It is used to recompute the migration score and
 	// is not written to any report.
@@ -200,6 +205,13 @@ type UnanalyzedFile struct {
 	// when it occurred before line-by-line analysis began. Findings the file
 	// produced before the error are kept in the report.
 	Line   int    `json:"line,omitempty"`
+	Reason string `json:"reason"`
+}
+
+// SkippedFile is a file the scanner did not search for cryptography because
+// its name or its line lengths mark it as minified or generated code.
+type SkippedFile struct {
+	File   string `json:"file"`
 	Reason string `json:"reason"`
 }
 
@@ -288,6 +300,9 @@ type Scanner struct {
 
 	// unanalyzed holds files whose analysis stopped on an internal error.
 	unanalyzed []UnanalyzedFile
+
+	// skipped holds files left out because they look minified or generated.
+	skipped []SkippedFile
 
 	// configWithheld holds, per configuration-file setting, the matches that
 	// setting kept out of a report that would otherwise have contained them.
@@ -418,6 +433,11 @@ func (s *Scanner) Scan() (*Results, error) {
 	sort.Slice(unanalyzed, func(i, j int) bool {
 		return unanalyzed[i].File < unanalyzed[j].File
 	})
+	skipped := make([]SkippedFile, len(s.skipped))
+	copy(skipped, s.skipped)
+	sort.Slice(skipped, func(i, j int) bool {
+		return skipped[i].File < skipped[j].File
+	})
 
 	// Build results
 	results := &Results{
@@ -432,6 +452,7 @@ func (s *Scanner) Scan() (*Results, error) {
 		Metadata:        map[string]string{MetadataScanRoot: s.root},
 		Config:          configReport,
 		UnanalyzedFiles: unanalyzed,
+		SkippedFiles:    skipped,
 	}
 
 	results.Summary = s.calculateSummary()
@@ -761,12 +782,6 @@ func (s *Scanner) shouldScanFile(root, path string) bool {
 		return false
 	}
 
-	// Skip minified files (contain bundled code with coincidental matches)
-	if strings.HasSuffix(nameLower, ".min.js") || strings.HasSuffix(nameLower, ".min.css") ||
-		strings.HasSuffix(nameLower, "-min.js") || strings.HasSuffix(nameLower, "-min.css") {
-		return false
-	}
-
 	// Skip lock files (contain package metadata with algorithm names, not actionable)
 	lockFiles := map[string]bool{
 		"package-lock.json": true, "yarn.lock": true, "pnpm-lock.yaml": true,
@@ -810,15 +825,6 @@ func (s *Scanner) shouldScanFile(root, path string) bool {
 		return false
 	}
 
-	// Check exclude patterns
-	rel, err := filepath.Rel(root, path)
-	if err != nil {
-		rel = name
-	}
-	if s.excluded(rel, false) {
-		return false
-	}
-
 	// Check include patterns
 	if len(s.config.IncludeGlobs) > 0 {
 		included := false
@@ -831,6 +837,26 @@ func (s *Scanner) shouldScanFile(root, path string) bool {
 		if !included {
 			return false
 		}
+	}
+
+	// Skip minified files (contain bundled code with coincidental matches).
+	// They can still hold cryptography, so each one is listed as skipped.
+	// Checked after the documentation and include rules, so that a file is
+	// listed only if it would otherwise have been scanned, and before the
+	// exclude patterns, where DefaultExcludeGlobs matches *.min.js and
+	// *.min.css as well.
+	if suffix := minifiedNameSuffix(nameLower); suffix != "" {
+		s.skip(path, "minified: the file name ends in "+suffix)
+		return false
+	}
+
+	// Check exclude patterns
+	rel, err := filepath.Rel(root, path)
+	if err != nil {
+		rel = name
+	}
+	if s.excluded(rel, false) {
+		return false
 	}
 
 	// Checked last, so that a file is counted only if it would otherwise have
@@ -901,11 +927,17 @@ func (s *Scanner) scanFile(path string) error {
 	// Read all lines first for context extraction
 	allLines, err := s.readFileLines(path)
 	if err != nil {
+		// A line too long for the reader marks a minified or generated file
+		// as surely as the line lengths below do, and is reported the same way.
+		if errors.Is(err, bufio.ErrTooLong) {
+			s.skip(path, "minified or generated: a line is 1 MB or longer")
+		}
 		return nil
 	}
 
 	// Skip minified files (detected by average line length)
 	if isMinifiedFile(allLines) {
+		s.skip(path, fmt.Sprintf("minified or generated: its lines average %d bytes", averageLineLength(allLines)))
 		return nil
 	}
 
@@ -1624,6 +1656,38 @@ func betterRepresentative(a, b Finding) bool {
 		return !a.Narrative
 	}
 	return a.Priority() > b.Priority()
+}
+
+// skip records a file left out of the scan because it looks minified or
+// generated, with the reason given.
+func (s *Scanner) skip(path, reason string) {
+	s.mu.Lock()
+	s.skipped = append(s.skipped, SkippedFile{File: path, Reason: reason})
+	s.mu.Unlock()
+}
+
+// minifiedNameSuffix returns the suffix that marks nameLower, a lowercased
+// file name, as minified, or "" when it has none.
+func minifiedNameSuffix(nameLower string) string {
+	for _, suffix := range []string{".min.js", ".min.css", "-min.js", "-min.css"} {
+		if strings.HasSuffix(nameLower, suffix) {
+			return suffix
+		}
+	}
+	return ""
+}
+
+// averageLineLength returns the mean length of lines in bytes, rounded down,
+// as isMinifiedFile computes it.
+func averageLineLength(lines []string) int {
+	if len(lines) == 0 {
+		return 0
+	}
+	total := 0
+	for _, line := range lines {
+		total += len(line)
+	}
+	return total / len(lines)
 }
 
 // isMinifiedFile detects minified code by checking line characteristics

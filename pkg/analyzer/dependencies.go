@@ -56,7 +56,7 @@ var KnownCryptoLibraries = []CryptoLibrary{
 	{Name: "crypto-js", Package: "crypto-js", Language: LangJavaScript,
 		Algorithms: []string{"AES", "DES", "3DES", "SHA", "MD5"}, QuantumSafe: false,
 		Description: "JavaScript library of crypto standards",
-		Migration:   "Consider using Web Crypto API or node:crypto for better security"},
+		Migration:   "Replace crypto-js with node:crypto in Node.js or the Web Crypto API (crypto.subtle) in the browser, then remove crypto-js from package.json"},
 	{Name: "node-forge", Package: "node-forge", Language: LangJavaScript,
 		Algorithms: []string{"RSA", "AES", "DES", "SHA", "MD5"}, QuantumSafe: false,
 		Description: "JavaScript implementation of TLS and crypto"},

@@ -926,19 +926,24 @@ func (s *Scanner) scanFile(path string) error {
 	// Analyze file context
 	fileCtx := s.analyzeFile(path)
 
-	s.mu.Lock()
-	s.stats.filesScanned++
-	s.stats.bytesScanned += fileSize
-	s.stats.languageStats[string(fileCtx.Language)]++
-	s.mu.Unlock()
+	// countScanned is called once the file is known to be searched, so a file
+	// listed as skipped is not also counted as scanned.
+	countScanned := func() {
+		s.mu.Lock()
+		s.stats.filesScanned++
+		s.stats.bytesScanned += fileSize
+		s.stats.languageStats[string(fileCtx.Language)]++
+		s.mu.Unlock()
 
-	// Progress callback
-	if s.config.OnFileScanned != nil {
-		s.config.OnFileScanned(path)
+		// Progress callback
+		if s.config.OnFileScanned != nil {
+			s.config.OnFileScanned(path)
+		}
 	}
 
 	// Check if this is a dependency file
 	if fileCtx.FileType == analyzer.FileTypeDependency {
+		countScanned()
 		return s.scanDependencyFile(path, fileCtx)
 	}
 
@@ -958,6 +963,8 @@ func (s *Scanner) scanFile(path string) error {
 		s.skip(path, fmt.Sprintf("minified or generated: its lines average %d bytes", averageLineLength(allLines)))
 		return nil
 	}
+
+	countScanned()
 
 	var prevLines []string
 

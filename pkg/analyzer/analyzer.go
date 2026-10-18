@@ -137,21 +137,25 @@ func detectLanguage(name, ext string) Language {
 	return LangUnknown
 }
 
+// dependencyFiles holds the lowercased names of the files detectFileType
+// classifies as dependency manifests. ReadsManifest reports which of them
+// ScanDependencies has a reader for.
+var dependencyFiles = map[string]bool{
+	"package.json": true, "package-lock.json": true, "yarn.lock": true,
+	"go.mod": true, "go.sum": true,
+	"requirements.txt": true, "pipfile": true, "pipfile.lock": true, "pyproject.toml": true,
+	"pom.xml": true, "build.gradle": true, "build.gradle.kts": true,
+	"gemfile": true, "gemfile.lock": true,
+	"cargo.toml": true, "cargo.lock": true,
+	"composer.json": true, "composer.lock": true,
+	"nuget.config": true, "packages.config": true,
+}
+
 func detectFileType(path, name, ext string, lang Language) FileType {
 	nameLower := strings.ToLower(name)
 	pathLower := strings.ToLower(path)
 
 	// Dependency manifests
-	dependencyFiles := map[string]bool{
-		"package.json": true, "package-lock.json": true, "yarn.lock": true,
-		"go.mod": true, "go.sum": true,
-		"requirements.txt": true, "pipfile": true, "pipfile.lock": true, "pyproject.toml": true,
-		"pom.xml": true, "build.gradle": true, "build.gradle.kts": true,
-		"gemfile": true, "gemfile.lock": true,
-		"cargo.toml": true, "cargo.lock": true,
-		"composer.json": true, "composer.lock": true,
-		"nuget.config": true, "packages.config": true,
-	}
 	if dependencyFiles[nameLower] {
 		return FileTypeDependency
 	}

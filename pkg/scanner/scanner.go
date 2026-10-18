@@ -189,8 +189,9 @@ type Results struct {
 	UnanalyzedFiles []UnanalyzedFile `json:"unanalyzedFiles"`
 
 	// SkippedFiles lists files left out of the scan because they look
-	// minified or generated. Cryptography in them is not in the report, so
-	// they are named rather than dropped without a word.
+	// minified or generated, or because they are dependency manifests the
+	// scanner has no reader for. Cryptography in them is not in the report,
+	// so they are named rather than dropped without a word.
 	SkippedFiles []SkippedFile `json:"skippedFiles"`
 
 	// ScanRoot is the directory finding paths were walked from (a temporary
@@ -223,10 +224,22 @@ func (u UnanalyzedFile) IsInternalError() bool {
 }
 
 // SkippedFile is a file the scanner did not search for cryptography because
-// its name or its line lengths mark it as minified or generated code.
+// its name or its line lengths mark it as minified or generated code, or
+// because it is a dependency manifest the scanner has no reader for.
 type SkippedFile struct {
 	File   string `json:"file"`
 	Reason string `json:"reason"`
+}
+
+// unreadManifestReason is the Reason of a dependency manifest the scanner has
+// no reader for, such as build.gradle or Pipfile.
+const unreadManifestReason = "dependency manifest: the scanner does not read this format"
+
+// IsUnreadManifest reports whether the file was skipped because it is a
+// dependency manifest the scanner does not read, rather than because it looks
+// minified or generated.
+func (sk SkippedFile) IsUnreadManifest() bool {
+	return sk.Reason == unreadManifestReason
 }
 
 // MetadataScanRoot is the Results.Metadata entry holding the directory the
@@ -1316,11 +1329,16 @@ func (s *Scanner) extractSourceContext(allLines []string, lineNum int, contextLi
 
 // scanDependencyFile reports the crypto libraries a dependency manifest lists,
 // calling countScanned once the manifest has been read and decoded. A
-// manifest that cannot be decoded is listed as not analyzed, with the line
-// where decoding stopped, rather than counted as a scanned file with nothing
-// in it. One that cannot be read is left out of the counts without a notice,
-// as an unreadable source file is.
+// manifest the scanner has no reader for, such as build.gradle, is listed as
+// skipped, and one that cannot be decoded is listed as not analyzed, with the
+// line where decoding stopped, rather than counted as a scanned file with
+// nothing in it. One that cannot be read is left out of the counts without a
+// notice, as an unreadable source file is.
 func (s *Scanner) scanDependencyFile(path string, countScanned func()) {
+	if !analyzer.ReadsManifest(path) {
+		s.skip(path, unreadManifestReason)
+		return
+	}
 	deps, err := analyzer.ScanDependencies(path)
 	if err != nil {
 		var manifestErr *analyzer.ManifestError
@@ -1723,7 +1741,8 @@ func betterRepresentative(a, b Finding) bool {
 }
 
 // skip records a file left out of the scan because it looks minified or
-// generated, with the reason given.
+// generated, or because it is a dependency manifest the scanner has no reader
+// for, with the reason given.
 func (s *Scanner) skip(path, reason string) {
 	s.mu.Lock()
 	s.skipped = append(s.skipped, SkippedFile{File: path, Reason: reason})

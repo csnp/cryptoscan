@@ -44,6 +44,50 @@ func TestTextReportListsSkippedFiles(t *testing.T) {
 	}
 }
 
+// A dependency manifest the scanner has no reader for is listed with the
+// files that were not scanned. The advice for minified files does not fit it,
+// so it has its own, and a list holding both kinds gets both.
+func TestTextReportAdvisesOnDependencyManifestsTheScannerDoesNotRead(t *testing.T) {
+	const (
+		manifestAdvice = "\n  Check the dependency manifests for cryptography libraries by hand.\n"
+		minifiedAdvice = "\n  Scan the source these files were built from, or search them for algorithm names.\n"
+	)
+	manifest := scanner.SkippedFile{File: "/test/path/build.gradle", Reason: "dependency manifest: the scanner does not read this format"}
+	minified := scanner.SkippedFile{File: "/test/path/app.min.js", Reason: "minified: the file name ends in .min.js"}
+
+	tests := []struct {
+		name         string
+		files        []scanner.SkippedFile
+		wantManifest bool
+		wantMinified bool
+	}{
+		{"manifest only", []scanner.SkippedFile{manifest}, true, false},
+		{"minified file only", []scanner.SkippedFile{minified}, false, true},
+		{"minified file and manifest", []scanner.SkippedFile{minified, manifest}, true, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results := createTestResults()
+			results.SkippedFiles = tt.files
+			output, err := NewTextReporter(false).Generate(results)
+			if err != nil {
+				t.Fatalf("Generate failed: %v", err)
+			}
+			for _, sk := range tt.files {
+				if want := "\n    " + sk.File + "  " + sk.Reason + "\n"; !strings.Contains(output, want) {
+					t.Errorf("text report is missing %q", want)
+				}
+			}
+			if got := strings.Contains(output, manifestAdvice); got != tt.wantManifest {
+				t.Errorf("text report has %q: %v, want %v", manifestAdvice, got, tt.wantManifest)
+			}
+			if got := strings.Contains(output, minifiedAdvice); got != tt.wantMinified {
+				t.Errorf("text report has %q: %v, want %v", minifiedAdvice, got, tt.wantMinified)
+			}
+		})
+	}
+}
+
 // A tree can hold many minified bundles, so the text report names ten and
 // counts the rest.
 func TestTextReportCapsTheSkippedFileList(t *testing.T) {

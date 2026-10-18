@@ -484,7 +484,7 @@ func (r *TextReporter) generateGroupedByFile(results *scanner.Results, b *string
 const maxSkippedListed = 10
 
 // writeSkippedFiles names the files the scan left out as minified or
-// generated, and why.
+// generated, or as dependency manifests it has no reader for, and why.
 func (r *TextReporter) writeSkippedFiles(b *strings.Builder, files []scanner.SkippedFile) {
 	b.WriteString(r.color(colorYellow, fmt.Sprintf(
 		"\n  %d file(s) were not scanned, so cryptography in them is not in this report:\n",
@@ -496,7 +496,20 @@ func (r *TextReporter) writeSkippedFiles(b *strings.Builder, files []scanner.Ski
 		}
 		fmt.Fprintf(b, "    %s  %s\n", sk.File, sk.Reason)
 	}
-	b.WriteString("  Scan the source these files were built from, or search them for algorithm names.\n")
+	minified, manifests := false, false
+	for _, sk := range files {
+		if sk.IsUnreadManifest() {
+			manifests = true
+		} else {
+			minified = true
+		}
+	}
+	if minified {
+		b.WriteString("  Scan the source these files were built from, or search them for algorithm names.\n")
+	}
+	if manifests {
+		b.WriteString("  Check the dependency manifests for cryptography libraries by hand.\n")
+	}
 }
 
 // writeConfigSummary names the config file the scan applied and what each of

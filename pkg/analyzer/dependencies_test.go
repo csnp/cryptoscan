@@ -359,6 +359,44 @@ func TestScanDependenciesUnknownFile(t *testing.T) {
 	}
 }
 
+// detectFileType names more files dependency manifests than ScanDependencies
+// has readers for. The scanner lists the others as skipped, so ReadsManifest
+// has to say which names have a reader, ignoring case as detectFileType does.
+func TestReadsManifest(t *testing.T) {
+	read := map[string]bool{
+		"package.json": true, "requirements.txt": true, "pyproject.toml": true, "go.mod": true,
+		"pom.xml": true, "cargo.toml": true, "gemfile": true, "gemfile.lock": true,
+	}
+	for name := range dependencyFiles {
+		if got := ReadsManifest(filepath.Join("repo", name)); got != read[name] {
+			t.Errorf("ReadsManifest(%q) = %v, want %v", name, got, read[name])
+		}
+	}
+	for name := range read {
+		if !dependencyFiles[name] {
+			t.Errorf("%s has a reader but is not classified as a dependency manifest", name)
+		}
+	}
+	for name, want := range map[string]bool{
+		"Cargo.toml": true, "Gemfile": true, "Pipfile": false, "BUILD.GRADLE": false, "build.gradle.kts": false,
+	} {
+		if got := ReadsManifest(filepath.Join("repo", name)); got != want {
+			t.Errorf("ReadsManifest(%q) = %v, want %v", name, got, want)
+		}
+	}
+
+	// ScanDependencies gives a manifest with no reader no findings and no
+	// error, even when it names a known library.
+	path := filepath.Join(t.TempDir(), "build.gradle")
+	gradle := "dependencies {\n    implementation 'org.bouncycastle:bcprov-jdk18on:1.77'\n}\n"
+	if err := os.WriteFile(path, []byte(gradle), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if findings, err := ScanDependencies(path); err != nil || len(findings) != 0 {
+		t.Errorf("ScanDependencies(%s) = %+v, %v; want no findings and no error", path, findings, err)
+	}
+}
+
 func TestScanDependenciesNonexistent(t *testing.T) {
 	_, err := ScanDependencies("/nonexistent/path/file.json")
 	if err == nil {

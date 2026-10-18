@@ -9,7 +9,7 @@ Status as of 2026-10-18, when 1.4.0 is the latest release. What each release cha
 - [x] 90+ cryptographic patterns
 - [x] Multiple output formats (text, JSON, CSV, SARIF, CBOM)
 - [x] Context-aware analysis with confidence scoring
-- [x] Dependency scanning for 20+ package managers
+- [x] Dependency scanning of package.json, requirements.txt, pyproject.toml, go.mod, pom.xml, Cargo.toml and Gemfile
 - [x] Parallel scanning with worker pools
 - [x] Inline ignore comments
 - [x] Post-Quantum Cryptography detection (ML-KEM, ML-DSA, SLH-DSA, FN-DSA, XMSS, LMS)

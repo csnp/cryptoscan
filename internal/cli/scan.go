@@ -573,8 +573,9 @@ func writeUnanalyzedNotice(w io.Writer, format string, files []scanner.Unanalyze
 const maxSkippedNamed = 10
 
 // writeSkippedNotice names the files the scan left out as minified or
-// generated, for the same formats and reasons as writeUnanalyzedNotice. The
-// exit code does not depend on them.
+// generated, or as dependency manifests it has no reader for, for the same
+// formats and reasons as writeUnanalyzedNotice. The exit code does not depend
+// on them.
 func writeSkippedNotice(w io.Writer, format string, files []scanner.SkippedFile) {
 	if format == "text" || len(files) == 0 {
 		return

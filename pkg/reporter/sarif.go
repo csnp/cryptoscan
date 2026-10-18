@@ -151,11 +151,14 @@ func sarifURI(scanTarget, path string) string {
 
 // Generate creates the SARIF report
 func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
-	// Build rules from unique finding types
-	rulesMap := make(map[string]sarifRule)
+	// Build rules from unique finding types, in the order of their first
+	// result, so that an unchanged tree produces the same rules array.
+	seenRules := make(map[string]bool)
+	rules := make([]sarifRule, 0)
 	for _, f := range results.Findings {
-		if _, exists := rulesMap[f.ID]; !exists {
-			rulesMap[f.ID] = sarifRule{
+		if !seenRules[f.ID] {
+			seenRules[f.ID] = true
+			rules = append(rules, sarifRule{
 				ID:   f.ID,
 				Name: f.Type,
 				ShortDescription: sarifMessage{
@@ -175,13 +178,8 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 					QuantumRisk: string(f.Quantum),
 					Category:    f.Category,
 				},
-			}
+			})
 		}
-	}
-
-	rules := make([]sarifRule, 0, len(rulesMap))
-	for _, rule := range rulesMap {
-		rules = append(rules, rule)
 	}
 
 	// Build results

@@ -81,6 +81,11 @@ change how `scan` decides its exit code.
 
 ### Fixed
 
+- **SARIF rules are listed in a stable order.** `runs[0].tool.driver.rules`
+  was listed in a different order on each run of an unchanged tree. Rules are
+  now written in the order of their first result, so two SARIF files of
+  `crypto-samples` from the same build are byte-identical.
+
 - **`cryptoscan --version` works.** It printed `Error: unknown flag: --version`.
   It now prints the same text as `cryptoscan version`, and `-v` is its short
   form on the top-level command. `cryptoscan scan -v` still means `--verbose`.

@@ -445,6 +445,62 @@ func TestScanDependenciesRemovesAByteOrderMark(t *testing.T) {
 	}
 }
 
+// A package.json key is read only when it is "dependencies" or
+// "devDependencies" as written, as npm reads it. The scanner used to match
+// the keys without regard to case, so the packages under "Dependencies" were
+// scanned, and a "DevDependencies" holding a string stopped the file from
+// being decoded.
+func TestScanDependenciesReadsPackageJSONKeysAsWritten(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		// want lists the libraries found, by name and version.
+		want []string
+	}{
+		{
+			name:    "DevDependencies holding a string is not decoded",
+			content: `{"name": "fixture", "version": "1.0.0", "dependencies": {"crypto-js": "^4.2.0"}, "DevDependencies": "none"}` + "\n",
+			want:    []string{"crypto-js ^4.2.0"},
+		},
+		{
+			name:    "Dependencies is not read",
+			content: `{"name": "fixture", "version": "1.0.0", "Dependencies": {"crypto-js": "^4.2.0"}}` + "\n",
+			want:    nil,
+		},
+		{
+			name:    "DEPENDENCIES holding an array is not decoded",
+			content: `{"DEPENDENCIES": ["crypto-js"], "devDependencies": {"bcrypt": "^5.0.0"}}` + "\n",
+			want:    []string{"bcrypt ^5.0.0"},
+		},
+		// A repeated key keeps its last value, as npm keeps it.
+		{
+			name:    "repeated dependencies keeps the last list",
+			content: `{"dependencies": {"node-forge": "^1.3.0"}, "dependencies": {"crypto-js": "^4.2.0"}}` + "\n",
+			want:    []string{"crypto-js ^4.2.0"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "package.json")
+			if err := os.WriteFile(path, []byte(tt.content), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			findings, err := ScanDependencies(path)
+			if err != nil {
+				t.Fatalf("ScanDependencies failed: %v", err)
+			}
+			var got []string
+			for _, f := range findings {
+				got = append(got, f.Library.Name+" "+f.Version)
+			}
+			if fmt.Sprint(got) != fmt.Sprint(tt.want) {
+				t.Errorf("findings = %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // A package.json that cannot be decoded returns a *ManifestError with the
 // line where decoding stopped. It used to return no findings and no error.
 func TestScanDependenciesReportsPackageJSONThatCannotBeDecoded(t *testing.T) {
@@ -489,6 +545,14 @@ func TestScanDependenciesReportsPackageJSONThatCannotBeDecoded(t *testing.T) {
 			content:    "{\"devDependencies\": {\n  \"crypto-js\": 4\n}}\n",
 			wantLine:   2,
 			wantReason: `unexpected JSON number in "devDependencies"`,
+		},
+		// The string under "Dependencies" is not decoded, so decoding stops
+		// at the array under "dependencies" on the next line.
+		{
+			name:       "array under dependencies after a string under Dependencies",
+			content:    "{\n  \"Dependencies\": \"none\",\n  \"dependencies\": [\"crypto-js\"]\n}\n",
+			wantLine:   3,
+			wantReason: `unexpected JSON array in "dependencies"`,
 		},
 	}
 	for _, tt := range tests {

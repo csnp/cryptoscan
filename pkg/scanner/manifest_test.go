@@ -271,3 +271,48 @@ func TestIsUnreadManifestTellsAManifestFromAMinifiedFile(t *testing.T) {
 		}
 	}
 }
+
+// A package.json key that matched "dependencies" or "devDependencies" only
+// when case was ignored was read as that key, which npm does not do. A
+// "DevDependencies" holding a string stopped the file from being decoded, so
+// it was listed as not analyzed with no finding, and a list under
+// "Dependencies" gave a finding for a package that `npm pkg get dependencies`
+// does not list.
+func TestScanReadsPackageJSONKeysAsWritten(t *testing.T) {
+	tests := []struct {
+		name    string
+		content string
+		wantIDs []string
+	}{
+		{
+			name:    "DevDependencies holding a string",
+			content: `{"name": "fixture", "version": "1.0.0", "dependencies": {"crypto-js": "^4.2.0"}, "DevDependencies": "none"}` + "\n",
+			wantIDs: []string{"DEP-crypto-js-package.json"},
+		},
+		{
+			name:    "Dependencies only",
+			content: `{"name": "fixture", "version": "1.0.0", "Dependencies": {"crypto-js": "^4.2.0"}}` + "\n",
+			wantIDs: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			dir := t.TempDir()
+			writeTestFile(t, dir, "package.json", tt.content)
+
+			results := scanWithConfig(t, Config{Target: dir})
+
+			var ids []string
+			for _, f := range results.Findings {
+				ids = append(ids, f.ID)
+			}
+			if !reflect.DeepEqual(ids, tt.wantIDs) {
+				t.Errorf("findings = %q, want %q", ids, tt.wantIDs)
+			}
+			if results.FilesScanned != 1 || len(results.UnanalyzedFiles) != 0 {
+				t.Errorf("filesScanned = %d, unanalyzedFiles = %+v; want 1 and none",
+					results.FilesScanned, results.UnanalyzedFiles)
+			}
+		})
+	}
+}

@@ -200,6 +200,25 @@ change how `scan` decides its exit code.
   name the seven manifests a scan reads: `package.json`, `requirements.txt`,
   `pyproject.toml`, `go.mod`, `pom.xml`, `Cargo.toml` and `Gemfile`.
 
+- **A package.json key is read as `dependencies` or `devDependencies` only
+  when it is written that way.** The scanner matched the two keys without
+  regard to case, which npm 11.20.0 does not do. A directory holding only a
+  package.json made of
+  `{"name": "fixture", "version": "1.0.0", "dependencies": {"crypto-js": "^4.2.0"}, "DevDependencies": "none"}`
+  and a newline, where `npm pkg get dependencies` prints `crypto-js`, had no
+  finding, listed the file as not analyzed at line 1 with the reason
+  `unexpected JSON string in "devDependencies"`, a key the file does not
+  hold, printed `Scanned:  0 files • 0 lines • 0 B`, and `gate` exited 1. It
+  now reports `DEP-crypto-js-package.json`, prints
+  `Scanned:  1 files • 0 lines • 108 B`, and `gate` exits 0. A package.json
+  whose only list is under `Dependencies`, where `npm pkg get dependencies`
+  prints `{}`, reported `DEP-crypto-js-package.json`; it now reports no
+  finding. The line and reason reported for a value of the wrong type under
+  `dependencies` or `devDependencies` do not change. When a package.json
+  repeats the `dependencies` key, `ScanDependencies` in `pkg/analyzer` now
+  reads the last list, as `npm pkg get dependencies` prints it, where it read
+  the packages under both copies.
+
 - **The text report lists "Categories Found" in a stable order.** The block
   was rendered from a map, and six text scans of `crypto-samples` printed it
   in six orders. It now lists the category with the most findings first, and

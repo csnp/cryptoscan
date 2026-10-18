@@ -125,6 +125,38 @@ func TestScanListsFileWithLineTooLongToReadAsSkipped(t *testing.T) {
 	}
 }
 
+// A file listed as skipped was not searched, so it is not counted in
+// filesScanned, bytesScanned or languageStats either. Both skips made after
+// the file is read are covered: lines that average above the minified
+// threshold, and a line too long to read.
+func TestSkippedFilesAreNotCountedAsScanned(t *testing.T) {
+	const limit = 1 << 20 // the scanner's line limit, 1 MB
+
+	dir := t.TempDir()
+	writeTestFile(t, dir, "app.js", bundledLine()+"\n")
+	writeTestFile(t, dir, "bundle.js", strings.Repeat("a", limit)+"\n")
+	source := "package main\n"
+	writeTestFile(t, dir, "main.go", source)
+
+	results := scanWithConfig(t, Config{Target: dir})
+
+	if len(results.SkippedFiles) != 2 {
+		t.Fatalf("expected app.js and bundle.js listed as skipped, got %+v", results.SkippedFiles)
+	}
+	if results.FilesScanned != 1 {
+		t.Errorf("FilesScanned = %d, want 1 (main.go only)", results.FilesScanned)
+	}
+	if results.BytesScanned != int64(len(source)) {
+		t.Errorf("BytesScanned = %d, want %d (main.go only)", results.BytesScanned, len(source))
+	}
+	if results.LinesScanned != 1 {
+		t.Errorf("LinesScanned = %d, want 1", results.LinesScanned)
+	}
+	if want := map[string]int{"go": 1}; !reflect.DeepEqual(results.LanguageStats, want) {
+		t.Errorf("LanguageStats = %v, want %v", results.LanguageStats, want)
+	}
+}
+
 // Files are scanned in parallel, so the list is sorted to keep the report the
 // same from run to run, and JSON always carries it, as an empty array when
 // nothing was skipped.

@@ -111,6 +111,17 @@ change how `scan` decides its exit code.
   rule would have left out anyway is not listed. The exit code does not
   change, with or without `--fail-on`.
 
+- **A file listed as not scanned is no longer counted as scanned.** A file
+  skipped because its lines average above the minified threshold, or because
+  a line is 1 MB or longer, was read before the skip and counted in the
+  summary's `Scanned:` line, in `filesScanned` and `bytesScanned` in JSON, and
+  in `languageStats`, while the same report listed it as not scanned. A
+  directory holding only `app.js`, one 365-byte line calling
+  `crypto.createHash("md5")`, printed `Scanned:  1 files • 0 lines • 366 B`;
+  it now prints `Scanned:  0 files • 0 lines • 0 B`, and `filesScanned` is 0.
+  A file skipped by its name, such as `app.min.js`, was already left out of
+  these counts.
+
 - **The text report lists "Categories Found" in a stable order.** The block
   was rendered from a map, and six text scans of `crypto-samples` printed it
   in six orders. It now lists the category with the most findings first, and

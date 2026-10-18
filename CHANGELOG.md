@@ -177,6 +177,29 @@ change how `scan` decides its exit code.
   `DEP-PyCryptodome-requirements.txt` as its one finding, and
   `gate --fail-on medium --baseline` exits 1, where it exited 0.
 
+- **A dependency manifest the scanner has no reader for is now named in the
+  report.** `build.gradle`, `build.gradle.kts`, `Pipfile`, `composer.json`,
+  `packages.config`, `nuget.config` and `go.sum` are classed as dependency
+  manifests, so their lines are not searched, but the scanner has no reader
+  for them, and the report had no finding and no notice for such a file while
+  counting it in the `Scanned:` line and in `filesScanned`. A directory
+  holding only a `build.gradle` that declares
+  `implementation 'org.bouncycastle:bcprov-jdk18on:1.77'` printed
+  `Scanned:  1 files • 0 lines • 75 B` and `No cryptographic findings
+  detected`, while the same dependency in a `pom.xml` reports
+  `DEP-Bouncy Castle-pom.xml`. Such a file is now listed with the files that
+  were not scanned, with the reason `dependency manifest: the scanner does not
+  read this format`, in the text summary, under `skippedFiles` in JSON, and on
+  stderr for JSON, SARIF, CSV and CBOM output, and the text summary adds
+  `Check the dependency manifests for cryptography libraries by hand.` It is
+  left out of the `Scanned:` line, `filesScanned`, `bytesScanned` and
+  `languageStats`. Findings and the exit code do not change, with or without
+  `--fail-on`. A Go module's `go.sum` is listed this way too; the `go.mod`
+  beside it is read as before. The README, the how-it-works page and the
+  roadmap said dependency scanning covered 20+ package managers; they now
+  name the seven manifests a scan reads: `package.json`, `requirements.txt`,
+  `pyproject.toml`, `go.mod`, `pom.xml`, `Cargo.toml` and `Gemfile`.
+
 - **The text report lists "Categories Found" in a stable order.** The block
   was rendered from a map, and six text scans of `crypto-samples` printed it
   in six orders. It now lists the category with the most findings first, and

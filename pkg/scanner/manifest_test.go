@@ -185,3 +185,89 @@ func TestIsInternalErrorTellsAScannerDefectFromAManifest(t *testing.T) {
 		}
 	}
 }
+
+// These files are named dependency manifests, so their lines are not
+// searched, but the scanner has no reader for them. Each gave no finding and
+// no notice, and was counted as scanned. They are listed as skipped and left
+// out of the scanned counts, and a pom.xml and go.mod beside them are still
+// read. Lock files such as Pipfile.lock are left out before this point and
+// are not counted.
+func TestScanListsDependencyManifestsItDoesNotRead(t *testing.T) {
+	unread := map[string]string{
+		"build.gradle":     "dependencies {\n    implementation 'org.bouncycastle:bcprov-jdk18on:1.77'\n}\n",
+		"build.gradle.kts": "dependencies {\n    implementation(\"org.bouncycastle:bcprov-jdk18on:1.77\")\n}\n",
+		"Pipfile":          "[packages]\ncryptography = \"==41.0.0\"\n",
+		"go.sum":           "github.com/cloudflare/circl v1.3.7/go.mod h1:not-a-real-checksum=\n",
+		"composer.json":    `{"require": {"phpseclib/phpseclib": "^3.0"}}` + "\n",
+		"packages.config":  `<packages><package id="BouncyCastle.Cryptography" version="2.4.0" /></packages>` + "\n",
+		"nuget.config":     "<configuration />\n",
+	}
+	dir := t.TempDir()
+	var want []SkippedFile
+	for name, content := range unread {
+		want = append(want, SkippedFile{
+			File:   writeTestFile(t, dir, name, content),
+			Reason: "dependency manifest: the scanner does not read this format",
+		})
+	}
+	sort.Slice(want, func(i, j int) bool { return want[i].File < want[j].File })
+
+	results := scanWithConfig(t, Config{Target: dir})
+
+	if !reflect.DeepEqual(results.SkippedFiles, want) {
+		t.Errorf("SkippedFiles = %+v, want %+v", results.SkippedFiles, want)
+	}
+	if len(results.Findings) != 0 || len(results.UnanalyzedFiles) != 0 {
+		t.Errorf("findings = %+v, unanalyzedFiles = %+v; want none", results.Findings, results.UnanalyzedFiles)
+	}
+	if results.FilesScanned != 0 || results.BytesScanned != 0 || len(results.LanguageStats) != 0 {
+		t.Errorf("filesScanned = %d, bytesScanned = %d, languageStats = %v; want 0, 0 and none",
+			results.FilesScanned, results.BytesScanned, results.LanguageStats)
+	}
+	for _, sk := range results.SkippedFiles {
+		if !sk.IsUnreadManifest() {
+			t.Errorf("IsUnreadManifest() = false for %+v", sk)
+		}
+	}
+
+	pom := "<project><dependencies><dependency><groupId>org.bouncycastle</groupId></dependency></dependencies></project>\n"
+	goMod := "module example.com/fixture\n\nrequire github.com/cloudflare/circl v1.3.7\n"
+	writeTestFile(t, dir, "pom.xml", pom)
+	writeTestFile(t, dir, "go.mod", goMod)
+
+	results = scanWithConfig(t, Config{Target: dir})
+
+	var ids []string
+	for _, f := range results.Findings {
+		ids = append(ids, f.ID)
+	}
+	sort.Strings(ids)
+	if wantIDs := []string{"DEP-Bouncy Castle-pom.xml", "DEP-circl-go.mod"}; !reflect.DeepEqual(ids, wantIDs) {
+		t.Errorf("findings = %q, want %q", ids, wantIDs)
+	}
+	if results.FilesScanned != 2 || results.BytesScanned != int64(len(pom)+len(goMod)) {
+		t.Errorf("filesScanned = %d, bytesScanned = %d; want 2 and %d, the pom.xml and go.mod",
+			results.FilesScanned, results.BytesScanned, len(pom)+len(goMod))
+	}
+	if !reflect.DeepEqual(results.SkippedFiles, want) {
+		t.Errorf("SkippedFiles = %+v, want %+v", results.SkippedFiles, want)
+	}
+}
+
+// A file skipped as minified is not a dependency manifest.
+func TestIsUnreadManifestTellsAManifestFromAMinifiedFile(t *testing.T) {
+	dir := t.TempDir()
+	writeTestFile(t, dir, "app.min.js", "var a = 1;\n")
+	writeTestFile(t, dir, "build.gradle", "dependencies {\n}\n")
+
+	results := scanWithConfig(t, Config{Target: dir})
+
+	if len(results.SkippedFiles) != 2 {
+		t.Fatalf("expected app.min.js and build.gradle listed as skipped, got %+v", results.SkippedFiles)
+	}
+	for _, sk := range results.SkippedFiles {
+		if want := filepath.Base(sk.File) == "build.gradle"; sk.IsUnreadManifest() != want {
+			t.Errorf("IsUnreadManifest() = %v for %+v, want %v", sk.IsUnreadManifest(), sk, want)
+		}
+	}
+}

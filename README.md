@@ -102,7 +102,7 @@ CryptoScan identifies cryptographic usage across your technology stack:
 | **Certificates** | X.509, CSR, PKCS#12/PFX, certificate chains, mTLS, validation bypass, expiration, JWK |
 | **TLS/SSL** | Protocol versions, cipher suites, weak configurations, certificate pinning |
 | **Key Material** | Private keys (RSA, EC, SSH, PGP, PKCS#8), JWT secrets, HMAC keys |
-| **Dependencies** | Crypto libraries across 20+ package managers |
+| **Dependencies** | Crypto libraries listed in package.json, requirements.txt, pyproject.toml, go.mod, pom.xml, Cargo.toml and Gemfile |
 
 DSA is not detected, and detection matches whole words only, so a compound identifier such as `RSAPrivateKey` is not matched. MACs, key derivation, cloud KMS and configuration patterns are in the full detection table in [How CryptoScan works](docs/how-it-works.md). `cryptoscan patterns list` prints every pattern the scanner runs, with its ID, severity, quantum risk, category and name, and [PATTERNS.md](PATTERNS.md) explains how detection, confidence scoring and the risk levels work.
 

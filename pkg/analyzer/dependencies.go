@@ -138,35 +138,59 @@ func (e *ManifestError) Error() string {
 }
 
 // ScanDependencies scans a dependency file for crypto libraries. A
-// package.json that cannot be decoded returns a *ManifestError.
+// package.json that cannot be decoded returns a *ManifestError. A file with
+// no reader, which ReadsManifest reports, returns no findings and no error.
 func ScanDependencies(path string) ([]DependencyFinding, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
-	data = bytes.TrimPrefix(data, utf8BOM)
+	read := manifestReader(path)
+	if read == nil {
+		return nil, nil
+	}
+	return read(bytes.TrimPrefix(data, utf8BOM), path)
+}
 
+// ReadsManifest reports whether ScanDependencies has a reader for the
+// dependency manifest at path. detectFileType names more files dependency
+// manifests than have a reader, such as build.gradle and Pipfile.
+func ReadsManifest(path string) bool {
+	return manifestReader(path) != nil
+}
+
+// readManifestFunc returns the crypto libraries listed in data, the content
+// of the dependency manifest at path.
+type readManifestFunc func(data []byte, path string) ([]DependencyFinding, error)
+
+// manifestReader returns the reader for the dependency manifest at path,
+// chosen by the end of the path with case ignored, or nil when there is none.
+func manifestReader(path string) readManifestFunc {
 	name := strings.ToLower(path)
-	var findings []DependencyFinding
-
 	switch {
 	case strings.HasSuffix(name, "package.json"):
-		findings, err = scanPackageJSON(data, path)
+		return scanPackageJSON
 	case strings.HasSuffix(name, "requirements.txt"):
-		findings = scanRequirementsTxt(data, path)
+		return withoutError(scanRequirementsTxt)
 	case strings.HasSuffix(name, "go.mod"):
-		findings = scanGoMod(data, path)
+		return withoutError(scanGoMod)
 	case strings.HasSuffix(name, "pom.xml"):
-		findings = scanPomXML(data, path)
+		return withoutError(scanPomXML)
 	case strings.HasSuffix(name, "cargo.toml"):
-		findings = scanCargoToml(data, path)
+		return withoutError(scanCargoToml)
 	case strings.HasSuffix(name, "gemfile") || strings.HasSuffix(name, "gemfile.lock"):
-		findings = scanGemfile(data, path)
+		return withoutError(scanGemfile)
 	case strings.HasSuffix(name, "pyproject.toml"):
-		findings = scanPyprojectToml(data, path)
+		return withoutError(scanPyprojectToml)
 	}
+	return nil
+}
 
-	return findings, err
+// withoutError adapts a reader that cannot fail to readManifestFunc.
+func withoutError(read func(data []byte, path string) []DependencyFinding) readManifestFunc {
+	return func(data []byte, path string) ([]DependencyFinding, error) {
+		return read(data, path), nil
+	}
 }
 
 func scanPackageJSON(data []byte, path string) ([]DependencyFinding, error) {

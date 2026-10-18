@@ -57,7 +57,7 @@ Library imports and quantum-safe algorithms are also left out of the default rep
 | **TLS/SSL** | Protocol versions, cipher suites, weak configurations, certificate pinning |
 | **Key Material** | Private keys (RSA, EC, SSH, PGP, PKCS#8), JWT secrets, HMAC keys |
 | **Cloud KMS** | AWS KMS, Azure Key Vault, GCP Cloud KMS, HashiCorp Vault |
-| **Dependencies** | Crypto libraries across 20+ package managers |
+| **Dependencies** | Crypto libraries listed in package.json, requirements.txt, pyproject.toml, go.mod, pom.xml, Cargo.toml and Gemfile |
 | **Configurations** | Hardcoded key sizes, algorithm selections, TLS settings |
 
 DSA is not detected: standalone DSA key generation matches no pattern. Detection matches whole words only, so compound identifiers such as `RSAPrivateKey` and `AESCipher` are not matched. Both are listed with the other known limitations in [CHANGELOG.md](../CHANGELOG.md). `cryptoscan patterns list` prints every pattern the scanner runs ([command reference](commands.md#commands)), and [PATTERNS.md](../PATTERNS.md) explains how detection, confidence scoring and the risk levels work.
@@ -136,7 +136,7 @@ This is the maintainers' own comparison. It has not been reviewed independently,
 
 **Migration guidance**: Every finding includes specific remediation advice: which NIST PQC algorithm to migrate to (ML-KEM, ML-DSA, SLH-DSA), links to standards, and effort estimates.
 
-**Dependency scanning**: Scans package manifests (package.json, go.mod, requirements.txt, pom.xml, etc.) to identify crypto libraries in your dependencies. Covers 20+ package manager formats.
+**Dependency scanning**: Reads package.json, requirements.txt, pyproject.toml, go.mod, pom.xml, Cargo.toml and Gemfile to identify crypto libraries in your dependencies. The scanner has no reader for build.gradle, build.gradle.kts, Pipfile, composer.json, packages.config, nuget.config or go.sum; a scan names each such file it finds as not scanned, under `skippedFiles` in JSON, and does not count it as scanned. Lock files such as package-lock.json and Cargo.lock are left out of the scan.
 
 ## Architecture
 

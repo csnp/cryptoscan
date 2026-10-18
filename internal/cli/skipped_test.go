@@ -117,3 +117,68 @@ func TestScanListsSkippedFilesWithoutChangingTheExitCode(t *testing.T) {
 		}
 	}
 }
+
+// The reproduction from the report, through the scan command: a build.gradle
+// and a Pipfile, each declaring a crypto library, gave no finding and no
+// notice, and were counted in filesScanned. The scanner does not read either
+// format, so both are now named in the JSON report and on stderr, and, like
+// other skipped files, they do not fail the scan.
+func TestScanListsDependencyManifestsItDoesNotReadWithoutChangingTheExitCode(t *testing.T) {
+	saved := jsonPretty
+	t.Cleanup(func() { jsonPretty = saved })
+
+	dir := t.TempDir()
+	for name, content := range map[string]string{
+		"build.gradle": "dependencies {\n    implementation 'org.bouncycastle:bcprov-jdk18on:1.77'\n}\n",
+		"Pipfile":      "[packages]\ncryptography = \"==41.0.0\"\n",
+	} {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(content), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	out := filepath.Join(t.TempDir(), "report.json")
+
+	resetPipelineFlags(t)
+	outputFormat = "json"
+	outputFile = out
+	failOn = "low"
+	jsonPretty = false
+
+	var code int
+	stderr := captureStderr(func() {
+		var err error
+		code, err = scanTarget(scanCmd, dir)
+		if err != nil {
+			t.Errorf("scan failed: %v", err)
+		}
+	})
+	if code != 0 {
+		t.Errorf("exit code = %d with --fail-on low, want 0: a skipped file does not fail the scan", code)
+	}
+
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("no report written: %v", err)
+	}
+	var report scanner.Results
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatalf("invalid JSON report: %v", err)
+	}
+	const reason = "dependency manifest: the scanner does not read this format"
+	want := []scanner.SkippedFile{
+		{File: filepath.Join(dir, "Pipfile"), Reason: reason},
+		{File: filepath.Join(dir, "build.gradle"), Reason: reason},
+	}
+	if !reflect.DeepEqual(report.SkippedFiles, want) {
+		t.Errorf("skippedFiles = %+v, want %+v", report.SkippedFiles, want)
+	}
+	if len(report.Findings) != 0 || report.FilesScanned != 0 || report.BytesScanned != 0 {
+		t.Errorf("findings = %d, filesScanned = %d, bytesScanned = %d; want 0, 0 and 0",
+			len(report.Findings), report.FilesScanned, report.BytesScanned)
+	}
+	for _, sk := range want {
+		if !strings.Contains(stderr, "  "+sk.File+"  "+sk.Reason+"\n") {
+			t.Errorf("stderr does not name %s:\n%s", sk.File, stderr)
+		}
+	}
+}

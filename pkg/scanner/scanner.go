@@ -382,7 +382,8 @@ func (s *Scanner) Scan() (*Results, error) {
 		return nil, err
 	}
 
-	// Deduplicate findings (same file+line+category = keep highest priority)
+	// Deduplicate findings (same file+line+category, and library for a
+	// dependency = keep highest priority)
 	raw := s.findings
 	s.findings = s.deduplicateFindings(s.findings)
 
@@ -1660,13 +1661,15 @@ func isGitURL(s string) bool {
 }
 
 // deduplicateFindings removes near-duplicate findings
-// Keeps the highest priority finding for each file+line+category combination
+// Keeps the highest priority finding for each file+line+category combination,
+// and for a dependency finding, for each file and library
 func (s *Scanner) deduplicateFindings(findings []Finding) []Finding {
 	if len(findings) == 0 {
 		return findings
 	}
 
-	// Key: file:line:category -> best finding.
+	// Key: file:line:category -> best finding, with the package added for a
+	// dependency finding.
 	//
 	// The result used to be built by ranging over this map, and Go randomises
 	// map iteration order, so two scans of an unchanged tree emitted the same
@@ -1679,6 +1682,13 @@ func (s *Scanner) deduplicateFindings(findings []Finding) []Finding {
 
 	for _, f := range findings {
 		key := fmt.Sprintf("%s:%d:%s", f.File, f.Line, f.Category)
+		// Every dependency finding is put on line 1 of its manifest, whichever
+		// line names the library, so file, line and category are the same for
+		// each library a manifest lists. The package tells them apart, and a
+		// library the manifest names twice is still one finding.
+		if f.FindingType == types.FindingTypeDependency {
+			key += ":" + f.Match
+		}
 
 		existing, exists := seen[key]
 		if !exists {

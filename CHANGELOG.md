@@ -148,6 +148,35 @@ change how `scan` decides its exit code.
   before. The text summary asks for the file to be reported at the issue
   tracker only when a listed file stopped on an internal error.
 
+- **A manifest that lists two known crypto libraries now gives a finding for
+  each.** Each dependency finding is put on line 1 of its manifest, and
+  findings with the same file, line and category were merged into one, so the
+  report kept one of the libraries a manifest lists and dropped the rest. A
+  `requirements.txt` holding `cryptography==41.0.0` and
+  `pycryptodome==3.20.0` reported only `DEP-cryptography-requirements.txt`,
+  and its text report printed `Scan complete: 1 finding in 1 file` and
+  `1 repeats a match of the same kind on the same line and is counted with
+  it.` It now also reports `DEP-PyCryptodome-requirements.txt`, the text
+  report prints `Scan complete: 2 findings in 1 file` without that line, and
+  the JSON findings, SARIF results, CSV rows and CBOM components of the scan
+  hold two entries each, where they held one. A package.json whose
+  dependencies are `crypto-js` and `node-forge` reported one of them, and
+  which one could change between runs: of 12 JSON scans of one such
+  directory, 11 kept `crypto-js` and one kept `node-forge`. Each of 12 scans
+  now reports `DEP-crypto-js-package.json` and `DEP-node-forge-package.json`.
+  A post-quantum library lost to a quantum-vulnerable one: a go.mod requiring
+  `github.com/cloudflare/circl` and `github.com/go-jose/go-jose/v4` reported
+  only `DEP-go-jose-go.mod`. It now also reports `DEP-circl-go.mod`, and its
+  JSON `migrationScore` moves from score 0, level `CRITICAL`, to score 50,
+  level `MEDIUM`. A library named twice in one manifest is still one finding,
+  as in a `requirements.txt` that lists `cryptography==41.0.0` on two lines,
+  or a go.mod that names circl under `require` and in a `replace` line. A
+  baseline saved before this change does not hold the libraries that were
+  dropped: with the JSON report of the `requirements.txt` scan above, saved
+  before this change, as the baseline, `scan --baseline` reports
+  `DEP-PyCryptodome-requirements.txt` as its one finding, and
+  `gate --fail-on medium --baseline` exits 1, where it exited 0.
+
 - **The text report lists "Categories Found" in a stable order.** The block
   was rendered from a map, and six text scans of `crypto-samples` printed it
   in six orders. It now lists the category with the most findings first, and

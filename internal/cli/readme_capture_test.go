@@ -210,8 +210,11 @@ var (
 	// streamedLine is a finding printed while the scan runs. The number is
 	// the order of discovery, which differs between runs.
 	streamedLine = regexp.MustCompile(`^(  \[[A-Z]+\] )#\d+\s+`)
-	// elapsedTime is the duration the stream footer prints.
-	elapsedTime = regexp.MustCompile(`\(\d+ms\)`)
+	// elapsedTime is the duration the stream footer prints in parentheses: a
+	// time.Duration rounded to a millisecond, so "15ms" on a fast machine,
+	// "1.023s" on a slow one, "0s" under half a millisecond, "1m2.5s" past
+	// a minute.
+	elapsedTime = regexp.MustCompile(`\((?:\d+(?:\.\d+)?(?:h|ms|m|s))+\)`)
 	// volatileRow is a row of the Scan Information box that changes with the
 	// clock or the machine.
 	volatileRow = regexp.MustCompile(`^│ (Time|Duration|Speed):`)
@@ -222,6 +225,35 @@ var (
 func normalizeScanLine(line string) string {
 	line = streamedLine.ReplaceAllString(line, "${1}#N ")
 	return elapsedTime.ReplaceAllString(line, "(ms)")
+}
+
+// TestNormalizeScanLineIgnoresElapsedTime checks that the stream footer
+// compares equal whatever duration it prints. The footer prints the scan's
+// duration rounded to a millisecond, which is "15ms" on a fast machine,
+// "1.023s" on a slow one, "0s" under half a millisecond and "1m2.5s" past a
+// minute; the README's line must match a fresh scan in every case.
+func TestNormalizeScanLineIgnoresElapsedTime(t *testing.T) {
+	const readme = "  Scan complete: 110 findings in 6 files (15ms)"
+	want := normalizeScanLine(readme)
+	if want == readme {
+		t.Fatalf("normalizeScanLine(%q) left the duration in place", readme)
+	}
+	for _, elapsed := range []string{"0s", "999ms", "1s", "1.023s", "12.5s", "1m2.5s", "1h2m3.004s"} {
+		line := "  Scan complete: 110 findings in 6 files (" + elapsed + ")"
+		if got := normalizeScanLine(line); got != want {
+			t.Errorf("normalizeScanLine(%q) = %q, want %q", line, got, want)
+		}
+	}
+	// Parentheses holding something other than a duration are kept, so a
+	// README line that differs there is still reported.
+	for _, line := range []string{
+		"  Scanning... (findings appear as discovered)",
+		"  Scan complete: 110 findings in 6 files (15)",
+	} {
+		if got := normalizeScanLine(line); got != line {
+			t.Errorf("normalizeScanLine(%q) = %q, want the line unchanged", line, got)
+		}
+	}
 }
 
 // captureOutput runs f with stdout and stderr joined into one pipe, as a

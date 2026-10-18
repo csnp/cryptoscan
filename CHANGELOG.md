@@ -3,7 +3,7 @@
 All notable changes to CryptoScan are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.5.0] - 2026-10-18
 
 ### Added
 
@@ -134,14 +134,19 @@ change how `scan` decides its exit code.
   naming its path and the parse error. Before, nothing was printed. A file
   passed with `--config` still stops the scan with an error.
 
-- **`--exclude "vendor/*"` excluded nothing, and most of the default excludes
-  did nothing either.** An exclude pattern was compared with a directory's name
-  or a file's name on its own, so a pattern containing a `/` could never match.
-  The example in `cryptoscan scan --help`, `--exclude "vendor/*,test/*"`, and
-  the README example `--exclude "vendor/*,node_modules/*,*_test.go"` still
-  scanned `vendor/` and `test/`; only base-name patterns such as `*_test.go` or
-  `vendor` worked. The `ignore.files` list in `.cryptoscan.yaml` had the same
-  problem.
+- **`--exclude "vendor/*"` skipped the subdirectories of `vendor/` but scanned
+  the files directly in it, and the default excludes did the same.** A
+  directory was skipped when a pattern matched its name or its path from the
+  scan root, while a file was tested by its name alone, so `vendor/*` matched
+  `vendor/lib2` and never `vendor/direct.go`. On a tree with
+  `vendor/direct.go`, `vendor/lib2/nested.go` and `src/app.go`, 1.4.0 reported
+  findings in `src/app.go` and `vendor/direct.go` and nothing from
+  `nested.go`; this release reports `src/app.go` alone. The example in
+  `cryptoscan scan --help`, `--exclude "vendor/*,test/*"`, and the README
+  example `--exclude "vendor/*,node_modules/*,*_test.go"` therefore still
+  scanned the files at the top of `vendor/` and `test/`; only base-name
+  patterns such as `*_test.go` or `vendor` worked as intended. The
+  `ignore.files` list in `.cryptoscan.yaml` had the same problem.
 
   Patterns are now matched against the path from the scan root, for files and
   directories alike:
@@ -160,13 +165,15 @@ change how `scan` decides its exit code.
 
   **This changes default coverage.** The scan command always adds `vendor/*`,
   `venv/*`, `.venv/*` and `target/*` to the exclude list, and until now those
-  four had no effect. Directories named `vendor`, `venv`, `.venv` or `target`,
-  at any depth, are no longer scanned by default, so a repository with
-  vendored dependencies, a virtual environment, or Maven or Cargo build output
-  in its tree reports fewer findings than before. To scan one of them, pass it
-  as the target, for example `cryptoscan scan ./vendor`. The other default
-  directory excludes (`.git`, `.svn`, `.hg`, `node_modules`, `__pycache__`,
-  `dist`, `build`) were already skipped by name and behave as before. The default patterns
+  four skipped only the subdirectories of such a directory at the top of the
+  scan target, so the files directly in it were scanned. Directories named
+  `vendor`, `venv`, `.venv` or `target`, at any depth, are no longer scanned
+  by default, so a repository with vendored dependencies, a virtual
+  environment, or Maven or Cargo build output in its tree reports fewer
+  findings than before. To scan one of them, pass it as the target, for
+  example `cryptoscan scan ./vendor`. The other default directory excludes
+  (`.git`, `.svn`, `.hg`, `node_modules`, `__pycache__`, `dist`, `build`)
+  were already skipped by name and behave as before. The default patterns
   skip directories only: a file named `build` or `target` is not excluded.
 
 - **Every finding now says how to check it and what to change.** Each finding
@@ -178,7 +185,9 @@ change how `scan` decides its exit code.
   Where no language-specific text exists, the pattern's remediation sentence
   is the fix, and it is no longer printed twice. `--group-by file` prints both
   lines, and JSON findings carry them in the new `verify` and `fix` fields.
-  SARIF and CSV output are unchanged.
+  SARIF output is unchanged. CSV output has no new column; its rows carry the
+  new Impact and Effort text (on `crypto-samples`, 109 of the 110 rows differ
+  from 1.4.0, all of them in those two columns only).
 
 - **Effort no longer says "Assessment needed".** On `crypto-samples/`, 65 of
   the 110 findings ended in that placeholder. Effort now comes from the
@@ -339,6 +348,17 @@ change how `scan` decides its exit code.
   LC_UUID load command`. The section now says so and gives two ways to build
   one that starts: Go 1.23 or later, or `CGO_ENABLED=0`, the setting the
   release binaries are built with.
+
+- **The README's sample output is regenerated and checked by a test.** The
+  block under "What `cryptoscan scan crypto-samples` prints" and the capture
+  behind it, `docs/captures/scan-crypto-samples.txt`, were made with release
+  1.4.0 and still showed `Scan complete: 121 findings` and an `INVENTORY` row
+  without its label. Both are regenerated from a scan of this release.
+  `TestReadmeExcerptIsCurrent` in `internal/cli` scans `crypto-samples` and
+  fails when a line the README shows is no longer printed, and with
+  `-update-capture=<directory>` it rewrites the capture, its metadata file and
+  the README block from one scan. `TestReadmeExcerptMatchesCapture` fails
+  when the three disagree.
 
 ### Known limitations
 

@@ -24,11 +24,13 @@ What `cryptoscan scan crypto-samples` prints, trimmed ([full output](docs/captur
   Scanning... (findings appear as discovered)
 
   [INFO] #1   ML-KEM Key Encapsul... ...scan/crypto-samples/pqc_algorithms.py:5   
-  [INFO] #2   Post-Quantum Crypto... ...oscan/crypto-samples/hybrid_crypto.js:5   
-  [INFO] #3   Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:7   
+  [INFO] #2   Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:7   
+  [INFO] #3   Post-Quantum Crypto... ...oscan/crypto-samples/hybrid_crypto.js:5   
   ...
 
-  Scan complete: 121 findings in 6 files (16ms)
+  Scan complete: 110 findings in 6 files (15ms)
+  The list above has 121 matches.
+  11 repeat a match of the same kind on the same line and are counted with it.
 
 
 ╔═══════════════════════════════════════════════════════════════╗
@@ -38,8 +40,12 @@ What `cryptoscan scan crypto-samples` prints, trimmed ([full output](docs/captur
 
 ┌─ QUANTUM MIGRATION READINESS ──────────────────────────────────┐
 │  Score: █████████░░░░░░░░░░░░░░░░ 37.5% [CRITICAL]│
+│  Method: (safe 32 + 0.8 x hybrid 3 + 0.3 x partial 23)          │
+│          / 110 findings, as a percentage. Every finding counts  │
+│          once; test and example files count the same as         │
+│          production code.                                       │
 │─────────────────────────────────────────────────────────────────│
-│  INVENTORY                                                     │
+│  INVENTORY (findings by migration status)                      │
 │    ✓ Safe (PQC):        32       ✗ Vulnerable:    39      │
 │    ◐ Hybrid:            3        [!] Critical:      13      │
 │    ◑ Partial:           23       Total:          110     │
@@ -62,9 +68,9 @@ What `cryptoscan scan crypto-samples` prints, trimmed ([full output](docs/captur
 ┌─ Scan Information ─────────────────────────────────────────────┐
 │ Target:   crypto-samples                                      │
   ...
-│ Duration: 16ms                                                │
+│ Duration: 15ms                                                │
 │ Scanned:  6 files • 873 lines • 26.3 KB                       │
-│ Speed:    383 files/sec • 1.6 MB/sec                          │
+│ Speed:    393 files/sec • 1.7 MB/sec                          │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

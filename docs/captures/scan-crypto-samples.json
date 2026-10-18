@@ -1,31 +1,31 @@
 {
   "capture": "scan-crypto-samples.txt",
   "command": "cryptoscan scan crypto-samples",
-  "version": "1.4.0",
-  "build": "go build -ldflags \"-X main.version=1.4.0\" ./cmd/cryptoscan",
-  "commit": "11f0e46e4e1d0a5819246eab66f2a8da70d0a8e4",
+  "version": "1.5.0",
+  "build": "go test -ldflags \"-X github.com/csnp/cryptoscan/pkg/version.value=1.5.0\" ./internal/cli -run TestReadmeExcerptIsCurrent -update-capture=/tmp/qramm/cryptoscan",
+  "commit": "c43deac47c8e15d09c528460ad02e589b1f15152",
   "fixture": "crypto-samples",
-  "workingDirectory": "/tmp/cryptoscan",
-  "invocation": "run from a directory holding only crypto-samples extracted from the commit, stdout not a terminal (so no color), stderr merged into stdout, with a new empty HOME",
-  "capturedAt": "2026-10-16T03:33:28Z",
+  "workingDirectory": "/tmp/qramm/cryptoscan",
+  "invocation": "run in-process by TestReadmeExcerptIsCurrent from a directory holding only crypto-samples copied from the commit, stdout and stderr joined into one pipe (so no color), with HOME set to a new empty directory",
+  "capturedAt": "2026-10-18T15:49:33Z",
   "exitCode": 1,
-  "lineCount": 3166,
-  "outputSha256": "e648220b3a5c8b2e34a9719031f4515909e41b331003f060ded313745c458cbf",
+  "lineCount": 3230,
+  "outputSha256": "ef02c696c9f1941aaa829f2fb9090bbb0642729d4bd4fd8271aedcddd1637beb",
   "excerpt": {
     "doc": "README.md",
     "startLine": 1,
-    "endLine": 162,
+    "endLine": 168,
     "elidedLines": [
       [
         6,
         123
       ],
       [
-        158,
-        158
+        164,
+        164
       ]
     ],
     "elisionMarker": "  ...",
-    "sha256": "ea7782a5157e5e08401668332f66aa23814e79a69d34d114877776e6ee95aef1"
+    "sha256": "ee5eb3b1eb7a3f367ad7a52613ec9feb2662d3d02b433a1c47b29ff918f17d0f"
   }
 }

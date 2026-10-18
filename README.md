@@ -82,6 +82,7 @@ Common jobs:
 - Write a Cryptographic Bill of Materials: `cryptoscan scan . --format cbom --output crypto-bom.json` ([CBOM output](docs/commands.md#cbom-cryptographic-bill-of-materials))
 - Fail a CI build on serious findings: `cryptoscan scan . --fail-on high` ([exit code control](docs/ci.md#exit-code-control))
 - Report only findings that are new since a baseline: `cryptoscan scan . --baseline baseline.json` ([baseline workflow](docs/ci.md#baseline-workflow))
+- See what CryptoScan detects before you scan: `cryptoscan patterns list`, or `cryptoscan patterns search md5` for one algorithm ([command reference](docs/commands.md#commands))
 
 The scan exits with code 1 when it finds a CRITICAL issue or hits an error, and 0 otherwise; `--fail-on` changes the threshold (see [Exit codes](docs/commands.md#exit-codes)).
 
@@ -103,7 +104,7 @@ CryptoScan identifies cryptographic usage across your technology stack:
 | **Key Material** | Private keys (RSA, EC, SSH, PGP, PKCS#8), JWT secrets, HMAC keys |
 | **Dependencies** | Crypto libraries across 20+ package managers |
 
-DSA is not detected, and detection matches whole words only, so a compound identifier such as `RSAPrivateKey` is not matched. MACs, key derivation, cloud KMS and configuration patterns are in the full detection table in [How CryptoScan works](docs/how-it-works.md), and every pattern is in [PATTERNS.md](PATTERNS.md).
+DSA is not detected, and detection matches whole words only, so a compound identifier such as `RSAPrivateKey` is not matched. MACs, key derivation, cloud KMS and configuration patterns are in the full detection table in [How CryptoScan works](docs/how-it-works.md). `cryptoscan patterns list` prints every pattern the scanner runs, with its ID, severity, quantum risk, category and name, and [PATTERNS.md](PATTERNS.md) explains how detection, confidence scoring and the risk levels work.
 
 ### Quantum Risk Classification
 

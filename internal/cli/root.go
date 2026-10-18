@@ -94,6 +94,7 @@ func init() {
 	rootCmd.AddCommand(cbomCmd)
 	rootCmd.AddCommand(gateCmd)
 	rootCmd.AddCommand(pqcCmd)
+	rootCmd.AddCommand(patternsCmd)
 	rootCmd.AddCommand(versionCmd)
 
 	// --version prints the same text as the version command. Declaring the

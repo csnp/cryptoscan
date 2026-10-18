@@ -10,11 +10,13 @@ This page lists every CryptoScan command and flag, the exit codes, and what each
 | `cryptoscan cbom <path or URL>` | Write a CycloneDX 1.6 Cryptographic Bill of Materials (equivalent to scan --format cbom) |
 | `cryptoscan gate <path or URL>` | Fail a build when findings reach a severity (equivalent to scan --fail-on high) |
 | `cryptoscan pqc <path or URL>` | Show post-quantum readiness: PQC and hybrid usage found, quantum-vulnerable usage, and the QRAMM Dimension 1 levels |
+| `cryptoscan patterns list` | List every detection pattern, or those in one category or at one quantum risk |
+| `cryptoscan patterns search <term>` | List the detection patterns that mention a term or whose expression matches it |
 | `cryptoscan version` | Print version information |
 | `cryptoscan completion <shell>` | Generate the autocompletion script for the specified shell |
 | `cryptoscan help [command]` | Help about any command |
 
-The shell is one of `bash`, `fish`, `powershell` and `zsh`, and `--no-descriptions` disables completion descriptions. The flags of `cbom`, `gate` and `pqc` are listed after the exit codes below.
+The shell is one of `bash`, `fish`, `powershell` and `zsh`, and `--no-descriptions` disables completion descriptions. The flags of `cbom`, `gate`, `pqc` and `patterns` are listed after the exit codes below.
 
 ## Scan flags
 
@@ -123,6 +125,26 @@ Flags:
       --ignore string           Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*")
       --config string           Config file path (default: auto-detect .cryptoscan.yaml)
       --no-color                Disable colored output
+```
+
+```
+cryptoscan patterns list [flags]
+cryptoscan patterns search <term> [flags]
+
+Lists the detection patterns a scan matches against the lines of the files
+it reads, from the scanner's own pattern definitions, without scanning
+anything: one line per pattern with its ID, severity, quantum risk, category
+and name, in the order the scanner checks them. search keeps the patterns
+whose ID, name, category, algorithm or description contains the term,
+ignoring case, and those whose regular expression matches the term. The ID
+is the one --ignore accepts, and the category the one --ignore-category
+accepts. --format json adds each pattern's description, remediation,
+references, tags and regular expression. Exits 0 when nothing matches.
+
+Flags:
+      --category string   Show only patterns in this category (e.g., "Certificate")
+  -f, --format string     Output format: text, json (default "text")
+      --quantum string    Show only patterns at this quantum risk: vulnerable, partial, safe, unknown
 ```
 
 ## Common workflows

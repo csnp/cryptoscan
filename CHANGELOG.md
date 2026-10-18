@@ -267,9 +267,17 @@ change how `scan` decides its exit code.
   `Replace crypto-js with node:crypto in Node.js or the Web Crypto API (crypto.subtle) in the browser, then remove crypto-js from package.json`.
   `--group-by file` prints these lines, and JSON findings carry them in the
   new `verify`, `fix` and `guidance` fields, with `fix` empty when `guidance`
-  is set. SARIF output is unchanged. CSV output has no new column; its rows
-  carry the new Impact and Effort text (on `crypto-samples`, 109 of the 110
-  rows differ from 1.4.0, all of them in those two columns only).
+  is set. SARIF output has no such field and CSV output no such column, but
+  both carry the new `crypto-js` text where they carried
+  `Consider using Web Crypto API or node:crypto for better security`: SARIF
+  as the `help.text` of the `DEP-crypto-js-package.json` rule in
+  `runs[0].tool.driver.rules`, and CSV in the Remediation column of that
+  finding's row. CSV rows also carry the new Impact and Effort text. On
+  `crypto-samples`, which has no `package.json` or other dependency
+  manifest, SARIF output has the same rules and results as 1.4.0, with the
+  rules in the order described under "SARIF rules are listed in a stable
+  order". In the CSV output for `crypto-samples`, 109 of the 110 rows differ
+  from 1.4.0, all of them in the Impact and Effort columns only.
 
 - **Effort no longer says "Assessment needed".** On `crypto-samples/`, 65 of
   the 110 findings ended in that placeholder. Effort now comes from the

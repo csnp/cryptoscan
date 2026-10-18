@@ -98,6 +98,14 @@ change how `scan` decides its exit code.
   rule would have left out anyway is not listed. The exit code does not
   change, with or without `--fail-on`.
 
+- **The text report lists "Categories Found" in a stable order.** The block
+  was rendered from a map, and six text scans of `crypto-samples` printed it
+  in six orders. It now lists the category with the most findings first, and
+  categories with the same count in name order, so six text scans of
+  `crypto-samples` from the same build print it identically. Six text
+  reports of `crypto-samples` run with `--stream=false` are identical apart
+  from their Time, Duration and Speed lines.
+
 - **SARIF rules are listed in a stable order.** `runs[0].tool.driver.rules`
   was listed in a different order on each run of an unchanged tree. Rules are
   now written in the order of their first result, so two SARIF files of
@@ -412,12 +420,10 @@ change how `scan` decides its exit code.
 
 - **Two text reports of an unchanged tree can differ beyond their timing
   lines.** The findings listed while the scan runs appear in the order the
-  parallel workers find them, and the "Categories Found" block is rendered
-  from a map: six runs on `crypto-samples/` listed the findings in six
-  orders, and ten runs printed "Categories Found" in ten. With
-  `--stream=false`, only the "Categories Found" order and the timing lines
-  change. To compare runs, use `--format json`, which lists the findings in
-  the same order on every run.
+  parallel workers find them: six runs on `crypto-samples/` listed the
+  findings in six orders. With `--stream=false`, only the timing lines
+  change. To compare runs, use `--stream=false`, or `--format json`, which
+  lists the findings in the same order on every run.
 
 - **A file the scanner cannot read is skipped silently.** A file without read
   permission in the scanned tree produces no warning, nothing on stderr and

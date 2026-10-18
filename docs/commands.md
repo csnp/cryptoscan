@@ -31,7 +31,7 @@ The descriptions below are the ones `cryptoscan scan --help` prints. Four flags 
 | `-f, --format string` | Output format: text, json, csv, sarif, cbom (default "text") |
 | `-o, --output string` | Output file (default: stdout) |
 | `-i, --include string` | File patterns to include (comma-separated) |
-| `-e, --exclude string` | File patterns to exclude (comma-separated) |
+| `-e, --exclude string` | File and directory patterns to exclude (comma-separated): a pattern without `/` matches a name at any depth (`vendor`, `*_test.go`), a pattern ending in `/*` or `/**` skips that directory and everything in it (`vendor/*`), and any other pattern is matched against the path from the scan root (`src/*.pb.go`) |
 | `-d, --max-depth int` | Maximum directory depth (0 = unlimited). NOT YET IMPLEMENTED: the value is accepted and ignored |
 | `-g, --group-by string` | Group output by: file. NOT YET IMPLEMENTED: severity, category and quantum are accepted and ignored |
 | `-c, --context int` | Number of context lines to show around findings. NOT YET IMPLEMENTED: the report always shows 3 (default 3) |
@@ -69,7 +69,7 @@ How these flags are used in a pipeline is in [CI/CD integration](ci.md). The `.c
 
 By default the scan exits 1 on any CRITICAL finding and 0 otherwise. `--fail-on` replaces that default, and a `failOn` key in `.cryptoscan.yaml` does the same when the flag is not given. Findings removed by `--baseline`, `--ignore` or `--ignore-category` do not count. The logic is the `exitCode` function in `internal/cli/scan.go`.
 
-An invalid `--fail-on` value is accepted silently in release 1.4.0 (see the known limitations in [CHANGELOG.md](../CHANGELOG.md)), so check the spelling of the severity in your pipeline.
+Before 1.5.0, an invalid `--fail-on` value is accepted silently (see the 1.4.0 known limitations in [CHANGELOG.md](../CHANGELOG.md)), so in a pipeline that runs an earlier release, check the spelling of the severity. From 1.5.0, an unknown value is rejected before anything is scanned, with `Error: unknown --fail-on "hihg" (valid: info, low, medium, high, critical)` and exit code 1.
 
 ```
 cryptoscan cbom [path or URL] [flags]
@@ -103,6 +103,7 @@ Flags:
       --ignore string           Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*")
       --ignore-category string  Categories to ignore (e.g., "Certificate,Library Import")
       --config string           Config file path (default: auto-detect .cryptoscan.yaml)
+      --no-color                Disable colored output
 ```
 
 ```
@@ -122,6 +123,7 @@ Flags:
   -e, --exclude string          File patterns to exclude (comma-separated globs)
       --ignore string           Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*")
       --config string           Config file path (default: auto-detect .cryptoscan.yaml)
+      --no-color                Disable colored output
 ```
 
 ## Common workflows

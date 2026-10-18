@@ -57,7 +57,7 @@ A flag set on the command line to something other than its default takes precede
 
 When `--config` is not given, CryptoScan looks for `.cryptoscan.yaml`, `.cryptoscan.yml`, `cryptoscan.yaml` or `cryptoscan.yml` in the scan target's directory and then in each parent directory. For a Git URL it starts from the current directory.
 
-In release 1.4.0, a malformed file that was found automatically is ignored without a message, while the same file passed with `--config` stops the scan with an error. To confirm your rules are active, run once with `--config .cryptoscan.yaml`.
+Before 1.5.0, a malformed file that was found automatically is ignored without a message, while the same file passed with `--config` stops the scan with an error. With an earlier release, run once with `--config .cryptoscan.yaml` to confirm your rules are active. From 1.5.0, the scan prints `Warning: config file <path> could not be parsed and was not applied: <error>` on standard error and runs without the file.
 
 ## Inline suppression
 

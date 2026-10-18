@@ -1,6 +1,6 @@
 # CryptoScan Detection Patterns
 
-CryptoScan uses 90+ detection patterns to identify cryptographic algorithms, protocols, keys, certificates, and configurations in your codebase. Each pattern includes quantum risk classification and remediation guidance.
+CryptoScan uses 90 detection patterns to identify cryptographic algorithms, protocols, keys, certificates, and configurations in your codebase. Each pattern includes quantum risk classification and remediation guidance.
 
 ## Table of Contents
 

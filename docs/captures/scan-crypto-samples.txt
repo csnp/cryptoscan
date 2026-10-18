@@ -1,128 +1,130 @@
   Scanning... (findings appear as discovered)
 
   [INFO] #1   ML-KEM Key Encapsul... ...scan/crypto-samples/pqc_algorithms.py:5   
-  [INFO] #2   Post-Quantum Crypto... ...oscan/crypto-samples/hybrid_crypto.js:5   
-  [INFO] #3   Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:7   
+  [INFO] #2   Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:7   
+  [INFO] #3   Post-Quantum Crypto... ...oscan/crypto-samples/hybrid_crypto.js:5   
   [LOW] #4   Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:18 [!]
-  [INFO] #5   Argon2                 ...oscan/crypto-samples/macs_and_kdfs.go:14 [~]
-  [LOW] #6   Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:19 [!]
-  [INFO] #7   Hybrid Key Exchange    ...oscan/crypto-samples/hybrid_crypto.js:11   
-  [INFO] #8   bcrypt                 ...oscan/crypto-samples/macs_and_kdfs.go:15 [~]
-  [INFO] #9   ML-KEM Key Encapsul... ...scan/crypto-samples/pqc_algorithms.py:10   
-  [INFO] #10  Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:10   
-  [MEDIUM] #11  MD5 Hash Function      ...scan/crypto-samples/crypto_samples.go:21 [!]
-  [INFO] #12  HKDF                   ...oscan/crypto-samples/macs_and_kdfs.go:16 [~]
-  [HIGH] #13  Elliptic Curve Cryp... ...oscan/crypto-samples/hybrid_crypto.js:13 [!]
-  [LOW] #14  RSA Algorithm          ...scan/crypto-samples/crypto_samples.go:23 [!]
-  [INFO] #15  PBKDF2                 ...oscan/crypto-samples/macs_and_kdfs.go:17 [~]
-  [LOW] #16  SHA-1 Hash Function    ...scan/crypto-samples/crypto_samples.go:24 [!]
+  [LOW] #5   Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:19 [!]
+  [INFO] #6   Argon2                 ...oscan/crypto-samples/macs_and_kdfs.go:14 [~]
+  [INFO] #7   ML-KEM Key Encapsul... ...scan/crypto-samples/pqc_algorithms.py:10   
+  [INFO] #8   Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:10   
+  [MEDIUM] #9   MD5 Hash Function      ...scan/crypto-samples/crypto_samples.go:21 [!]
+  [INFO] #10  Hybrid Key Exchange    ...oscan/crypto-samples/hybrid_crypto.js:11   
+  [INFO] #11  bcrypt                 ...oscan/crypto-samples/macs_and_kdfs.go:15 [~]
+  [LOW] #12  RSA Algorithm          ...scan/crypto-samples/crypto_samples.go:23 [!]
+  [INFO] #13  HKDF                   ...oscan/crypto-samples/macs_and_kdfs.go:16 [~]
+  [LOW] #14  SHA-1 Hash Function    ...scan/crypto-samples/crypto_samples.go:24 [!]
+  [HIGH] #15  Elliptic Curve Cryp... ...oscan/crypto-samples/hybrid_crypto.js:13 [!]
+  [INFO] #16  PBKDF2                 ...oscan/crypto-samples/macs_and_kdfs.go:17 [~]
   [INFO] #17  ML-KEM Key Encapsul... ...scan/crypto-samples/pqc_algorithms.py:15   
   [INFO] #18  Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:15   
-  [INFO] #19  ML-KEM Key Encapsul... ...oscan/crypto-samples/hybrid_crypto.js:17   
-  [INFO] #20  bcrypt                 ...scan/crypto-samples/crypto_samples.go:31 [~]
-  [INFO] #21  ML-KEM Key Encapsul... ...oscan/crypto-samples/hybrid_crypto.js:17   
-  [INFO] #22  Post-Quantum Crypto... ...oscan/crypto-samples/hybrid_crypto.js:17   
-  [INFO] #23  ML-DSA Digital Sign... ...scan/crypto-samples/pqc_algorithms.py:22   
-  [INFO] #24  Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:22   
-  [INFO] #25  ChaCha20-Poly1305      ...scan/crypto-samples/crypto_samples.go:32 [~]
-  [INFO] #26  ML-KEM Key Encapsul... ...oscan/crypto-samples/hybrid_crypto.js:18   
-  [HIGH] #27  RSA Algorithm          ...can/crypto-samples/CryptoSamples.java:28 [!]
-  [INFO] #28  ML-KEM Key Encapsul... ...scan/crypto-samples/crypto_samples.go:41   
-  [INFO] #29  ML-DSA Digital Sign... ...scan/crypto-samples/pqc_algorithms.py:28   
-  [INFO] #30  Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:28   
-  [HIGH] #31  RSA Algorithm          ...scan/crypto-samples/crypto_samples.go:42 [!]
-  [INFO] #32  SLH-DSA Hash-Based ... ...scan/crypto-samples/pqc_algorithms.py:35   
-  [INFO] #33  Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:35   
-  [HIGH] #34  RSA Algorithm          ...scan/crypto-samples/crypto_samples.py:12 [!]
-  [HIGH] #35  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:12 [!]
-  [INFO] #36  SLH-DSA Hash-Based ... ...scan/crypto-samples/pqc_algorithms.py:38   
-  [HIGH] #37  RSA Algorithm          ...scan/crypto-samples/crypto_samples.go:44 [!]
+  [INFO] #19  bcrypt                 ...scan/crypto-samples/crypto_samples.go:31 [~]
+  [INFO] #20  ML-DSA Digital Sign... ...scan/crypto-samples/pqc_algorithms.py:22   
+  [INFO] #21  Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:22   
+  [INFO] #22  ChaCha20-Poly1305      ...scan/crypto-samples/crypto_samples.go:32 [~]
+  [INFO] #23  ML-KEM Key Encapsul... ...oscan/crypto-samples/hybrid_crypto.js:17   
+  [INFO] #24  ML-KEM Key Encapsul... ...oscan/crypto-samples/hybrid_crypto.js:17   
+  [INFO] #25  Post-Quantum Crypto... ...oscan/crypto-samples/hybrid_crypto.js:17   
+  [HIGH] #26  RSA Algorithm          ...scan/crypto-samples/crypto_samples.py:12 [!]
+  [HIGH] #27  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:12 [!]
+  [INFO] #28  ML-KEM Key Encapsul... ...oscan/crypto-samples/hybrid_crypto.js:18   
+  [HIGH] #29  RSA Algorithm          ...can/crypto-samples/CryptoSamples.java:28 [!]
+  [INFO] #30  ML-KEM Key Encapsul... ...scan/crypto-samples/crypto_samples.go:41   
+  [INFO] #31  ML-DSA Digital Sign... ...scan/crypto-samples/pqc_algorithms.py:28   
+  [INFO] #32  Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:28   
+  [HIGH] #33  RSA Algorithm          ...scan/crypto-samples/crypto_samples.go:42 [!]
+  [INFO] #34  SLH-DSA Hash-Based ... ...scan/crypto-samples/pqc_algorithms.py:35   
+  [INFO] #35  Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:35   
+  [HIGH] #36  RSA Algorithm          ...scan/crypto-samples/crypto_samples.go:44 [!]
+  [INFO] #37  SLH-DSA Hash-Based ... ...scan/crypto-samples/pqc_algorithms.py:38   
   [INFO] #38  Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:38   
-  [INFO] #39  Poly1305               ...oscan/crypto-samples/hybrid_crypto.js:36 [~]
-  [INFO] #40  ChaCha20-Poly1305      ...oscan/crypto-samples/hybrid_crypto.js:36 [~]
-  [INFO] #41  ChaCha20 Stream Cipher ...oscan/crypto-samples/hybrid_crypto.js:36 [~]
-  [INFO] #42  ML-KEM Key Encapsul... ...scan/crypto-samples/pqc_algorithms.py:45   
-  [INFO] #43  ML-KEM Key Encapsul... ...scan/crypto-samples/pqc_algorithms.py:45   
+  [HIGH] #39  RSA Algorithm          ...scan/crypto-samples/crypto_samples.py:24 [!]
+  [HIGH] #40  RSA Algorithm          ...scan/crypto-samples/crypto_samples.py:25 [!]
+  [INFO] #41  Poly1305               ...oscan/crypto-samples/hybrid_crypto.js:36 [~]
+  [INFO] #42  ChaCha20-Poly1305      ...oscan/crypto-samples/hybrid_crypto.js:36 [~]
+  [INFO] #43  ChaCha20 Stream Cipher ...oscan/crypto-samples/hybrid_crypto.js:36 [~]
   [HIGH] #44  RSA Algorithm          ...can/crypto-samples/CryptoSamples.java:37 [!]
-  [HIGH] #45  RSA Algorithm          ...scan/crypto-samples/crypto_samples.go:52 [!]
-  [HIGH] #46  RSA Algorithm          ...scan/crypto-samples/crypto_samples.go:54 [!]
-  [INFO] #47  ML-KEM Key Encapsul... ...scan/crypto-samples/pqc_algorithms.py:53   
-  [HIGH] #48  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:59 [!]
-  [INFO] #49  AES-GCM Authenticat... ...oscan/crypto-samples/hybrid_crypto.js:59 [~]
-  [INFO] #50  HKDF                   ...scan/crypto-samples/pqc_algorithms.py:55 [~]
-  [HIGH] #51  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:60 [!]
-  [HIGH] #52  Elliptic Curve Cryp... ...can/crypto-samples/CryptoSamples.java:48 [!]
-  [HIGH] #53  RSA Algorithm          ...scan/crypto-samples/crypto_samples.py:24 [!]
-  [INFO] #54  HKDF                   ...scan/crypto-samples/pqc_algorithms.py:56 [~]
-  [INFO] #55  HKDF                   ...scan/crypto-samples/pqc_algorithms.py:56 [~]
-  [INFO] #56  KMAC                   ...oscan/crypto-samples/macs_and_kdfs.go:66   
-  [INFO] #57  KMAC                   ...oscan/crypto-samples/macs_and_kdfs.go:67   
-  [INFO] #58  XMSS Stateful Signa... ...scan/crypto-samples/pqc_algorithms.py:63   
-  [INFO] #59  Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:63   
-  [HIGH] #60  RSA Algorithm          ...scan/crypto-samples/crypto_samples.py:25 [!]
-  [INFO] #61  KMAC                   ...oscan/crypto-samples/macs_and_kdfs.go:68   
-  [HIGH] #62  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:65 [!]
-  [HIGH] #63  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:65 [!]
-  [INFO] #64  LMS/HSS Stateful Si... ...scan/crypto-samples/pqc_algorithms.py:66   
-  [HIGH] #65  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:66 [!]
-  [INFO] #66  LMS/HSS Stateful Si... ...scan/crypto-samples/pqc_algorithms.py:67   
-  [INFO] #67  LMS/HSS Stateful Si... ...scan/crypto-samples/pqc_algorithms.py:67   
-  [HIGH] #68  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:70 [!]
-  [INFO] #69  TLS Configuration      ...oscan/crypto-samples/hybrid_crypto.js:80 [~]
-  [INFO] #70  TLS Configuration      ...oscan/crypto-samples/hybrid_crypto.js:81 [~]
-  [HIGH] #71  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:71 [!]
-  [HIGH] #72  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:75 [!]
-  [HIGH] #73  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:76 [!]
-  [INFO] #74  HKDF                   ...oscan/crypto-samples/macs_and_kdfs.go:82 [~]
-  [HIGH] #75  RSA Algorithm          ...scan/crypto-samples/crypto_samples.py:34 [!]
-  [CRITICAL] #76  RSA-1024 Key Size      ...scan/crypto-samples/crypto_samples.py:34 [!]
-  [INFO] #77  AES-GCM Authenticat... ...can/crypto-samples/CryptoSamples.java:71 [~]
-  [HIGH] #78  RSA Algorithm          ...scan/crypto-samples/crypto_samples.py:35 [!]
-  [INFO] #79  ML-DSA Digital Sign... ...oscan/crypto-samples/hybrid_crypto.js:99   
-  [INFO] #80  Post-Quantum Crypto... ...oscan/crypto-samples/hybrid_crypto.js:99   
-  [LOW] #81  Hardcoded Key Size     ...scan/crypto-samples/crypto_samples.py:37   
-  [HIGH] #82  Elliptic Curve Cryp... ...oscan/crypto-samples/hybrid_crypto.js:104 [!]
-  [INFO] #83  PBKDF2                 ...oscan/crypto-samples/macs_and_kdfs.go:94 [~]
-  [INFO] #84  ML-DSA Digital Sign... ...oscan/crypto-samples/hybrid_crypto.js:105   
-  [LOW] #85  Elliptic Curve Cryp... ...oscan/crypto-samples/hybrid_crypto.js:106 [!]
-  [INFO] #86  ML-DSA Digital Sign... ...oscan/crypto-samples/hybrid_crypto.js:106   
-  [INFO] #87  Composite Digital S... ...oscan/crypto-samples/hybrid_crypto.js:106   
-  [INFO] #88  Hybrid Key Exchange    ...oscan/crypto-samples/hybrid_crypto.js:111   
-  [HIGH] #89  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:43 [!]
+  [INFO] #45  ML-KEM Key Encapsul... ...scan/crypto-samples/pqc_algorithms.py:45   
+  [INFO] #46  ML-KEM Key Encapsul... ...scan/crypto-samples/pqc_algorithms.py:45   
+  [HIGH] #47  RSA Algorithm          ...scan/crypto-samples/crypto_samples.go:52 [!]
+  [HIGH] #48  RSA Algorithm          ...scan/crypto-samples/crypto_samples.go:54 [!]
+  [HIGH] #49  RSA Algorithm          ...scan/crypto-samples/crypto_samples.py:34 [!]
+  [CRITICAL] #50  RSA-1024 Key Size      ...scan/crypto-samples/crypto_samples.py:34 [!]
+  [HIGH] #51  RSA Algorithm          ...scan/crypto-samples/crypto_samples.py:35 [!]
+  [HIGH] #52  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:59 [!]
+  [INFO] #53  ML-KEM Key Encapsul... ...scan/crypto-samples/pqc_algorithms.py:53   
+  [LOW] #54  Hardcoded Key Size     ...scan/crypto-samples/crypto_samples.py:37   
+  [HIGH] #55  Elliptic Curve Cryp... ...can/crypto-samples/CryptoSamples.java:48 [!]
+  [HIGH] #56  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:60 [!]
+  [INFO] #57  HKDF                   ...scan/crypto-samples/pqc_algorithms.py:55 [~]
+  [INFO] #58  KMAC                   ...oscan/crypto-samples/macs_and_kdfs.go:66   
+  [INFO] #59  AES-GCM Authenticat... ...oscan/crypto-samples/hybrid_crypto.js:59 [~]
+  [INFO] #60  KMAC                   ...oscan/crypto-samples/macs_and_kdfs.go:67   
+  [INFO] #61  HKDF                   ...scan/crypto-samples/pqc_algorithms.py:56 [~]
+  [INFO] #62  HKDF                   ...scan/crypto-samples/pqc_algorithms.py:56 [~]
+  [HIGH] #63  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:43 [!]
+  [INFO] #64  KMAC                   ...oscan/crypto-samples/macs_and_kdfs.go:68   
+  [INFO] #65  XMSS Stateful Signa... ...scan/crypto-samples/pqc_algorithms.py:63   
+  [INFO] #66  Post-Quantum Crypto... ...scan/crypto-samples/pqc_algorithms.py:63   
+  [HIGH] #67  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:44 [!]
+  [HIGH] #68  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:65 [!]
+  [HIGH] #69  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:65 [!]
+  [INFO] #70  LMS/HSS Stateful Si... ...scan/crypto-samples/pqc_algorithms.py:66   
+  [HIGH] #71  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:66 [!]
+  [INFO] #72  LMS/HSS Stateful Si... ...scan/crypto-samples/pqc_algorithms.py:67   
+  [INFO] #73  LMS/HSS Stateful Si... ...scan/crypto-samples/pqc_algorithms.py:67   
+  [HIGH] #74  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:48 [!]
+  [HIGH] #75  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:70 [!]
+  [HIGH] #76  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:49 [!]
+  [HIGH] #77  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:71 [!]
+  [INFO] #78  TLS Configuration      ...oscan/crypto-samples/hybrid_crypto.js:80 [~]
+  [INFO] #79  HKDF                   ...oscan/crypto-samples/macs_and_kdfs.go:82 [~]
+  [INFO] #80  TLS Configuration      ...oscan/crypto-samples/hybrid_crypto.js:81 [~]
+  [HIGH] #81  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:53 [!]
+  [HIGH] #82  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:75 [!]
+  [HIGH] #83  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:76 [!]
+  [INFO] #84  AES-GCM Authenticat... ...can/crypto-samples/CryptoSamples.java:71 [~]
+  [INFO] #85  AES-GCM Authenticat... ...scan/crypto-samples/crypto_samples.py:62 [~]
+  [INFO] #86  PBKDF2                 ...oscan/crypto-samples/macs_and_kdfs.go:94 [~]
+  [INFO] #87  ML-DSA Digital Sign... ...oscan/crypto-samples/hybrid_crypto.js:99   
+  [INFO] #88  Post-Quantum Crypto... ...oscan/crypto-samples/hybrid_crypto.js:99   
+  [HIGH] #89  Elliptic Curve Cryp... ...oscan/crypto-samples/hybrid_crypto.js:104 [!]
   [INFO] #90  Argon2                 ...oscan/crypto-samples/macs_and_kdfs.go:103 [~]
-  [HIGH] #91  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:44 [!]
-  [CRITICAL] #92  MD5 Hash Function      ...can/crypto-samples/CryptoSamples.java:96 [!]
-  [INFO] #93  bcrypt                 ...oscan/crypto-samples/macs_and_kdfs.go:111 [~]
-  [HIGH] #94  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:48 [!]
-  [HIGH] #95  SHA-1 Hash Function    ...can/crypto-samples/CryptoSamples.java:104 [!]
-  [INFO] #96  ChaCha20-Poly1305      ...scan/crypto-samples/crypto_samples.go:117 [~]
-  [HIGH] #97  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:49 [!]
-  [HIGH] #98  Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:53 [!]
-  [CRITICAL] #99  MD5 Hash Function      ...scan/crypto-samples/crypto_samples.go:137 [!]
-  [INFO] #100 AES-GCM Authenticat... ...scan/crypto-samples/crypto_samples.py:62 [~]
-  [HIGH] #101 SHA-1 Hash Function    ...scan/crypto-samples/crypto_samples.go:144 [!]
-  [MEDIUM] #102 DES Algorithm          ...can/crypto-samples/CryptoSamples.java:121 [!]
-  [LOW] #103 Triple DES Algorithm   ...can/crypto-samples/CryptoSamples.java:121 [!]
-  [CRITICAL] #104 DES Algorithm          ...scan/crypto-samples/crypto_samples.go:151 [!]
-  [HIGH] #105 Triple DES Algorithm   ...scan/crypto-samples/crypto_samples.go:162 [!]
-  [CRITICAL] #106 MD5 Hash Function      ...scan/crypto-samples/crypto_samples.py:83 [!]
-  [CRITICAL] #107 MD5 Hash Function      ...scan/crypto-samples/crypto_samples.py:84 [!]
-  [INFO] #108 bcrypt                 ...scan/crypto-samples/crypto_samples.go:188 [~]
-  [INFO] #109 bcrypt                 ...scan/crypto-samples/crypto_samples.go:188 [~]
-  [HIGH] #110 RSA Algorithm          ...can/crypto-samples/CryptoSamples.java:162 [!]
-  [HIGH] #111 Elliptic Curve Cryp... ...can/crypto-samples/CryptoSamples.java:162 [!]
-  [HIGH] #112 SHA-1 Hash Function    ...scan/crypto-samples/crypto_samples.py:88 [!]
-  [HIGH] #113 SHA-1 Hash Function    ...scan/crypto-samples/crypto_samples.py:89 [!]
-  [HIGH] #114 Triple DES Algorithm   ...scan/crypto-samples/crypto_samples.py:95 [!]
-  [HIGH] #115 Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:231 [!]
-  [INFO] #116 AES-GCM Authenticat... ...scan/crypto-samples/crypto_samples.go:232 [~]
-  [HIGH] #117 Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:233 [!]
-  [HIGH] #118 Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:127 [!]
-  [HIGH] #119 Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:129 [!]
-  [HIGH] #120 RSA Algorithm          ...scan/crypto-samples/crypto_samples.py:136 [!]
-  [HIGH] #121 Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:136 [!]
+  [INFO] #91  ML-DSA Digital Sign... ...oscan/crypto-samples/hybrid_crypto.js:105   
+  [LOW] #92  Elliptic Curve Cryp... ...oscan/crypto-samples/hybrid_crypto.js:106 [!]
+  [INFO] #93  ML-DSA Digital Sign... ...oscan/crypto-samples/hybrid_crypto.js:106   
+  [INFO] #94  Composite Digital S... ...oscan/crypto-samples/hybrid_crypto.js:106   
+  [INFO] #95  Hybrid Key Exchange    ...oscan/crypto-samples/hybrid_crypto.js:111   
+  [INFO] #96  bcrypt                 ...oscan/crypto-samples/macs_and_kdfs.go:111 [~]
+  [CRITICAL] #97  MD5 Hash Function      ...can/crypto-samples/CryptoSamples.java:96 [!]
+  [CRITICAL] #98  MD5 Hash Function      ...scan/crypto-samples/crypto_samples.py:83 [!]
+  [CRITICAL] #99  MD5 Hash Function      ...scan/crypto-samples/crypto_samples.py:84 [!]
+  [HIGH] #100 SHA-1 Hash Function    ...can/crypto-samples/CryptoSamples.java:104 [!]
+  [INFO] #101 ChaCha20-Poly1305      ...scan/crypto-samples/crypto_samples.go:117 [~]
+  [HIGH] #102 SHA-1 Hash Function    ...scan/crypto-samples/crypto_samples.py:88 [!]
+  [HIGH] #103 SHA-1 Hash Function    ...scan/crypto-samples/crypto_samples.py:89 [!]
+  [CRITICAL] #104 MD5 Hash Function      ...scan/crypto-samples/crypto_samples.go:137 [!]
+  [HIGH] #105 Triple DES Algorithm   ...scan/crypto-samples/crypto_samples.py:95 [!]
+  [HIGH] #106 SHA-1 Hash Function    ...scan/crypto-samples/crypto_samples.go:144 [!]
+  [MEDIUM] #107 DES Algorithm          ...can/crypto-samples/CryptoSamples.java:121 [!]
+  [LOW] #108 Triple DES Algorithm   ...can/crypto-samples/CryptoSamples.java:121 [!]
+  [CRITICAL] #109 DES Algorithm          ...scan/crypto-samples/crypto_samples.go:151 [!]
+  [HIGH] #110 Triple DES Algorithm   ...scan/crypto-samples/crypto_samples.go:162 [!]
+  [HIGH] #111 Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:127 [!]
+  [HIGH] #112 Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:129 [!]
+  [INFO] #113 bcrypt                 ...scan/crypto-samples/crypto_samples.go:188 [~]
+  [INFO] #114 bcrypt                 ...scan/crypto-samples/crypto_samples.go:188 [~]
+  [HIGH] #115 RSA Algorithm          ...can/crypto-samples/CryptoSamples.java:162 [!]
+  [HIGH] #116 Elliptic Curve Cryp... ...can/crypto-samples/CryptoSamples.java:162 [!]
+  [HIGH] #117 RSA Algorithm          ...scan/crypto-samples/crypto_samples.py:136 [!]
+  [HIGH] #118 Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.py:136 [!]
+  [HIGH] #119 Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:231 [!]
+  [INFO] #120 AES-GCM Authenticat... ...scan/crypto-samples/crypto_samples.go:232 [~]
+  [HIGH] #121 Elliptic Curve Cryp... ...scan/crypto-samples/crypto_samples.go:233 [!]
 
-  Scan complete: 121 findings in 6 files (16ms)
+  Scan complete: 110 findings in 6 files (15ms)
+  The list above has 121 matches.
+  11 repeat a match of the same kind on the same line and are counted with it.
 
 
 ╔═══════════════════════════════════════════════════════════════╗
@@ -132,8 +134,12 @@
 
 ┌─ QUANTUM MIGRATION READINESS ──────────────────────────────────┐
 │  Score: █████████░░░░░░░░░░░░░░░░ 37.5% [CRITICAL]│
+│  Method: (safe 32 + 0.8 x hybrid 3 + 0.3 x partial 23)          │
+│          / 110 findings, as a percentage. Every finding counts  │
+│          once; test and example files count the same as         │
+│          production code.                                       │
 │─────────────────────────────────────────────────────────────────│
-│  INVENTORY                                                     │
+│  INVENTORY (findings by migration status)                      │
 │    ✓ Safe (PQC):        32       ✗ Vulnerable:    39      │
 │    ◐ Hybrid:            3        [!] Critical:      13      │
 │    ◑ Partial:           23       Total:          110     │
@@ -155,10 +161,10 @@
 
 ┌─ Scan Information ─────────────────────────────────────────────┐
 │ Target:   crypto-samples                                      │
-│ Time:     2026-10-15 21:33:28                                 │
-│ Duration: 16ms                                                │
+│ Time:     2026-10-18 09:49:33                                 │
+│ Duration: 15ms                                                │
 │ Scanned:  6 files • 873 lines • 26.3 KB                       │
-│ Speed:    383 files/sec • 1.6 MB/sec                          │
+│ Speed:    393 files/sec • 1.7 MB/sec                          │
 └─────────────────────────────────────────────────────────────────┘
 
 ┌─ Summary ───────────────────────────────────────────────────────┐
@@ -175,27 +181,37 @@
   21 finding(s) withheld as documentation, log or comment text.
   Show them with: cryptoscan scan crypto-samples --include-narrative
 
-  Quantum Risk Assessment:
+  Findings by context:
+    comment        12 withheld (--include-narrative shows them)
+    log-message     9 withheld (--include-narrative shows them)
+    operational   110 reported
+  Context is decided by the scanner's rules, not by a model.
+
+  Quantum Risk Assessment (findings by quantum risk):
     [!] 52 quantum-vulnerable findings require migration planning
     ◆ VULNERABLE   52
     ◇ PARTIAL      22
     ✓ SAFE         35
     ? UNKNOWN      1
+      Total        110
+    The migration readiness box above counts the same findings by
+    migration status, which also weighs hybrid use and algorithms that
+    are already broken, so its rows differ from these.
 
   Categories Found:
-    ├─ Weak Key Size            1
-    ├─ Asymmetric Encryption    37
     ├─ Symmetric Encryption     7
+    ├─ Key Derivation Function  12
     ├─ Message Authentication Code 4
     ├─ Post-Quantum Cryptography 18
-    ├─ Hybrid Cryptography      3
     ├─ TLS/SSL                  2
-    ├─ Deprecated Algorithm     4
-    ├─ Deprecated Hash          5
-    ├─ Key Derivation Function  12
+    ├─ Weak Key Size            1
+    ├─ Asymmetric Encryption    37
     ├─ Configuration            1
     ├─ PQC Library Import       11
+    ├─ Hybrid Cryptography      3
     ├─ Broken Hash              5
+    ├─ Deprecated Algorithm     4
+    ├─ Deprecated Hash          5
 
 ╔═══════════════════════════════════════════════════════════════╗
 ║                      DETAILED FINDINGS                        ║
@@ -203,7 +219,7 @@
 
   ┌── Finding #1 [CRITICAL]
   │ Type: MD5 Hash Function
-  │ File: /tmp/cryptoscan/crypto-samples/CryptoSamples.java:96
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java:96
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -224,13 +240,15 @@
   │   MD5 detected. MD5 is cryptographically broken with practical collision attacks.
   │ Remediation:
   │   Replace with SHA-256 or SHA-3 for integrity, or use HMAC for authentication.
-  │ Impact: Data protected by this algorithm is vulnerable to harvest-now-decrypt-later attacks
-  │ Effort: Assessment needed
+  │ Fix: Replace MessageDigest.getInstance("MD5") with MessageDigest.getInstance("SHA-256")
+  │ Verify: sed -n '96p' /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java
+  │ Impact: Broken by classical attacks today: practical collisions let an attacker create different data with the same MD5 hash, without a quantum computer.
+  │ Effort: Low
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #2 [CRITICAL]
   │ Type: MD5 Hash Function
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:137
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:137
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -251,13 +269,15 @@
   │   MD5 detected. MD5 is cryptographically broken with practical collision attacks.
   │ Remediation:
   │   Replace with SHA-256 or SHA-3 for integrity, or use HMAC for authentication.
-  │ Impact: Data protected by this algorithm is vulnerable to harvest-now-decrypt-later attacks
-  │ Effort: Assessment needed
+  │ Fix: Replace md5.Sum(data) with sha256.Sum256(data) from crypto/sha256
+  │ Verify: sed -n '137p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
+  │ Impact: Broken by classical attacks today: practical collisions let an attacker create different data with the same MD5 hash, without a quantum computer.
+  │ Effort: Low
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #3 [CRITICAL]
   │ Type: DES Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:151
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:151
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -278,13 +298,15 @@
   │   DES (56-bit) detected. DES is completely broken and must not be used.
   │ Remediation:
   │   Replace with AES-256-GCM immediately.
-  │ Impact: Data protected by this algorithm is vulnerable to harvest-now-decrypt-later attacks
-  │ Effort: Assessment needed
+  │ Fix: Replace des.NewCipher(key) with aes.NewCipher(key) on a 32-byte key, wrapped in cipher.NewGCM
+  │ Verify: sed -n '151p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
+  │ Impact: Broken by classical attacks today: its 56-bit key can be recovered by brute force, without a quantum computer.
+  │ Effort: Medium
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #4 [CRITICAL]
   │ Type: RSA-1024 Key Size
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:34
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:34
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -305,13 +327,15 @@
   │   RSA-1024 is considered weak even against classical attacks. NIST deprecated 1024-bit RSA in 2013.
   │ Remediation:
   │   Immediately upgrade to RSA-3072 minimum, or preferably migrate to ML-KEM.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-python
+  │ Verify: sed -n '34p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Data protected by this algorithm is vulnerable to harvest-now-decrypt-later attacks
-  │ Effort: Assessment needed
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #5 [CRITICAL]
   │ Type: MD5 Hash Function
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:83
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:83
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -332,13 +356,15 @@
   │   MD5 detected. MD5 is cryptographically broken with practical collision attacks.
   │ Remediation:
   │   Replace with SHA-256 or SHA-3 for integrity, or use HMAC for authentication.
-  │ Impact: Data protected by this algorithm is vulnerable to harvest-now-decrypt-later attacks
-  │ Effort: Assessment needed
+  │ Fix: Replace hashlib.md5() with hashlib.sha256()
+  │ Verify: sed -n '83p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
+  │ Impact: Broken by classical attacks today: practical collisions let an attacker create different data with the same MD5 hash, without a quantum computer.
+  │ Effort: Low
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #6 [CRITICAL]
   │ Type: MD5 Hash Function
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:84
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:84
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -359,13 +385,15 @@
   │   MD5 detected. MD5 is cryptographically broken with practical collision attacks.
   │ Remediation:
   │   Replace with SHA-256 or SHA-3 for integrity, or use HMAC for authentication.
-  │ Impact: Data protected by this algorithm is vulnerable to harvest-now-decrypt-later attacks
-  │ Effort: Assessment needed
+  │ Fix: Replace hashlib.md5() with hashlib.sha256()
+  │ Verify: sed -n '84p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
+  │ Impact: Broken by classical attacks today: practical collisions let an attacker create different data with the same MD5 hash, without a quantum computer.
+  │ Effort: Low
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #7 [HIGH]
   │ Type: RSA Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:42
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:42
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -386,13 +414,15 @@
   │   RSA algorithm detected. RSA is vulnerable to Shor's algorithm and will be broken by cryptographically relevant quantum computers.
   │ Remediation:
   │   Migrate to ML-KEM (FIPS 203) for key encapsulation or use hybrid RSA + ML-KEM during transition.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '42p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #8 [HIGH]
   │ Type: RSA Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:52
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:52
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -413,13 +443,15 @@
   │   RSA algorithm detected. RSA is vulnerable to Shor's algorithm and will be broken by cryptographically relevant quantum computers.
   │ Remediation:
   │   Migrate to ML-KEM (FIPS 203) for key encapsulation or use hybrid RSA + ML-KEM during transition.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '52p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #9 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:59
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:59
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -440,13 +472,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '59p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #10 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:65
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:65
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -467,13 +501,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '65p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #11 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:70
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:70
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -494,13 +530,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '70p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #12 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:75
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:75
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -521,13 +559,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '75p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #13 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:231
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:231
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -548,13 +588,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '231p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #14 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:233
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:233
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -575,13 +617,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '233p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #15 [HIGH]
   │ Type: RSA Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:12
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:12
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -602,13 +646,15 @@
   │   RSA algorithm detected. RSA is vulnerable to Shor's algorithm and will be broken by cryptographically relevant quantum computers.
   │ Remediation:
   │   Migrate to ML-KEM (FIPS 203) for key encapsulation or use hybrid RSA + ML-KEM during transition.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-python
+  │ Verify: sed -n '12p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #16 [HIGH]
   │ Type: RSA Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/CryptoSamples.java:28
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java:28
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -629,13 +675,15 @@
   │   RSA algorithm detected. RSA is vulnerable to Shor's algorithm and will be broken by cryptographically relevant quantum computers.
   │ Remediation:
   │   Migrate to ML-KEM (FIPS 203) for key encapsulation or use hybrid RSA + ML-KEM during transition.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using BouncyCastle
+  │ Verify: sed -n '28p' /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #17 [HIGH]
   │ Type: RSA Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/CryptoSamples.java:37
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java:37
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -656,13 +704,15 @@
   │   RSA algorithm detected. RSA is vulnerable to Shor's algorithm and will be broken by cryptographically relevant quantum computers.
   │ Remediation:
   │   Migrate to ML-KEM (FIPS 203) for key encapsulation or use hybrid RSA + ML-KEM during transition.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using BouncyCastle
+  │ Verify: sed -n '37p' /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #18 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/CryptoSamples.java:48
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java:48
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -683,13 +733,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using BouncyCastle
+  │ Verify: sed -n '48p' /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #19 [HIGH]
   │ Type: SHA-1 Hash Function
-  │ File: /tmp/cryptoscan/crypto-samples/CryptoSamples.java:104
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java:104
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -710,13 +762,15 @@
   │   SHA-1 detected. SHA-1 has practical collision attacks (SHAttered) and is deprecated.
   │ Remediation:
   │   Replace with SHA-256 or SHA-3.
-  │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Assessment needed
+  │ Fix: Replace MessageDigest.getInstance("SHA-1") with MessageDigest.getInstance("SHA-256")
+  │ Verify: sed -n '104p' /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java
+  │ Impact: Broken by classical attacks today: practical collisions let an attacker create different data with the same SHA-1 hash, without a quantum computer.
+  │ Effort: Low
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #20 [HIGH]
   │ Type: RSA Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/CryptoSamples.java:162
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java:162
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -737,13 +791,15 @@
   │   RSA algorithm detected. RSA is vulnerable to Shor's algorithm and will be broken by cryptographically relevant quantum computers.
   │ Remediation:
   │   Migrate to ML-KEM (FIPS 203) for key encapsulation or use hybrid RSA + ML-KEM during transition.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using BouncyCastle
+  │ Verify: sed -n '162p' /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #21 [HIGH]
   │ Type: RSA Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:44
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:44
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -764,13 +820,15 @@
   │   RSA algorithm detected. RSA is vulnerable to Shor's algorithm and will be broken by cryptographically relevant quantum computers.
   │ Remediation:
   │   Migrate to ML-KEM (FIPS 203) for key encapsulation or use hybrid RSA + ML-KEM during transition.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '44p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #22 [HIGH]
   │ Type: RSA Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:54
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:54
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -791,13 +849,15 @@
   │   RSA algorithm detected. RSA is vulnerable to Shor's algorithm and will be broken by cryptographically relevant quantum computers.
   │ Remediation:
   │   Migrate to ML-KEM (FIPS 203) for key encapsulation or use hybrid RSA + ML-KEM during transition.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '54p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #23 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:60
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:60
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -818,13 +878,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '60p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #24 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:66
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:66
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -845,13 +907,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '66p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #25 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:71
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:71
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -872,13 +936,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '71p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #26 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:76
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:76
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -899,13 +965,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '76p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #27 [HIGH]
   │ Type: SHA-1 Hash Function
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:144
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:144
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -926,13 +994,15 @@
   │   SHA-1 detected. SHA-1 has practical collision attacks (SHAttered) and is deprecated.
   │ Remediation:
   │   Replace with SHA-256 or SHA-3.
-  │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Assessment needed
+  │ Fix: Replace sha1.Sum(data) with sha256.Sum256(data) from crypto/sha256
+  │ Verify: sed -n '144p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
+  │ Impact: Broken by classical attacks today: practical collisions let an attacker create different data with the same SHA-1 hash, without a quantum computer.
+  │ Effort: Low
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #28 [HIGH]
   │ Type: Triple DES Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:162
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:162
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -953,13 +1023,15 @@
   │   3DES detected. 3DES is deprecated by NIST and provides only 112-bit security.
   │ Remediation:
   │   Replace with AES-256-GCM.
-  │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Assessment needed
+  │ Fix: Replace des.NewTripleDESCipher(key) with aes.NewCipher(key) on a 32-byte key, wrapped in cipher.NewGCM
+  │ Verify: sed -n '162p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
+  │ Impact: Broken by classical attacks today: its 64-bit block lets an attacker recover data from long sessions (the Sweet32 attack), without a quantum computer.
+  │ Effort: Medium
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #29 [HIGH]
   │ Type: RSA Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:24
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:24
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -980,13 +1052,15 @@
   │   RSA algorithm detected. RSA is vulnerable to Shor's algorithm and will be broken by cryptographically relevant quantum computers.
   │ Remediation:
   │   Migrate to ML-KEM (FIPS 203) for key encapsulation or use hybrid RSA + ML-KEM during transition.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-python
+  │ Verify: sed -n '24p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #30 [HIGH]
   │ Type: RSA Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:25
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:25
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1007,13 +1081,15 @@
   │   RSA algorithm detected. RSA is vulnerable to Shor's algorithm and will be broken by cryptographically relevant quantum computers.
   │ Remediation:
   │   Migrate to ML-KEM (FIPS 203) for key encapsulation or use hybrid RSA + ML-KEM during transition.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-python
+  │ Verify: sed -n '25p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #31 [HIGH]
   │ Type: RSA Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:34
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:34
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1034,13 +1110,15 @@
   │   RSA algorithm detected. RSA is vulnerable to Shor's algorithm and will be broken by cryptographically relevant quantum computers.
   │ Remediation:
   │   Migrate to ML-KEM (FIPS 203) for key encapsulation or use hybrid RSA + ML-KEM during transition.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-python
+  │ Verify: sed -n '34p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #32 [HIGH]
   │ Type: RSA Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:35
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:35
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1061,13 +1139,15 @@
   │   RSA algorithm detected. RSA is vulnerable to Shor's algorithm and will be broken by cryptographically relevant quantum computers.
   │ Remediation:
   │   Migrate to ML-KEM (FIPS 203) for key encapsulation or use hybrid RSA + ML-KEM during transition.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-python
+  │ Verify: sed -n '35p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #33 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:43
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:43
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1088,13 +1168,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-python
+  │ Verify: sed -n '43p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #34 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:44
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:44
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1115,13 +1197,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-python
+  │ Verify: sed -n '44p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #35 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:48
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:48
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1142,13 +1226,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-python
+  │ Verify: sed -n '48p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #36 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:49
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:49
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1169,13 +1255,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-python
+  │ Verify: sed -n '49p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #37 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:53
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:53
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1196,13 +1284,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-python
+  │ Verify: sed -n '53p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #38 [HIGH]
   │ Type: SHA-1 Hash Function
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:88
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:88
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1223,13 +1313,15 @@
   │   SHA-1 detected. SHA-1 has practical collision attacks (SHAttered) and is deprecated.
   │ Remediation:
   │   Replace with SHA-256 or SHA-3.
-  │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Assessment needed
+  │ Fix: Replace hashlib.sha1() with hashlib.sha256()
+  │ Verify: sed -n '88p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
+  │ Impact: Broken by classical attacks today: practical collisions let an attacker create different data with the same SHA-1 hash, without a quantum computer.
+  │ Effort: Low
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #39 [HIGH]
   │ Type: SHA-1 Hash Function
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:89
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:89
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1250,13 +1342,15 @@
   │   SHA-1 detected. SHA-1 has practical collision attacks (SHAttered) and is deprecated.
   │ Remediation:
   │   Replace with SHA-256 or SHA-3.
-  │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Assessment needed
+  │ Fix: Replace hashlib.sha1() with hashlib.sha256()
+  │ Verify: sed -n '89p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
+  │ Impact: Broken by classical attacks today: practical collisions let an attacker create different data with the same SHA-1 hash, without a quantum computer.
+  │ Effort: Low
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #40 [HIGH]
   │ Type: Triple DES Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:95
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:95
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1277,13 +1371,15 @@
   │   3DES detected. 3DES is deprecated by NIST and provides only 112-bit security.
   │ Remediation:
   │   Replace with AES-256-GCM.
-  │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Assessment needed
+  │ Fix: Replace the TripleDES cipher with AESGCM from cryptography.hazmat.primitives.ciphers.aead and a 32-byte key
+  │ Verify: sed -n '95p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
+  │ Impact: Broken by classical attacks today: its 64-bit block lets an attacker recover data from long sessions (the Sweet32 attack), without a quantum computer.
+  │ Effort: Medium
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #41 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:127
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:127
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1304,13 +1400,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-python
+  │ Verify: sed -n '127p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #42 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:129
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:129
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1331,13 +1429,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-python
+  │ Verify: sed -n '129p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #43 [HIGH]
   │ Type: RSA Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:136
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:136
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1355,13 +1455,15 @@
   │   RSA algorithm detected. RSA is vulnerable to Shor's algorithm and will be broken by cryptographically relevant quantum computers.
   │ Remediation:
   │   Migrate to ML-KEM (FIPS 203) for key encapsulation or use hybrid RSA + ML-KEM during transition.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-python
+  │ Verify: sed -n '136p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #44 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:13
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:13
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1382,13 +1484,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-node
+  │ Verify: sed -n '13p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #45 [HIGH]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:104
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:104
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1409,13 +1513,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-node
+  │ Verify: sed -n '104p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Long-term data confidentiality at risk from quantum computing advances
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #46 [MEDIUM]
   │ Type: DES Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/CryptoSamples.java:121
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java:121
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1436,13 +1542,15 @@
   │   DES (56-bit) detected. DES is completely broken and must not be used.
   │ Remediation:
   │   Replace with AES-256-GCM immediately.
-  │ Impact: Algorithm requires migration before quantum computers become practical
-  │ Effort: Assessment needed
+  │ Fix: Replace the "DES" transformation in Cipher.getInstance with "AES/GCM/NoPadding" and a 32-byte key
+  │ Verify: sed -n '121p' /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java
+  │ Impact: Broken by classical attacks today: its 56-bit key can be recovered by brute force, without a quantum computer.
+  │ Effort: Medium
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #47 [MEDIUM]
   │ Type: MD5 Hash Function
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:21
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:21
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1463,13 +1571,15 @@
   │   MD5 detected. MD5 is cryptographically broken with practical collision attacks.
   │ Remediation:
   │   Replace with SHA-256 or SHA-3 for integrity, or use HMAC for authentication.
-  │ Impact: Algorithm requires migration before quantum computers become practical
-  │ Effort: Assessment needed
+  │ Fix: Replace md5.Sum(data) with sha256.Sum256(data) from crypto/sha256
+  │ Verify: sed -n '21p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
+  │ Impact: Broken by classical attacks today: practical collisions let an attacker create different data with the same MD5 hash, without a quantum computer.
+  │ Effort: Low
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #48 [LOW]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:18
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:18
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1490,13 +1600,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '18p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Algorithm requires migration before quantum computers become practical
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #49 [LOW]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:19
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:19
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1517,13 +1629,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '19p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Algorithm requires migration before quantum computers become practical
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #50 [LOW]
   │ Type: RSA Algorithm
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:23
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:23
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1544,13 +1658,15 @@
   │   RSA algorithm detected. RSA is vulnerable to Shor's algorithm and will be broken by cryptographically relevant quantum computers.
   │ Remediation:
   │   Migrate to ML-KEM (FIPS 203) for key encapsulation or use hybrid RSA + ML-KEM during transition.
+  │ Fix: Migrate RSA to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using cloudflare/circl
+  │ Verify: sed -n '23p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Algorithm requires migration before quantum computers become practical
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #51 [LOW]
   │ Type: SHA-1 Hash Function
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:24
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:24
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1571,13 +1687,15 @@
   │   SHA-1 detected. SHA-1 has practical collision attacks (SHAttered) and is deprecated.
   │ Remediation:
   │   Replace with SHA-256 or SHA-3.
-  │ Impact: Algorithm requires migration before quantum computers become practical
-  │ Effort: Assessment needed
+  │ Fix: Replace sha1.Sum(data) with sha256.Sum256(data) from crypto/sha256
+  │ Verify: sed -n '24p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
+  │ Impact: Broken by classical attacks today: practical collisions let an attacker create different data with the same SHA-1 hash, without a quantum computer.
+  │ Effort: Low
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #52 [LOW]
   │ Type: Elliptic Curve Cryptography
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:106
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:106
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1598,13 +1716,15 @@
   │   Elliptic curve cryptography detected. ECC is vulnerable to Shor's algorithm on quantum computers.
   │ Remediation:
   │   Migrate to ML-DSA (FIPS 204) for signatures or ML-KEM (FIPS 203) for key exchange.
+  │ Fix: Migrate ECC to ML-KEM-768 for encryption and key exchange, or to ML-DSA-65 for signatures, using liboqs-node
+  │ Verify: sed -n '106p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Algorithm requires migration before quantum computers become practical
-  │ Effort: Algorithm replacement - high effort, requires PKI changes
+  │ Effort: Medium to High
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #53 [INFO]
   │ Type: AES-GCM Authenticated Encryption
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:232
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:232
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1623,15 +1743,14 @@
   │ Confidence: HIGH
   │ Description:
   │   AES-GCM AEAD detected (SP 800-38D). NIST-approved authenticated encryption.
-  │ Remediation:
-  │   AES-256-GCM is recommended. Provides confidentiality and integrity.
+  │ Fix: AES-256-GCM is recommended. Provides confidentiality and integrity.
+  │ Verify: sed -n '232p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Algorithm replacement - medium effort
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #54 [INFO]
   │ Type: HKDF
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:56
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:56
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1650,15 +1769,14 @@
   │ Confidence: HIGH
   │ Description:
   │   HKDF detected (SP 800-56C). NIST-approved KDF for high-entropy inputs.
-  │ Remediation:
-  │   HKDF is appropriate for key derivation from high-entropy secrets. Not for passwords.
+  │ Fix: HKDF is appropriate for key derivation from high-entropy secrets. Not for passwords.
+  │ Verify: sed -n '56p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #55 [INFO]
   │ Type: ChaCha20-Poly1305
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:117
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:117
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1677,15 +1795,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   ChaCha20-Poly1305 AEAD detected (RFC 8439). Fast, secure authenticated encryption.
-  │ Remediation:
-  │   ChaCha20-Poly1305 is an excellent choice. Included in TLS 1.3.
+  │ Fix: ChaCha20-Poly1305 is an excellent choice. Included in TLS 1.3.
+  │ Verify: sed -n '117p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Algorithm replacement - medium effort
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #56 [INFO]
   │ Type: bcrypt
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:188
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:188
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1704,15 +1821,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   bcrypt detected. Industry-standard password hashing function.
-  │ Remediation:
-  │   bcrypt is acceptable with cost >= 12. For new applications, prefer Argon2id.
+  │ Fix: bcrypt is acceptable with cost >= 12. For new applications, prefer Argon2id.
+  │ Verify: sed -n '188p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #57 [INFO]
   │ Type: AES-GCM Authenticated Encryption
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:62
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:62
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1731,15 +1847,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   AES-GCM AEAD detected (SP 800-38D). NIST-approved authenticated encryption.
-  │ Remediation:
-  │   AES-256-GCM is recommended. Provides confidentiality and integrity.
+  │ Fix: AES-256-GCM is recommended. Provides confidentiality and integrity.
+  │ Verify: sed -n '62p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Algorithm replacement - medium effort
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #58 [INFO]
   │ Type: ChaCha20-Poly1305
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:36
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:36
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1758,15 +1873,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   ChaCha20-Poly1305 AEAD detected (RFC 8439). Fast, secure authenticated encryption.
-  │ Remediation:
-  │   ChaCha20-Poly1305 is an excellent choice. Included in TLS 1.3.
+  │ Fix: ChaCha20-Poly1305 is an excellent choice. Included in TLS 1.3.
+  │ Verify: sed -n '36p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Algorithm replacement - medium effort
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #59 [INFO]
   │ Type: Poly1305
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:36
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:36
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1785,15 +1899,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   Poly1305 one-time MAC detected (RFC 8439). Used with ChaCha20 for AEAD.
-  │ Remediation:
-  │   Poly1305 is secure when used correctly as a one-time MAC with ChaCha20.
+  │ Fix: Poly1305 is secure when used correctly as a one-time MAC with ChaCha20.
+  │ Verify: sed -n '36p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #60 [INFO]
   │ Type: AES-GCM Authenticated Encryption
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:59
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:59
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1812,15 +1925,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   AES-GCM AEAD detected (SP 800-38D). NIST-approved authenticated encryption.
-  │ Remediation:
-  │   AES-256-GCM is recommended. Provides confidentiality and integrity.
+  │ Fix: AES-256-GCM is recommended. Provides confidentiality and integrity.
+  │ Verify: sed -n '59p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Algorithm replacement - medium effort
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #61 [INFO]
   │ Type: HKDF
-  │ File: /tmp/cryptoscan/crypto-samples/macs_and_kdfs.go:82
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go:82
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1839,15 +1951,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   HKDF detected (SP 800-56C). NIST-approved KDF for high-entropy inputs.
-  │ Remediation:
-  │   HKDF is appropriate for key derivation from high-entropy secrets. Not for passwords.
+  │ Fix: HKDF is appropriate for key derivation from high-entropy secrets. Not for passwords.
+  │ Verify: sed -n '82p' /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #62 [INFO]
   │ Type: Argon2
-  │ File: /tmp/cryptoscan/crypto-samples/macs_and_kdfs.go:103
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go:103
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1866,15 +1977,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   Argon2 detected (RFC 9106). Password Hashing Competition winner. Recommended for password hashing.
-  │ Remediation:
-  │   Argon2id is the recommended variant. Use memory >= 64MB, iterations >= 3, parallelism >= 4.
+  │ Fix: Argon2id is the recommended variant. Use memory >= 64MB, iterations >= 3, parallelism >= 4.
+  │ Verify: sed -n '103p' /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #63 [INFO]
   │ Type: bcrypt
-  │ File: /tmp/cryptoscan/crypto-samples/macs_and_kdfs.go:111
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go:111
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1893,15 +2003,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   bcrypt detected. Industry-standard password hashing function.
-  │ Remediation:
-  │   bcrypt is acceptable with cost >= 12. For new applications, prefer Argon2id.
+  │ Fix: bcrypt is acceptable with cost >= 12. For new applications, prefer Argon2id.
+  │ Verify: sed -n '111p' /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #64 [LOW]
   │ Type: Hardcoded Key Size
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.py:37
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py:37
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1919,15 +2028,15 @@
   │ Confidence: MEDIUM
   │ Description:
   │   Hardcoded key size detected. Review to ensure adequate security level.
-  │ Remediation:
-  │   Ensure key sizes meet current requirements. Use configuration for flexibility.
+  │ Fix: Ensure key sizes meet current requirements. Use configuration for flexibility.
+  │ Verify: sed -n '37p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.py
   │ Impact: Standard cryptographic maintenance recommended
   │ Effort: Configuration change - low effort
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #65 [INFO]
   │ Type: Post-Quantum Crypto Library
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:5
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:5
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1945,15 +2054,14 @@
   │ Confidence: HIGH
   │ Description:
   │   Post-quantum cryptography library detected. Good practice for quantum-safe migration.
-  │ Remediation:
-  │   Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Fix: Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Verify: sed -n '5p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #66 [INFO]
   │ Type: Post-Quantum Crypto Library
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:7
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:7
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1971,15 +2079,14 @@
   │ Confidence: HIGH
   │ Description:
   │   Post-quantum cryptography library detected. Good practice for quantum-safe migration.
-  │ Remediation:
-  │   Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Fix: Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Verify: sed -n '7p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #67 [INFO]
   │ Type: ML-KEM Key Encapsulation
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:45
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:45
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -1998,15 +2105,14 @@
   │ Confidence: HIGH
   │ Description:
   │   ML-KEM (FIPS 203) post-quantum key encapsulation detected. This is quantum-safe.
-  │ Remediation:
-  │   ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Fix: ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Verify: sed -n '45p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #68 [INFO]
   │ Type: AES-GCM Authenticated Encryption
-  │ File: /tmp/cryptoscan/crypto-samples/CryptoSamples.java:71
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java:71
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2025,15 +2131,14 @@
   │ Confidence: LOW
   │ Description:
   │   AES-GCM AEAD detected (SP 800-38D). NIST-approved authenticated encryption.
-  │ Remediation:
-  │   AES-256-GCM is recommended. Provides confidentiality and integrity.
+  │ Fix: AES-256-GCM is recommended. Provides confidentiality and integrity.
+  │ Verify: sed -n '71p' /tmp/qramm/cryptoscan/crypto-samples/CryptoSamples.java
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Algorithm replacement - medium effort
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #69 [INFO]
   │ Type: bcrypt
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:31
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:31
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2052,15 +2157,14 @@
   │ Confidence: LOW
   │ Description:
   │   bcrypt detected. Industry-standard password hashing function.
-  │ Remediation:
-  │   bcrypt is acceptable with cost >= 12. For new applications, prefer Argon2id.
+  │ Fix: bcrypt is acceptable with cost >= 12. For new applications, prefer Argon2id.
+  │ Verify: sed -n '31p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #70 [INFO]
   │ Type: ChaCha20-Poly1305
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:32
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:32
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2079,15 +2183,14 @@
   │ Confidence: LOW
   │ Description:
   │   ChaCha20-Poly1305 AEAD detected (RFC 8439). Fast, secure authenticated encryption.
-  │ Remediation:
-  │   ChaCha20-Poly1305 is an excellent choice. Included in TLS 1.3.
+  │ Fix: ChaCha20-Poly1305 is an excellent choice. Included in TLS 1.3.
+  │ Verify: sed -n '32p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Algorithm replacement - medium effort
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #71 [INFO]
   │ Type: Argon2
-  │ File: /tmp/cryptoscan/crypto-samples/macs_and_kdfs.go:14
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go:14
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2106,15 +2209,14 @@
   │ Confidence: LOW
   │ Description:
   │   Argon2 detected (RFC 9106). Password Hashing Competition winner. Recommended for password hashing.
-  │ Remediation:
-  │   Argon2id is the recommended variant. Use memory >= 64MB, iterations >= 3, parallelism >= 4.
+  │ Fix: Argon2id is the recommended variant. Use memory >= 64MB, iterations >= 3, parallelism >= 4.
+  │ Verify: sed -n '14p' /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #72 [INFO]
   │ Type: bcrypt
-  │ File: /tmp/cryptoscan/crypto-samples/macs_and_kdfs.go:15
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go:15
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2133,15 +2235,14 @@
   │ Confidence: LOW
   │ Description:
   │   bcrypt detected. Industry-standard password hashing function.
-  │ Remediation:
-  │   bcrypt is acceptable with cost >= 12. For new applications, prefer Argon2id.
+  │ Fix: bcrypt is acceptable with cost >= 12. For new applications, prefer Argon2id.
+  │ Verify: sed -n '15p' /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #73 [INFO]
   │ Type: HKDF
-  │ File: /tmp/cryptoscan/crypto-samples/macs_and_kdfs.go:16
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go:16
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2160,15 +2261,14 @@
   │ Confidence: LOW
   │ Description:
   │   HKDF detected (SP 800-56C). NIST-approved KDF for high-entropy inputs.
-  │ Remediation:
-  │   HKDF is appropriate for key derivation from high-entropy secrets. Not for passwords.
+  │ Fix: HKDF is appropriate for key derivation from high-entropy secrets. Not for passwords.
+  │ Verify: sed -n '16p' /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #74 [INFO]
   │ Type: PBKDF2
-  │ File: /tmp/cryptoscan/crypto-samples/macs_and_kdfs.go:17
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go:17
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2187,15 +2287,14 @@
   │ Confidence: LOW
   │ Description:
   │   PBKDF2 detected (SP 800-132). NIST-approved password-based KDF.
-  │ Remediation:
-  │   Ensure iteration count >= 600,000 (OWASP 2024). Consider Argon2id for new applications.
+  │ Fix: Ensure iteration count >= 600,000 (OWASP 2024). Consider Argon2id for new applications.
+  │ Verify: sed -n '17p' /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #75 [INFO]
   │ Type: PBKDF2
-  │ File: /tmp/cryptoscan/crypto-samples/macs_and_kdfs.go:94
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go:94
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2214,15 +2313,14 @@
   │ Confidence: LOW
   │ Description:
   │   PBKDF2 detected (SP 800-132). NIST-approved password-based KDF.
-  │ Remediation:
-  │   Ensure iteration count >= 600,000 (OWASP 2024). Consider Argon2id for new applications.
+  │ Fix: Ensure iteration count >= 600,000 (OWASP 2024). Consider Argon2id for new applications.
+  │ Verify: sed -n '94p' /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #76 [INFO]
   │ Type: HKDF
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:55
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:55
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2241,15 +2339,14 @@
   │ Confidence: LOW
   │ Description:
   │   HKDF detected (SP 800-56C). NIST-approved KDF for high-entropy inputs.
-  │ Remediation:
-  │   HKDF is appropriate for key derivation from high-entropy secrets. Not for passwords.
+  │ Fix: HKDF is appropriate for key derivation from high-entropy secrets. Not for passwords.
+  │ Verify: sed -n '55p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #77 [INFO]
   │ Type: Hybrid Key Exchange
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:11
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:11
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2268,15 +2365,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   Hybrid key exchange detected (classical + PQC). Excellent transition strategy.
-  │ Remediation:
-  │   Hybrid cryptography is recommended during PQC transition. Provides security from both classical and quantum threats.
+  │ Fix: Hybrid cryptography is recommended during PQC transition. Provides security from both classical and quantum threats.
+  │ Verify: sed -n '11p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #78 [INFO]
   │ Type: ML-KEM Key Encapsulation
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:17
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:17
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2295,15 +2391,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   ML-KEM (FIPS 203) post-quantum key encapsulation detected. This is quantum-safe.
-  │ Remediation:
-  │   ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Fix: ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Verify: sed -n '17p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #79 [INFO]
   │ Type: Post-Quantum Crypto Library
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:17
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:17
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2321,15 +2416,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   Post-quantum cryptography library detected. Good practice for quantum-safe migration.
-  │ Remediation:
-  │   Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Fix: Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Verify: sed -n '17p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #80 [INFO]
   │ Type: ML-KEM Key Encapsulation
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:18
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:18
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2348,15 +2442,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   ML-KEM (FIPS 203) post-quantum key encapsulation detected. This is quantum-safe.
-  │ Remediation:
-  │   ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Fix: ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Verify: sed -n '18p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #81 [INFO]
   │ Type: Post-Quantum Crypto Library
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:99
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:99
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2374,15 +2467,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   Post-quantum cryptography library detected. Good practice for quantum-safe migration.
-  │ Remediation:
-  │   Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Fix: Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Verify: sed -n '99p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #82 [INFO]
   │ Type: ML-DSA Digital Signature
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:99
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:99
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2401,15 +2493,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   ML-DSA (FIPS 204) post-quantum digital signature detected. This is quantum-safe.
-  │ Remediation:
-  │   ML-DSA is NIST-approved and quantum-safe. Recommended for digital signatures.
+  │ Fix: ML-DSA is NIST-approved and quantum-safe. Recommended for digital signatures.
+  │ Verify: sed -n '99p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #83 [INFO]
   │ Type: ML-DSA Digital Signature
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:105
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:105
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2428,15 +2519,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   ML-DSA (FIPS 204) post-quantum digital signature detected. This is quantum-safe.
-  │ Remediation:
-  │   ML-DSA is NIST-approved and quantum-safe. Recommended for digital signatures.
+  │ Fix: ML-DSA is NIST-approved and quantum-safe. Recommended for digital signatures.
+  │ Verify: sed -n '105p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #84 [INFO]
   │ Type: Hybrid Key Exchange
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:111
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:111
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2455,15 +2545,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   Hybrid key exchange detected (classical + PQC). Excellent transition strategy.
-  │ Remediation:
-  │   Hybrid cryptography is recommended during PQC transition. Provides security from both classical and quantum threats.
+  │ Fix: Hybrid cryptography is recommended during PQC transition. Provides security from both classical and quantum threats.
+  │ Verify: sed -n '111p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #85 [INFO]
   │ Type: KMAC
-  │ File: /tmp/cryptoscan/crypto-samples/macs_and_kdfs.go:66
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go:66
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2482,15 +2571,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   KMAC detected (SP 800-185). NIST-approved SHA-3 based MAC. KMAC-256 is quantum-safe.
-  │ Remediation:
-  │   KMAC is an excellent choice. KMAC-256 provides quantum-safe authentication.
+  │ Fix: KMAC is an excellent choice. KMAC-256 provides quantum-safe authentication.
+  │ Verify: sed -n '66p' /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #86 [INFO]
   │ Type: KMAC
-  │ File: /tmp/cryptoscan/crypto-samples/macs_and_kdfs.go:67
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go:67
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2509,15 +2597,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   KMAC detected (SP 800-185). NIST-approved SHA-3 based MAC. KMAC-256 is quantum-safe.
-  │ Remediation:
-  │   KMAC is an excellent choice. KMAC-256 provides quantum-safe authentication.
+  │ Fix: KMAC is an excellent choice. KMAC-256 provides quantum-safe authentication.
+  │ Verify: sed -n '67p' /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #87 [INFO]
   │ Type: KMAC
-  │ File: /tmp/cryptoscan/crypto-samples/macs_and_kdfs.go:68
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go:68
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2536,15 +2623,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   KMAC detected (SP 800-185). NIST-approved SHA-3 based MAC. KMAC-256 is quantum-safe.
-  │ Remediation:
-  │   KMAC is an excellent choice. KMAC-256 provides quantum-safe authentication.
+  │ Fix: KMAC is an excellent choice. KMAC-256 provides quantum-safe authentication.
+  │ Verify: sed -n '68p' /tmp/qramm/cryptoscan/crypto-samples/macs_and_kdfs.go
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #88 [INFO]
   │ Type: Post-Quantum Crypto Library
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:10
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:10
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2562,15 +2648,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   Post-quantum cryptography library detected. Good practice for quantum-safe migration.
-  │ Remediation:
-  │   Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Fix: Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Verify: sed -n '10p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #89 [INFO]
   │ Type: ML-KEM Key Encapsulation
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:10
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:10
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2589,15 +2674,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   ML-KEM (FIPS 203) post-quantum key encapsulation detected. This is quantum-safe.
-  │ Remediation:
-  │   ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Fix: ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Verify: sed -n '10p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #90 [INFO]
   │ Type: Post-Quantum Crypto Library
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:15
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:15
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2615,15 +2699,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   Post-quantum cryptography library detected. Good practice for quantum-safe migration.
-  │ Remediation:
-  │   Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Fix: Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Verify: sed -n '15p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #91 [INFO]
   │ Type: ML-KEM Key Encapsulation
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:15
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:15
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2642,15 +2725,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   ML-KEM (FIPS 203) post-quantum key encapsulation detected. This is quantum-safe.
-  │ Remediation:
-  │   ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Fix: ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Verify: sed -n '15p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #92 [INFO]
   │ Type: Post-Quantum Crypto Library
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:22
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:22
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2668,15 +2750,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   Post-quantum cryptography library detected. Good practice for quantum-safe migration.
-  │ Remediation:
-  │   Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Fix: Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Verify: sed -n '22p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #93 [INFO]
   │ Type: ML-DSA Digital Signature
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:22
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:22
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2695,15 +2776,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   ML-DSA (FIPS 204) post-quantum digital signature detected. This is quantum-safe.
-  │ Remediation:
-  │   ML-DSA is NIST-approved and quantum-safe. Recommended for digital signatures.
+  │ Fix: ML-DSA is NIST-approved and quantum-safe. Recommended for digital signatures.
+  │ Verify: sed -n '22p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #94 [INFO]
   │ Type: Post-Quantum Crypto Library
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:28
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:28
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2721,15 +2801,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   Post-quantum cryptography library detected. Good practice for quantum-safe migration.
-  │ Remediation:
-  │   Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Fix: Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Verify: sed -n '28p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #95 [INFO]
   │ Type: ML-DSA Digital Signature
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:28
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:28
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2748,15 +2827,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   ML-DSA (FIPS 204) post-quantum digital signature detected. This is quantum-safe.
-  │ Remediation:
-  │   ML-DSA is NIST-approved and quantum-safe. Recommended for digital signatures.
+  │ Fix: ML-DSA is NIST-approved and quantum-safe. Recommended for digital signatures.
+  │ Verify: sed -n '28p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #96 [INFO]
   │ Type: Post-Quantum Crypto Library
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:35
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:35
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2774,15 +2852,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   Post-quantum cryptography library detected. Good practice for quantum-safe migration.
-  │ Remediation:
-  │   Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Fix: Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Verify: sed -n '35p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #97 [INFO]
   │ Type: SLH-DSA Hash-Based Signature
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:35
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:35
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2801,15 +2878,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   SLH-DSA (FIPS 205) stateless hash-based signature detected. This is quantum-safe.
-  │ Remediation:
-  │   SLH-DSA is NIST-approved and quantum-safe. Good backup option for ML-DSA.
+  │ Fix: SLH-DSA is NIST-approved and quantum-safe. Good backup option for ML-DSA.
+  │ Verify: sed -n '35p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #98 [INFO]
   │ Type: Post-Quantum Crypto Library
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:38
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:38
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2827,15 +2903,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   Post-quantum cryptography library detected. Good practice for quantum-safe migration.
-  │ Remediation:
-  │   Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Fix: Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Verify: sed -n '38p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #99 [INFO]
   │ Type: SLH-DSA Hash-Based Signature
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:38
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:38
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2854,15 +2929,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   SLH-DSA (FIPS 205) stateless hash-based signature detected. This is quantum-safe.
-  │ Remediation:
-  │   SLH-DSA is NIST-approved and quantum-safe. Good backup option for ML-DSA.
+  │ Fix: SLH-DSA is NIST-approved and quantum-safe. Good backup option for ML-DSA.
+  │ Verify: sed -n '38p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #100 [INFO]
   │ Type: ML-KEM Key Encapsulation
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:53
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:53
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2881,15 +2955,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   ML-KEM (FIPS 203) post-quantum key encapsulation detected. This is quantum-safe.
-  │ Remediation:
-  │   ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Fix: ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Verify: sed -n '53p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #101 [INFO]
   │ Type: Post-Quantum Crypto Library
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:63
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:63
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2907,15 +2980,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   Post-quantum cryptography library detected. Good practice for quantum-safe migration.
-  │ Remediation:
-  │   Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Fix: Continue using PQC libraries. Ensure you're using NIST-approved algorithms (ML-KEM, ML-DSA, SLH-DSA).
+  │ Verify: sed -n '63p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #102 [INFO]
   │ Type: XMSS Stateful Signature
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:63
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:63
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2934,15 +3006,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   XMSS stateful hash-based signature detected (SP 800-208). Quantum-safe but requires careful state management.
-  │ Remediation:
-  │   XMSS is NIST-approved (SP 800-208). Ensure proper state management to prevent key reuse.
+  │ Fix: XMSS is NIST-approved (SP 800-208). Ensure proper state management to prevent key reuse.
+  │ Verify: sed -n '63p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #103 [INFO]
   │ Type: LMS/HSS Stateful Signature
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:66
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:66
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2961,15 +3032,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   LMS/HSS stateful hash-based signature detected (SP 800-208). Quantum-safe but requires careful state management.
-  │ Remediation:
-  │   LMS is NIST-approved (SP 800-208). Ensure proper state management to prevent key reuse.
+  │ Fix: LMS is NIST-approved (SP 800-208). Ensure proper state management to prevent key reuse.
+  │ Verify: sed -n '66p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #104 [INFO]
   │ Type: LMS/HSS Stateful Signature
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:67
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:67
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -2987,15 +3057,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   LMS/HSS stateful hash-based signature detected (SP 800-208). Quantum-safe but requires careful state management.
-  │ Remediation:
-  │   LMS is NIST-approved (SP 800-208). Ensure proper state management to prevent key reuse.
+  │ Fix: LMS is NIST-approved (SP 800-208). Ensure proper state management to prevent key reuse.
+  │ Verify: sed -n '67p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #105 [INFO]
   │ Type: TLS Configuration
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:80
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:80
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -3014,15 +3083,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   TLS 1.2/1.3 detected. TLS 1.3 cipher suites using ECDHE are quantum-vulnerable for key exchange.
-  │ Remediation:
-  │   Monitor for hybrid TLS implementations with ML-KEM when available.
+  │ Fix: Monitor for hybrid TLS implementations with ML-KEM when available.
+  │ Verify: sed -n '80p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #106 [INFO]
   │ Type: TLS Configuration
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:81
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:81
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -3041,15 +3109,14 @@
   │ Confidence: MEDIUM
   │ Description:
   │   TLS 1.2/1.3 detected. TLS 1.3 cipher suites using ECDHE are quantum-vulnerable for key exchange.
-  │ Remediation:
-  │   Monitor for hybrid TLS implementations with ML-KEM when available.
+  │ Fix: Monitor for hybrid TLS implementations with ML-KEM when available.
+  │ Verify: sed -n '81p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Reduced security margin against quantum attacks; acceptable with increased key sizes
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #107 [INFO]
   │ Type: ML-KEM Key Encapsulation
-  │ File: /tmp/cryptoscan/crypto-samples/crypto_samples.go:41
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go:41
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -3068,15 +3135,14 @@
   │ Confidence: LOW
   │ Description:
   │   ML-KEM (FIPS 203) post-quantum key encapsulation detected. This is quantum-safe.
-  │ Remediation:
-  │   ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Fix: ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Verify: sed -n '41p' /tmp/qramm/cryptoscan/crypto-samples/crypto_samples.go
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #108 [INFO]
   │ Type: Composite Digital Signature
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:106
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:106
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -3095,15 +3161,14 @@
   │ Confidence: LOW
   │ Description:
   │   Composite/hybrid digital signature detected. Combines classical and PQC signatures.
-  │ Remediation:
-  │   Composite signatures are excellent for PQC transition. Both signatures must verify.
+  │ Fix: Composite signatures are excellent for PQC transition. Both signatures must verify.
+  │ Verify: sed -n '106p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #109 [INFO]
   │ Type: ML-DSA Digital Signature
-  │ File: /tmp/cryptoscan/crypto-samples/hybrid_crypto.js:106
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js:106
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -3122,15 +3187,14 @@
   │ Confidence: LOW
   │ Description:
   │   ML-DSA (FIPS 204) post-quantum digital signature detected. This is quantum-safe.
-  │ Remediation:
-  │   ML-DSA is NIST-approved and quantum-safe. Recommended for digital signatures.
+  │ Fix: ML-DSA is NIST-approved and quantum-safe. Recommended for digital signatures.
+  │ Verify: sed -n '106p' /tmp/qramm/cryptoscan/crypto-samples/hybrid_crypto.js
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
   ┌── Finding #110 [INFO]
   │ Type: ML-KEM Key Encapsulation
-  │ File: /tmp/cryptoscan/crypto-samples/pqc_algorithms.py:5
+  │ File: /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py:5
   │
   │ Source:
   │ ┌────────────────────────────────────────────────────────
@@ -3149,15 +3213,15 @@
   │ Confidence: LOW
   │ Description:
   │   ML-KEM (FIPS 203) post-quantum key encapsulation detected. This is quantum-safe.
-  │ Remediation:
-  │   ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Fix: ML-KEM is NIST-approved and quantum-safe. Recommended for key exchange.
+  │ Verify: sed -n '5p' /tmp/qramm/cryptoscan/crypto-samples/pqc_algorithms.py
   │ Impact: Standard cryptographic maintenance recommended
-  │ Effort: Assessment needed
   └────────────────────────────────────────────────────────────
 
 ═══════════════════════════════════════════════════════════════
   QRAMM CryptoScan - Quantum Readiness Assessment Tool
   Part of the QRAMM Toolkit: https://qramm.org
+  Assess your organisation: https://qramm.org/quick-assessment.html
   Developed by CSNP: https://csnp.org
 
   CSNP Mission: Advancing cybersecurity through education,

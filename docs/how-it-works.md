@@ -114,7 +114,7 @@ This is the maintainers' own comparison. It has not been reviewed independently,
 
 **Remote Git URL scanning**: Scan any public or private Git repository directly by URL without cloning it first. Just run `cryptoscan scan https://github.com/org/repo.git` and get results immediately.
 
-**Source code context**: Every finding includes the 3 lines before and after the match, so you can immediately understand the context without opening the file. Know if it's in a comment, test, or production code at a glance.
+**Source code context**: Every finding includes the 3 lines before and after the match (`--context` sets the number), so you can immediately understand the context without opening the file. Know if it's in a comment, test, or production code at a glance.
 
 **Quantum risk classification**: Each finding is tagged with its quantum computing threat level: VULNERABLE (broken by Shor's algorithm), PARTIAL (weakened by Grover's algorithm), SAFE (quantum-resistant), or UNKNOWN. This tells you exactly what needs to migrate first.
 

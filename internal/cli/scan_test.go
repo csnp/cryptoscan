@@ -78,6 +78,7 @@ func TestOptionValueListsMatchHelpAndCode(t *testing.T) {
 		"format":       strings.Join(formatNames, ", "),
 		"min-severity": strings.Join(severityNames, ", "),
 		"fail-on":      strings.Join(severityNames, ", "),
+		"group-by":     strings.Join(groupByNames, ", "),
 	}
 	for flag, list := range helpWants {
 		usage := scanCmd.Flags().Lookup(flag).Usage
@@ -234,20 +235,26 @@ func TestScanCmdShortFlags(t *testing.T) {
 	}
 }
 
-// captureStdout captures stdout during function execution
+// captureStdout captures stdout during function execution. The pipe is
+// drained while f runs, so that output larger than the pipe buffer does not
+// block f.
 func captureStdout(f func()) string {
 	old := os.Stdout
 	r, w, _ := os.Pipe()
 	os.Stdout = w
 
+	done := make(chan string)
+	go func() {
+		var buf bytes.Buffer
+		_, _ = io.Copy(&buf, r)
+		done <- buf.String()
+	}()
+
 	f()
 
 	w.Close()
 	os.Stdout = old
-
-	var buf bytes.Buffer
-	_, _ = io.Copy(&buf, r)
-	return buf.String()
+	return <-done
 }
 
 func TestPrintBanner(t *testing.T) {

@@ -33,7 +33,6 @@ var (
 	minSeverity        string
 	noColor            bool
 	jsonPretty         bool
-	scanGitHistory     bool
 	groupBy            string
 	contextLines       int
 	streamFindings     bool
@@ -51,13 +50,20 @@ var (
 	noConfig         bool   // --no-config
 )
 
-// formatNames lists the values --format accepts and severityNames the values
-// --min-severity and --fail-on accept, lowest first. The flag help and the
-// error for an unknown value are both built from these lists.
+// formatNames lists the values --format accepts, severityNames the values
+// --min-severity and --fail-on accept, lowest first, and groupByNames the
+// values --group-by accepts. The flag help and the error for an unknown value
+// are both built from these lists.
 var (
 	formatNames   = []string{"text", "json", "csv", "sarif", "cbom"}
 	severityNames = []string{"info", "low", "medium", "high", "critical"}
+	groupByNames  = []string{"file"}
 )
+
+// progressShown records whether the running scan prints the in-place
+// progress line, so that the line is cleared before anything else is printed
+// and only then: a stream that never carried the line has no cursor to move.
+var progressShown bool
 
 var scanCmd = &cobra.Command{
 	Use:   "scan [path or URL]",
@@ -124,14 +130,13 @@ func init() {
 	scanCmd.Flags().StringVarP(&outputFile, "output", "o", "", "Output file (default: stdout)")
 	scanCmd.Flags().StringVarP(&includeGlobs, "include", "i", "", "File patterns to include (comma-separated)")
 	scanCmd.Flags().StringVarP(&excludeGlobs, "exclude", "e", "", "File and directory patterns to exclude (comma-separated): a pattern without / matches a name at any depth (vendor, *_test.go), a pattern ending in /* or /** skips that directory and everything in it (vendor/*), and any other pattern is matched against the path from the scan root (src/*.pb.go)")
-	scanCmd.Flags().IntVarP(&maxDepth, "max-depth", "d", 0, "Maximum directory depth (0 = unlimited). NOT YET IMPLEMENTED: the value is accepted and ignored")
-	scanCmd.Flags().BoolVarP(&showProgress, "progress", "p", false, "Show scan progress")
+	scanCmd.Flags().IntVarP(&maxDepth, "max-depth", "d", 0, "Maximum directory depth (0 = unlimited): 1 scans only the files directly in the target, 2 adds the files in its subdirectories, and so on")
+	scanCmd.Flags().BoolVarP(&showProgress, "progress", "p", false, "Show scan progress: the number of files scanned so far, updated in place (text output on a terminal)")
 	scanCmd.Flags().StringVar(&minSeverity, "min-severity", "info", "Minimum severity to report: "+strings.Join(severityNames, ", "))
 	scanCmd.Flags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 	scanCmd.Flags().BoolVar(&jsonPretty, "pretty", false, "Pretty print JSON output")
-	scanCmd.Flags().BoolVar(&scanGitHistory, "git-history", false, "Scan Git history (slower). NOT YET IMPLEMENTED: only the working tree is scanned")
-	scanCmd.Flags().StringVarP(&groupBy, "group-by", "g", "", "Group output by: file. NOT YET IMPLEMENTED: severity, category and quantum are accepted and ignored")
-	scanCmd.Flags().IntVarP(&contextLines, "context", "c", 3, "Number of context lines to show around findings. NOT YET IMPLEMENTED: the report always shows 3")
+	scanCmd.Flags().StringVarP(&groupBy, "group-by", "g", "", "Group the text report by: "+strings.Join(groupByNames, ", "))
+	scanCmd.Flags().IntVarP(&contextLines, "context", "c", 3, "Lines of source to show before and after each finding")
 	scanCmd.Flags().BoolVar(&streamFindings, "stream", true, "Show findings as they are discovered")
 	scanCmd.Flags().BoolVar(&includeImports, "include-imports", false, "Include library import findings (normally suppressed as low-value)")
 	scanCmd.Flags().BoolVar(&includeQuantumSafe, "include-quantum-safe", false, "Include quantum-safe algorithm findings (SHA-256, AES-256)")
@@ -330,7 +335,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		ExcludeGlobs:       excludes,
 		MaxDepth:           maxDepth,
 		ShowProgress:       showProgress,
-		ScanGitHistory:     scanGitHistory,
+		ContextLines:       contextLines,
 		MinSeverity:        minSev,
 		IncludeImports:     includeImports || verbose,                         // Include if explicitly set or verbose mode
 		IncludeQuantumSafe: includeQuantumSafe || verbose || opts.quantumSafe, // Include if explicitly set, verbose mode, or forced by the command
@@ -358,24 +363,35 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 			printStreamFinding(f, num, !noColor)
 			outputMu.Unlock()
 		}
+	}
+
+	// The progress line rewrites itself in place, which only makes sense on
+	// a terminal. Piped output would otherwise collect a carriage return and
+	// an erase-line sequence per update.
+	progressShown = showProgress && textReport && isTerminal(os.Stdout)
+	if progressShown {
 		cfg.OnFileScanned = func(path string) {
 			outputMu.Lock()
 			fileCount++
 			count := fileCount
 			outputMu.Unlock()
-			// Show progress every 50 files (less frequent for parallel scanning)
-			// The progress line rewrites itself in place, which only makes
-			// sense on a terminal. Piped output would otherwise collect a
-			// carriage return and an erase-line sequence per update.
-			if count%50 == 0 && !noColor {
-				shortPath := path
-				if len(shortPath) > 50 {
-					shortPath = "..." + shortPath[len(shortPath)-47:]
-				}
-				outputMu.Lock()
-				fmt.Printf("\r\033[K  \033[2m%d files scanned | %s\033[0m", count, shortPath)
-				outputMu.Unlock()
+			// The first file shows that the scan has started; after that the
+			// count is refreshed every 50 files, since the workers scan in
+			// parallel and a line per file would be mostly rewriting.
+			if count != 1 && count%50 != 0 {
+				return
 			}
+			shortPath := path
+			if len(shortPath) > 50 {
+				shortPath = "..." + shortPath[len(shortPath)-47:]
+			}
+			line := fmt.Sprintf("  %d %s scanned | %s", count, plural(count, "file", "files"), shortPath)
+			if !noColor {
+				line = "\033[2m" + line + "\033[0m"
+			}
+			outputMu.Lock()
+			fmt.Print("\r\033[K" + line)
+			outputMu.Unlock()
 		}
 	}
 
@@ -431,10 +447,11 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		results.MigrationScore = analyzer.CalculateMigrationScoreForRoot(results.Findings, results.ScanRoot)
 	}
 
+	// Clear any remaining progress line before the footer or the report.
+	clearProgressLine()
+
 	// Print streaming footer with summary
 	if streamFindings && textReport {
-		// Clear any remaining progress line
-		clearProgressLine()
 		printScanningFooter(streamTally{
 			listed:   listedCount,
 			unique:   uniqueCount,
@@ -822,10 +839,18 @@ func parseSeverity(s string) (scanner.Severity, error) {
 	}
 }
 
-// checkOptionValues checks --format, --min-severity and --fail-on, then the
-// format, minSeverity and failOn settings of the config file at cfgPath, and
-// returns an error for the first value that is not one of the accepted names.
+// checkOptionValues checks --format, --min-severity, --fail-on and
+// --group-by, then the format, minSeverity and failOn settings of the config
+// file at cfgPath, and returns an error for the first value that is not one of
+// the accepted names. It also rejects a negative --max-depth or --context.
 func checkOptionValues(cfgFile *config.Config, cfgPath string) error {
+	if maxDepth < 0 {
+		return fmt.Errorf("--max-depth must be 0 (unlimited) or a positive number, not %d", maxDepth)
+	}
+	if contextLines < 0 {
+		return fmt.Errorf("--context must be 0 or a positive number, not %d", contextLines)
+	}
+
 	type option struct {
 		name, value, source string
 		valid               []string
@@ -837,6 +862,7 @@ func checkOptionValues(cfgFile *config.Config, cfgPath string) error {
 		{"--format", outputFormat, "", formatNames, false},
 		{"--min-severity", minSeverity, "", severityNames, true},
 		{"--fail-on", failOn, "", severityNames, true},
+		{"--group-by", groupBy, "", groupByNames, true},
 	}
 	if cfgFile != nil {
 		// Named by their keys in the config file.
@@ -907,10 +933,11 @@ func calculateSummary(findings []scanner.Finding) scanner.Summary {
 	return summary
 }
 
-// clearProgressLine erases the in-place progress line. It is a no-op when
-// colour is off, since a redirected stream has no cursor to move.
+// clearProgressLine erases the in-place progress line. It prints nothing
+// when no progress line is shown, since a redirected stream has no cursor to
+// move.
 func clearProgressLine() {
-	if noColor {
+	if !progressShown {
 		return
 	}
 	fmt.Print("\r\033[K")
@@ -918,8 +945,9 @@ func clearProgressLine() {
 
 // isTerminal reports whether f is attached to a terminal. A redirected or
 // piped stream is a character device only when it is a terminal, so this
-// distinguishes interactive output from output being captured.
-func isTerminal(f *os.File) bool {
+// distinguishes interactive output from output being captured. It is a
+// variable so that a test can stand in for a terminal.
+var isTerminal = func(f *os.File) bool {
 	info, err := f.Stat()
 	if err != nil {
 		return false

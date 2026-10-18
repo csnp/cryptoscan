@@ -43,7 +43,7 @@ CryptoScan performs multi-layer analysis:
 | Knows it's in documentation | No | Yes (filters out) |
 | Provides remediation | No | Yes |
 | Classifies quantum risk | No | Yes |
-| Shows source context | No | Yes (3 lines before/after) |
+| Shows source context | No | Yes (3 lines before/after by default, set with `--context`) |
 
 ---
 

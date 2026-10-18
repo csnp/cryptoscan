@@ -8,7 +8,7 @@
 
 CryptoScan is a command-line scanner that finds the cryptography in your source code and configuration files, sorts each finding by its quantum risk, maps the results to QRAMM Dimension 1 (Cryptographic Visibility and Inventory), and writes them as text, JSON, CSV, SARIF or a CycloneDX CBOM.
 
-It reads the files in the working tree, not Git history (`--git-history` is accepted but not yet implemented), and it does not detect DSA, as `cryptoscan scan --help` states.
+It reads the files in the working tree, not Git history. It does not detect DSA, as `cryptoscan scan --help` states.
 
 Install it with Go (the binary goes into `$(go env GOPATH)/bin`), then scan the sample files that come with this repository:
 
@@ -133,7 +133,7 @@ CryptoScan maps findings to the **Quantum Readiness Assurance Maturity Model (QR
 
 CryptoScan goes beyond simple pattern matching:
 
-- **Source code context**: See 3 lines before and after each finding
+- **Source code context**: See 3 lines before and after each finding, or the number set with `--context`
 - **Confidence scoring**: Findings in comments, logs, or docs are marked low confidence
 - **File type awareness**: Different severity for code vs. test vs. documentation
 - **Language detection**: 15+ programming languages recognized

@@ -24,7 +24,7 @@ cryptoscan scan <path or URL> [flags]
 
 The path is required. It is a local directory, a file, or a Git URL to scan; use `.` for the current directory.
 
-The descriptions below are the ones `cryptoscan scan --help` prints. Four flags are accepted but not yet implemented, and their help text says so.
+The descriptions below are the ones `cryptoscan scan --help` prints.
 
 | Flag | Description |
 |------|-------------|
@@ -32,11 +32,10 @@ The descriptions below are the ones `cryptoscan scan --help` prints. Four flags 
 | `-o, --output string` | Output file (default: stdout) |
 | `-i, --include string` | File patterns to include (comma-separated) |
 | `-e, --exclude string` | File and directory patterns to exclude (comma-separated): a pattern without `/` matches a name at any depth (`vendor`, `*_test.go`), a pattern ending in `/*` or `/**` skips that directory and everything in it (`vendor/*`), and any other pattern is matched against the path from the scan root (`src/*.pb.go`) |
-| `-d, --max-depth int` | Maximum directory depth (0 = unlimited). NOT YET IMPLEMENTED: the value is accepted and ignored |
-| `-g, --group-by string` | Group output by: file. NOT YET IMPLEMENTED: severity, category and quantum are accepted and ignored |
-| `-c, --context int` | Number of context lines to show around findings. NOT YET IMPLEMENTED: the report always shows 3 (default 3) |
-| `--git-history` | Scan Git history (slower). NOT YET IMPLEMENTED: only the working tree is scanned |
-| `-p, --progress` | Show scan progress |
+| `-d, --max-depth int` | Maximum directory depth (0 = unlimited): 1 scans only the files directly in the target, 2 adds the files in its subdirectories, and so on |
+| `-g, --group-by string` | Group the text report by: file |
+| `-c, --context int` | Lines of source to show before and after each finding (default 3) |
+| `-p, --progress` | Show scan progress: the number of files scanned so far, updated in place (text output on a terminal) |
 | `--stream` | Show findings as they are discovered (default true) |
 | `--min-severity string` | Minimum severity to report: info, low, medium, high, critical (default "info") |
 | `--include-imports` | Include library import findings (normally suppressed as low-value) |

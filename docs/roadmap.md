@@ -30,7 +30,7 @@ Status as of 2026-10-18, when 1.4.0 is the latest release. What each release cha
 ## v1.4
 - [x] Enhanced CBOM output (CycloneDX 1.6 cryptoProperties), shipped in 1.4.0
 - [x] Smart remediation engine with language-specific recommendations, on main and not yet in a release. Where the engine has text for the algorithm in the file's language, the finding's `Fix:` line names the change, for example `Replace hashlib.md5() with hashlib.sha256()` in Python.
-- [ ] Git history scanning (find crypto in past commits). The `--git-history` flag is accepted today and ignored.
+- [ ] Git history scanning (find crypto in past commits). There is no flag for it yet; `scan` reads the working tree.
 
 ## v2.0 (future)
 - [ ] AWS resource scanning (KMS, ACM, Secrets Manager)

@@ -106,6 +106,30 @@ change how `scan` decides its exit code.
   reports of `crypto-samples` run with `--stream=false` are identical apart
   from their Time, Duration and Speed lines.
 
+- **Four `scan` flags that were parsed and ignored now work or are gone.**
+  Their help text said so, and a flag that parses and does nothing is a dead
+  end in the one place meant to unblock the user. `--max-depth` limits the
+  walk: `--max-depth 1` scans only the files directly in the target, `2` adds
+  the files in its subdirectories, and so on. `--context` sets how many
+  source lines a finding keeps before and after its match, in the text report
+  and in `sourceContext` of the JSON report; the default is still 3, and
+  `--context 0` keeps the matched line alone. `--group-by` accepts `file`,
+  the one value it implements; `severity`, `category` and `quantum` are
+  rejected with `unknown --group-by "severity" (valid: file)` before anything
+  is scanned.
+  `--git-history` is removed: passing it fails with `unknown flag:
+  --git-history` instead of scanning the working tree as if the history had
+  been asked for. `--progress` was parsed and ignored as well, with no note
+  in its help: the progress line appeared on a terminal after every 50 files
+  whether or not the flag was given. It is now printed only with `-p` or
+  `--progress`, for text output on a terminal, at the first file scanned and
+  then every 50 files. A negative `--max-depth` or `--context` is rejected.
+  A test scans a small tree with and without each flag and fails when the
+  report, exit code and error are the same, so a flag cannot be listed
+  without an effect. In the `scanner` package, `Config` gains `ContextLines`
+  and loses `ScanGitHistory`, which nothing read; a `Config` built without
+  `ContextLines` keeps only the matched line.
+
 - **SARIF rules are listed in a stable order.** `runs[0].tool.driver.rules`
   was listed in a different order on each run of an unchanged tree. Rules are
   now written in the order of their first result, so two SARIF files of
@@ -413,10 +437,6 @@ change how `scan` decides its exit code.
   a codebase using DSA is not told that it is quantum vulnerable. Detection
   also matches whole words only, so compound identifiers such as
   `RSAPrivateKey` and `AESCipher` are not matched.
-
-- **Four flags are accepted and ignored:** `--context`, `--max-depth`,
-  `--git-history`, and `--group-by` for the values `severity`, `category` and
-  `quantum`. Their help text says so. `--group-by file` works.
 
 - **Two text reports of an unchanged tree can differ beyond their timing
   lines.** The findings listed while the scan runs appear in the order the

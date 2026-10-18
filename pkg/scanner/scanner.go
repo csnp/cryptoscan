@@ -54,12 +54,12 @@ type Config struct {
 	Target             string
 	IncludeGlobs       []string
 	ExcludeGlobs       []string
-	MaxDepth           int
+	MaxDepth           int // Directory depth limit: 1 scans only the files directly in the target, 2 adds the files in its subdirectories, and so on; 0 means no limit
 	ShowProgress       bool
-	ScanGitHistory     bool
 	ScanDependencies   bool
 	MinSeverity        Severity
 	MinConfidence      Confidence
+	ContextLines       int               // Source lines kept before and after each matched line in a finding's SourceContext; 0 keeps the matched line alone
 	IncludeDocs        bool              // Whether to include documentation files
 	IncludeImports     bool              // Whether to include library import findings (low-value, default false)
 	IncludeQuantumSafe bool              // Whether to include quantum-safe findings like SHA-256, AES-256 (default false)
@@ -543,7 +543,15 @@ func (s *Scanner) scanDirectory(root string) error {
 			return nil
 		}
 		if d.IsDir() {
-			return s.shouldSkipDir(root, path, d.Name())
+			if err := s.shouldSkipDir(root, path, d.Name()); err != nil {
+				return err
+			}
+			// A directory at the depth limit is not entered: the files in it
+			// would sit one level deeper than the limit allows.
+			if s.config.MaxDepth > 0 && depth(root, path) >= s.config.MaxDepth {
+				return fs.SkipDir
+			}
+			return nil
 		}
 		if s.shouldScanFile(root, path) {
 			filesToScan = append(filesToScan, path)
@@ -583,6 +591,16 @@ func (s *Scanner) scanDirectory(root string) error {
 	// Wait for all workers to finish
 	wg.Wait()
 	return nil
+}
+
+// depth returns how many directories below the scan root path is: 0 for the
+// root itself, 1 for a file or directory directly in it.
+func depth(root, path string) int {
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel == "." {
+		return 0
+	}
+	return strings.Count(rel, string(filepath.Separator)) + 1
 }
 
 // relPath returns path relative to the scan root, slash-separated and with a
@@ -1001,8 +1019,8 @@ func (s *Scanner) scanFile(path string) error {
 				continue
 			}
 
-			// Add source context (3 lines before and after)
-			m.SourceContext = s.extractSourceContext(allLines, lineNum, 3)
+			// Add the source lines around the match, as many as the config asks for
+			m.SourceContext = s.extractSourceContext(allLines, lineNum, s.config.ContextLines)
 
 			// Apply severity filter
 			if m.Severity < s.config.MinSeverity {

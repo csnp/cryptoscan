@@ -6,6 +6,7 @@ package scanner
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -661,64 +662,105 @@ func init() {}
 	}
 }
 
+// TestScanMaxDepth scans a tree with a file at each of three depths under
+// every depth limit and checks which files were reached: root.go sits in the
+// target, a/one.go one directory down and a/b/two.go two down.
 func TestScanMaxDepth(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "cryptoscan-test")
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer os.RemoveAll(tmpDir)
-
-	// Create file at root level
-	rootFile := filepath.Join(tmpDir, "root.go")
-	rootContent := `package main
-import "crypto/rsa"
-func gen() { rsa.GenerateKey(nil, 2048) }
-`
-	if err := os.WriteFile(rootFile, []byte(rootContent), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create nested directory structure
-	deepDir := filepath.Join(tmpDir, "a", "b", "c", "d")
-	if err := os.MkdirAll(deepDir, 0755); err != nil {
-		t.Fatal(err)
-	}
-
-	// Create file in deep directory
-	deepFile := filepath.Join(deepDir, "deep.go")
-	deepContent := `package main
-import "crypto/rsa"
-func gen() { rsa.GenerateKey(nil, 2048) }
-`
-	if err := os.WriteFile(deepFile, []byte(deepContent), 0644); err != nil {
-		t.Fatal(err)
-	}
-
-	// Scan with max depth 1 (should only find root.go)
-	cfg := Config{
-		Target:      tmpDir,
-		MinSeverity: SeverityInfo,
-		MaxDepth:    1,
-	}
-	s := New(cfg)
-	results, err := s.Scan()
-	if err != nil {
-		t.Fatalf("Scan failed: %v", err)
-	}
-
-	// Should find root file
-	foundRoot := false
-	for _, f := range results.Findings {
-		if strings.Contains(f.File, "root.go") {
-			foundRoot = true
+	dir := t.TempDir()
+	code := "package main\n\nimport \"crypto/rsa\"\n\nfunc gen() { rsa.GenerateKey(nil, 2048) }\n"
+	for _, rel := range []string{"root.go", "a/one.go", "a/b/two.go"} {
+		path := filepath.Join(dir, filepath.FromSlash(rel))
+		if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(code), 0o644); err != nil {
+			t.Fatal(err)
 		}
 	}
-	if !foundRoot && len(results.Findings) == 0 {
-		t.Log("No findings at root level (may depend on pattern matching)")
+
+	tests := []struct {
+		maxDepth int
+		want     []string
+	}{
+		{0, []string{"a/b/two.go", "a/one.go", "root.go"}},
+		{1, []string{"root.go"}},
+		{2, []string{"a/one.go", "root.go"}},
+		{3, []string{"a/b/two.go", "a/one.go", "root.go"}},
+	}
+	for _, tt := range tests {
+		results, err := New(Config{Target: dir, MinSeverity: SeverityInfo, MaxDepth: tt.maxDepth}).Scan()
+		if err != nil {
+			t.Fatalf("MaxDepth %d: Scan failed: %v", tt.maxDepth, err)
+		}
+		seen := map[string]bool{}
+		for _, f := range results.Findings {
+			rel, err := filepath.Rel(dir, f.File)
+			if err != nil {
+				t.Fatal(err)
+			}
+			seen[filepath.ToSlash(rel)] = true
+		}
+		got := make([]string, 0, len(seen))
+		for file := range seen {
+			got = append(got, file)
+		}
+		slices.Sort(got)
+		if !slices.Equal(got, tt.want) {
+			t.Errorf("MaxDepth %d: findings in %v, want %v", tt.maxDepth, got, tt.want)
+		}
+		if results.FilesScanned != len(tt.want) {
+			t.Errorf("MaxDepth %d: FilesScanned = %d, want %d", tt.maxDepth, results.FilesScanned, len(tt.want))
+		}
+	}
+}
+
+// TestScanContextLines checks how many source lines a finding keeps around
+// its match for each context width, on a file whose only match is line 6 of
+// 10.
+func TestScanContextLines(t *testing.T) {
+	dir := t.TempDir()
+	code := "package main\n" +
+		"// line 2\n" +
+		"// line 3\n" +
+		"// line 4\n" +
+		"// line 5\n" +
+		"var _ = rsa.GenerateKey(nil, 2048)\n" +
+		"// line 7\n" +
+		"// line 8\n" +
+		"// line 9\n" +
+		"// line 10\n"
+	if err := os.WriteFile(filepath.Join(dir, "key.go"), []byte(code), 0o644); err != nil {
+		t.Fatal(err)
 	}
 
-	// Verify max depth config was applied
-	if cfg.MaxDepth != 1 {
-		t.Error("MaxDepth config should be 1")
+	tests := []struct {
+		contextLines, wantStart, wantEnd int
+	}{
+		{0, 6, 6},
+		{1, 5, 7},
+		{3, 3, 9},
+		{10, 1, 10},
+	}
+	for _, tt := range tests {
+		results, err := New(Config{Target: dir, MinSeverity: SeverityInfo, ContextLines: tt.contextLines}).Scan()
+		if err != nil {
+			t.Fatalf("ContextLines %d: Scan failed: %v", tt.contextLines, err)
+		}
+		if len(results.Findings) != 1 {
+			t.Fatalf("ContextLines %d: %d findings, want 1", tt.contextLines, len(results.Findings))
+		}
+		ctx := results.Findings[0].SourceContext
+		if ctx == nil {
+			t.Fatalf("ContextLines %d: the finding has no SourceContext", tt.contextLines)
+		}
+		if ctx.StartLine != tt.wantStart || ctx.EndLine != tt.wantEnd || len(ctx.Lines) != tt.wantEnd-tt.wantStart+1 {
+			t.Errorf("ContextLines %d: lines %d-%d with %d entries, want %d-%d",
+				tt.contextLines, ctx.StartLine, ctx.EndLine, len(ctx.Lines), tt.wantStart, tt.wantEnd)
+		}
+		for _, line := range ctx.Lines {
+			if line.IsMatch != (line.Number == 6) {
+				t.Errorf("ContextLines %d: line %d IsMatch = %v", tt.contextLines, line.Number, line.IsMatch)
+			}
+		}
 	}
 }

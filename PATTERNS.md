@@ -2,6 +2,8 @@
 
 CryptoScan uses 90 detection patterns to identify cryptographic algorithms, protocols, keys, certificates, and configurations in your codebase. Each pattern includes quantum risk classification and remediation guidance.
 
+`cryptoscan patterns list` prints the patterns from the scanner itself, with each pattern's ID, severity, quantum risk, category and name, and `cryptoscan patterns search <term>` finds the patterns for one algorithm, such as `cryptoscan patterns search sha1`. The tables on this page are written by hand; where they differ from the command, the command shows what a scan runs.
+
 ## Table of Contents
 
 - [How Detection Works](#how-detection-works)

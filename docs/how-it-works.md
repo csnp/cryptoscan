@@ -60,7 +60,7 @@ Library imports and quantum-safe algorithms are also left out of the default rep
 | **Dependencies** | Crypto libraries across 20+ package managers |
 | **Configurations** | Hardcoded key sizes, algorithm selections, TLS settings |
 
-DSA is not detected: standalone DSA key generation matches no pattern. Detection matches whole words only, so compound identifiers such as `RSAPrivateKey` and `AESCipher` are not matched. Both are listed with the other known limitations in [CHANGELOG.md](../CHANGELOG.md). Every pattern is listed in [PATTERNS.md](../PATTERNS.md).
+DSA is not detected: standalone DSA key generation matches no pattern. Detection matches whole words only, so compound identifiers such as `RSAPrivateKey` and `AESCipher` are not matched. Both are listed with the other known limitations in [CHANGELOG.md](../CHANGELOG.md). `cryptoscan patterns list` prints every pattern the scanner runs ([command reference](commands.md#commands)), and [PATTERNS.md](../PATTERNS.md) explains how detection, confidence scoring and the risk levels work.
 
 ## Migration Readiness Score
 

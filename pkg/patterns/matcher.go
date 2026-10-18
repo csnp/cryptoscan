@@ -6,6 +6,7 @@ package patterns
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/csnp/cryptoscan/pkg/analyzer"
@@ -40,6 +41,13 @@ func NewMatcher() *Matcher {
 	}
 	m.loadPatterns()
 	return m
+}
+
+// Patterns returns the patterns the matcher checks each line against, in the
+// order it checks them. The slice is a copy, so reordering or replacing its
+// elements does not change what the matcher matches.
+func (m *Matcher) Patterns() []Pattern {
+	return slices.Clone(m.patterns)
 }
 
 // Match checks a line against all patterns and returns findings

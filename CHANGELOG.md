@@ -7,6 +7,19 @@ All notable changes to CryptoScan are recorded here. This project follows
 
 ### Added
 
+- **`cryptoscan patterns list` and `cryptoscan patterns search <term>`** print
+  the detection patterns a scan runs, read from the scanner's own pattern
+  definitions, without scanning anything. Each line has the pattern's ID,
+  severity, quantum risk, category and name, in the order the scanner checks
+  them. `--category` keeps one category, compared as `--ignore-category`
+  compares it, and `--quantum` keeps one quantum risk (`vulnerable`,
+  `partial`, `safe` or `unknown`). `search` keeps the patterns whose ID, name,
+  category, algorithm or description contains the term, ignoring case, and
+  those whose regular expression matches the term, so `search kyber` lists
+  the ML-KEM pattern. `--format json` adds each pattern's description,
+  remediation, references, tags and regular expression. An unknown
+  `--category`, `--quantum` or `--format` value is rejected with the accepted
+  values, and a search that matches nothing says so and exits 0.
 - **The scan summary counts findings by context.** Text output has a
   "Findings by context:" block after the severity breakdown, with one line per
   kind and the number reported or withheld. The kinds are the rules that
@@ -370,6 +383,13 @@ change how `scan` decides its exit code.
   unchanged, and CBOM and SARIF output are unchanged.
 
 ### Documentation
+
+- **The README and `docs/how-it-works.md` point to `cryptoscan patterns list`
+  for the full pattern list.** Both said every pattern is in `PATTERNS.md`,
+  whose tables list 85 pattern IDs: 14 of them are IDs the matcher does not
+  define, and 19 IDs the matcher defines are missing. `PATTERNS.md` now says
+  that its tables are written by hand and that the command shows what a scan
+  runs. `docs/commands.md` lists the `patterns` commands and their flags.
 
 - **The CBOM fields are documented, and a test keeps the page accurate.**
   `docs/cbom-fields.md` lists every field the CBOM output writes, the line in

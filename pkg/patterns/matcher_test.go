@@ -21,6 +21,27 @@ func TestNewMatcher(t *testing.T) {
 	}
 }
 
+// The pattern catalogue reads Patterns, so it has to return the patterns
+// Match runs, in the same order, without letting a caller change them.
+func TestPatternsReturnsACopyOfWhatMatchRuns(t *testing.T) {
+	m := NewMatcher()
+	got := m.Patterns()
+	if len(got) != len(m.patterns) {
+		t.Fatalf("Patterns() returned %d patterns, the matcher runs %d", len(got), len(m.patterns))
+	}
+	for i := range got {
+		if got[i].ID != m.patterns[i].ID {
+			t.Errorf("Patterns()[%d].ID = %q, the matcher runs %q at that position", i, got[i].ID, m.patterns[i].ID)
+		}
+	}
+
+	first := m.patterns[0].ID
+	got[0] = Pattern{ID: "CHANGED-BY-CALLER"}
+	if m.patterns[0].ID != first {
+		t.Errorf("changing the slice Patterns() returned changed the matcher's first pattern to %q", m.patterns[0].ID)
+	}
+}
+
 func TestMatchRSA(t *testing.T) {
 	m := NewMatcher()
 	tests := []struct {

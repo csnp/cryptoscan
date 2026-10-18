@@ -222,8 +222,8 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 
 	// Categories
 	b.WriteString(r.color(colorBold, "  Categories Found:\n"))
-	for cat, count := range results.Summary.ByCategory {
-		b.WriteString(fmt.Sprintf("    ├─ %-24s %d\n", cat, count))
+	for _, cat := range categoriesByCount(results.Summary.ByCategory) {
+		b.WriteString(fmt.Sprintf("    ├─ %-24s %d\n", cat, results.Summary.ByCategory[cat]))
 	}
 	b.WriteString("\n")
 
@@ -688,6 +688,23 @@ func (r *TextReporter) writeFindingsByContext(b *strings.Builder, s *scanner.Sum
 	}
 	b.WriteString(r.color(colorCyan, "  Context is decided by the scanner's rules, not by a model.\n"))
 	b.WriteString("\n")
+}
+
+// categoriesByCount returns the categories with the most findings first, and
+// categories with the same count in name order, so the order of the
+// "Categories Found" block does not depend on map iteration order.
+func categoriesByCount(byCategory map[string]int) []string {
+	cats := make([]string, 0, len(byCategory))
+	for cat := range byCategory {
+		cats = append(cats, cat)
+	}
+	sort.Slice(cats, func(i, j int) bool {
+		if byCategory[cats[i]] != byCategory[cats[j]] {
+			return byCategory[cats[i]] > byCategory[cats[j]]
+		}
+		return cats[i] < cats[j]
+	})
+	return cats
 }
 
 func (r *TextReporter) writeFooter(b *strings.Builder) {

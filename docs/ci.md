@@ -37,10 +37,11 @@ cryptoscan scan . --fail-on medium
 ```
 
 With `--fail-on` set, the scan also exits 1 when a file could not be analyzed,
-because its findings may be incomplete. The file is listed in the text summary,
-under `unanalyzedFiles` in JSON, and as an error in the SARIF run's
-`invocations[].toolExecutionNotifications`. Without `--fail-on`, such a file
-does not change the exit code.
+because its findings may be incomplete. Such a file is one whose analysis
+stopped on an internal error, or a `package.json` that could not be decoded.
+The file is listed in the text summary, under `unanalyzedFiles` in JSON, and
+as an error in the SARIF run's `invocations[].toolExecutionNotifications`.
+Without `--fail-on`, such a file does not change the exit code.
 
 A file skipped because it looks minified or generated, such as `app.min.js`,
 is named in the text summary or, for the other formats, on stderr (up to ten

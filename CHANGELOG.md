@@ -122,6 +122,32 @@ change how `scan` decides its exit code.
   A file skipped by its name, such as `app.min.js`, was already left out of
   these counts.
 
+- **A package.json that starts with a UTF-8 byte order mark is now read.**
+  npm 11.20.0 reads such a file, but the scanner could not decode it, and the
+  report had no finding and no notice for it while counting it in the
+  `Scanned:` line and in `filesScanned`. A directory holding only a
+  package.json made of the bytes EF BB BF followed by
+  `{"name": "fixture", "version": "1.0.0", "dependencies": {"crypto-js": "^4.2.0"}}`
+  and a newline printed `Scanned:  1 files • 0 lines • 84 B` and
+  `No cryptographic findings detected`; it now reports the
+  `DEP-crypto-js-package.json` finding. The mark is removed before a
+  dependency manifest is parsed, so a `requirements.txt` that starts with one
+  and has `cryptography==41.0.0` on its first line now reports
+  `DEP-cryptography-requirements.txt`, where it reported nothing.
+
+- **A package.json that cannot be decoded is now named in the report.** It
+  had no finding and no notice, and was counted as scanned. It is now listed
+  under `unanalyzedFiles` in JSON, in the text summary and as an error-level
+  `toolExecutionNotifications` entry in SARIF, with the line where decoding
+  stopped and the reason, such as `not valid JSON: unexpected end of JSON
+  input` or `unexpected JSON array in "dependencies"`, and for JSON, SARIF,
+  CSV and CBOM output it is also named on stderr. It is left out of the
+  `Scanned:` line, `filesScanned` and `bytesScanned`. With `--fail-on` set,
+  and in `gate`, such a file makes the run exit 1, as a file whose analysis
+  stopped on an internal error does; without `--fail-on`, `scan` exits as
+  before. The text summary asks for the file to be reported at the issue
+  tracker only when a listed file stopped on an internal error.
+
 - **The text report lists "Categories Found" in a stable order.** The block
   was rendered from a map, and six text scans of `crypto-samples` printed it
   in six orders. It now lists the category with the most findings first, and

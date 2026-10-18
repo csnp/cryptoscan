@@ -4,7 +4,10 @@
 package analyzer
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"os"
 	"regexp"
 	"strings"
@@ -110,19 +113,45 @@ var KnownCryptoLibraries = []CryptoLibrary{
 		Description: "Ruby binding to libsodium"},
 }
 
-// ScanDependencies scans a dependency file for crypto libraries
+// utf8BOM is the UTF-8 byte order mark. It marks the file's encoding and is
+// not part of the manifest, so it is removed before the manifest is parsed.
+// npm reads a package.json that starts with one (checked with npm 11.20.0).
+var utf8BOM = []byte("\xef\xbb\xbf")
+
+// ManifestError reports a dependency manifest that was read but could not be
+// decoded, so the dependencies it lists are not known.
+type ManifestError struct {
+	Path string
+	// Line is the 1-based line where decoding stopped, or 0 when the decoder
+	// gave no position.
+	Line int
+	// Reason says what is wrong with the file, in JSON terms rather than in
+	// terms of the decoder's Go types.
+	Reason string
+}
+
+func (e *ManifestError) Error() string {
+	if e.Line > 0 {
+		return fmt.Sprintf("%s:%d: %s", e.Path, e.Line, e.Reason)
+	}
+	return e.Path + ": " + e.Reason
+}
+
+// ScanDependencies scans a dependency file for crypto libraries. A
+// package.json that cannot be decoded returns a *ManifestError.
 func ScanDependencies(path string) ([]DependencyFinding, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
+	data = bytes.TrimPrefix(data, utf8BOM)
 
 	name := strings.ToLower(path)
 	var findings []DependencyFinding
 
 	switch {
 	case strings.HasSuffix(name, "package.json"):
-		findings = scanPackageJSON(data, path)
+		findings, err = scanPackageJSON(data, path)
 	case strings.HasSuffix(name, "requirements.txt"):
 		findings = scanRequirementsTxt(data, path)
 	case strings.HasSuffix(name, "go.mod"):
@@ -137,16 +166,16 @@ func ScanDependencies(path string) ([]DependencyFinding, error) {
 		findings = scanPyprojectToml(data, path)
 	}
 
-	return findings, nil
+	return findings, err
 }
 
-func scanPackageJSON(data []byte, path string) []DependencyFinding {
+func scanPackageJSON(data []byte, path string) ([]DependencyFinding, error) {
 	var pkg struct {
 		Dependencies    map[string]string `json:"dependencies"`
 		DevDependencies map[string]string `json:"devDependencies"`
 	}
 	if err := json.Unmarshal(data, &pkg); err != nil {
-		return nil
+		return nil, manifestError(path, data, err)
 	}
 
 	var findings []DependencyFinding
@@ -167,7 +196,50 @@ func scanPackageJSON(data []byte, path string) []DependencyFinding {
 		}
 	}
 
-	return findings
+	return findings, nil
+}
+
+// manifestError describes err, the error json.Unmarshal returned for the
+// package.json at path holding data, with the line where decoding stopped.
+func manifestError(path string, data []byte, err error) *ManifestError {
+	var syntaxErr *json.SyntaxError
+	if errors.As(err, &syntaxErr) {
+		return &ManifestError{
+			Path:   path,
+			Line:   lineAtOffset(data, syntaxErr.Offset),
+			Reason: "not valid JSON: " + syntaxErr.Error(),
+		}
+	}
+	// A value of the wrong JSON type is named by its type and by the key it
+	// was found under, dependencies or devDependencies, which are the only
+	// keys decoded.
+	var typeErr *json.UnmarshalTypeError
+	if errors.As(err, &typeErr) {
+		reason := "unexpected JSON " + typeErr.Value + " at the top level"
+		if typeErr.Field != "" {
+			reason = fmt.Sprintf("unexpected JSON %s in %q", typeErr.Value, typeErr.Field)
+		}
+		return &ManifestError{
+			Path:   path,
+			Line:   lineAtOffset(data, typeErr.Offset),
+			Reason: reason,
+		}
+	}
+	return &ManifestError{Path: path, Reason: err.Error()}
+}
+
+// lineAtOffset returns the 1-based line of data holding the last byte a
+// decoder read when it stopped after reading offset bytes, or 1 when it read
+// none.
+func lineAtOffset(data []byte, offset int64) int {
+	end := int(offset) - 1
+	if end < 0 {
+		end = 0
+	}
+	if end > len(data) {
+		end = len(data)
+	}
+	return 1 + bytes.Count(data[:end], []byte("\n"))
 }
 
 func scanRequirementsTxt(data []byte, path string) []DependencyFinding {

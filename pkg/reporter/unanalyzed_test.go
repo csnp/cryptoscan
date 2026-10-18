@@ -5,6 +5,7 @@ package reporter
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -42,6 +43,51 @@ func TestTextReportListsUnanalyzedFiles(t *testing.T) {
 	}
 	if strings.Contains(clean, "could not be analyzed") {
 		t.Error("text report mentions unanalyzed files when there are none")
+	}
+}
+
+// The request to report the file is for an internal error, which is a scanner
+// defect. An entry for a package.json that could not be decoded points at the
+// part of the file to check, and does not add the request.
+func TestTextReportAsksForAReportOnlyForAnInternalError(t *testing.T) {
+	const request = "Report this at https://github.com/csnp/cryptoscan/issues with the line shown."
+	manifest := scanner.UnanalyzedFile{
+		File:   "/test/path/package.json",
+		Line:   4,
+		Reason: "not valid JSON: invalid character '}' looking for beginning of object key string",
+	}
+	internal := scanner.UnanalyzedFile{
+		File:   "/test/path/bad.go",
+		Line:   7,
+		Reason: "internal error: slice bounds out of range",
+	}
+
+	tests := []struct {
+		name        string
+		files       []scanner.UnanalyzedFile
+		wantRequest bool
+	}{
+		{"manifest only", []scanner.UnanalyzedFile{manifest}, false},
+		{"internal error only", []scanner.UnanalyzedFile{internal}, true},
+		{"both", []scanner.UnanalyzedFile{internal, manifest}, true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			results := createTestResults()
+			results.UnanalyzedFiles = tt.files
+			output, err := NewTextReporter(false).Generate(results)
+			if err != nil {
+				t.Fatalf("Generate failed: %v", err)
+			}
+			for _, u := range tt.files {
+				if want := fmt.Sprintf("%s:%d  %s", u.File, u.Line, u.Reason); !strings.Contains(output, want) {
+					t.Errorf("text report is missing %q", want)
+				}
+			}
+			if got := strings.Contains(output, request); got != tt.wantRequest {
+				t.Errorf("report request shown = %v, want %v", got, tt.wantRequest)
+			}
+		})
 	}
 }
 

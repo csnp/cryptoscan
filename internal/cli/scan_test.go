@@ -382,6 +382,65 @@ func TestPrintScanningFooterCountsReportedFindings(t *testing.T) {
 	}
 }
 
+// TestPrintScanningFooterSaysNothingWasScanned checks the footer of a scan
+// that read no files: it says that nothing was checked, in the words of the
+// text report, and has no check mark in color either. A scan that read a file
+// keeps its check mark.
+func TestPrintScanningFooterSaysNothingWasScanned(t *testing.T) {
+	const nothing = "Nothing was checked: no files were scanned under /repo/empty"
+	for _, useColor := range []bool{false, true} {
+		output := captureStdout(func() {
+			printScanningFooter(streamTally{target: "/repo/empty"}, 16*time.Millisecond, useColor)
+		})
+		if !strings.Contains(output, "Scan complete") || !strings.Contains(output, "0 findings in 0 files (") {
+			t.Errorf("color %v: footer lacks its counts, got:\n%s", useColor, output)
+		}
+		if !strings.Contains(output, nothing) {
+			t.Errorf("color %v: footer should contain %q, got:\n%s", useColor, nothing, output)
+		}
+		if strings.Contains(output, "✓") {
+			t.Errorf("color %v: footer of a scan with 0 files scanned has a check mark, got:\n%s", useColor, output)
+		}
+	}
+
+	output := captureStdout(func() {
+		printScanningFooter(streamTally{files: 1, target: "/repo/app"}, 16*time.Millisecond, true)
+	})
+	if !strings.Contains(output, "✓ Scan complete") {
+		t.Errorf("footer of a scan with 1 file scanned lost its check mark, got:\n%s", output)
+	}
+	if strings.Contains(output, "Nothing was checked") {
+		t.Errorf("footer of a scan with 1 file scanned says nothing was checked, got:\n%s", output)
+	}
+}
+
+// TestRunScanOfEmptyDirectorySaysNothingWasScanned runs the scan command on an
+// empty directory with findings streamed. The footer and the report both say
+// that nothing was checked, and neither prints a check mark.
+func TestRunScanOfEmptyDirectorySaysNothingWasScanned(t *testing.T) {
+	dir := t.TempDir()
+	resetConfigScanFlags()
+	defer resetConfigScanFlags()
+	noConfig = true
+	streamFindings = true
+
+	output := captureStdout(func() {
+		if err := runScan(&cobra.Command{}, []string{dir}); err != nil {
+			t.Errorf("runScan failed: %v", err)
+		}
+	})
+
+	nothing := "Nothing was checked: no files were scanned under " + dir
+	if n := strings.Count(output, nothing); n != 2 {
+		t.Errorf("output has %q %d times, want 2 (stream footer and report):\n%s", nothing, n, output)
+	}
+	for _, line := range []string{"No cryptographic findings detected", "\u2713 Scan complete"} {
+		if strings.Contains(output, line) {
+			t.Errorf("output of a scan with 0 files scanned prints %q:\n%s", line, output)
+		}
+	}
+}
+
 func TestPrintStreamFinding(t *testing.T) {
 	findings := []scanner.Finding{
 		{ID: "1", Type: "RSA Key", Severity: scanner.SeverityCritical, Quantum: scanner.QuantumVulnerable, File: "/test.go", Line: 10},

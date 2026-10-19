@@ -561,6 +561,73 @@ func TestEmptyResults(t *testing.T) {
 	}
 }
 
+// TestTextReportSaysNothingWasScanned covers a scan that read no files, such
+// as a scan of an empty directory. It has no findings, but it checked
+// nothing, so the report must say so and not print the check mark line,
+// which reads as a clean result. With one file scanned and no findings, the
+// check mark line stays.
+func TestTextReportSaysNothingWasScanned(t *testing.T) {
+	results := &scanner.Results{
+		ScanTarget:   "/repo/empty",
+		ScanTime:     time.Now(),
+		ScanDuration: time.Millisecond,
+		Findings:     []scanner.Finding{},
+		Summary: scanner.Summary{
+			BySeverity:    map[string]int{},
+			ByCategory:    map[string]int{},
+			ByQuantumRisk: map[string]int{},
+		},
+	}
+	const nothing = "Nothing was checked: no files were scanned under /repo/empty"
+
+	for _, useColor := range []bool{false, true} {
+		out, err := NewTextReporter(useColor).Generate(results)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out, nothing) {
+			t.Errorf("color %v: the report of a scan with 0 files scanned lacks %q", useColor, nothing)
+		}
+		if strings.Contains(out, "No cryptographic findings detected") {
+			t.Errorf("color %v: the report of a scan with 0 files scanned prints the check mark line:\n%s", useColor, out)
+		}
+	}
+
+	// A config file above the target kept every file out. The line still says
+	// that nothing was checked, and the config summary still names the file
+	// and what it kept out.
+	results.Config = &scanner.ConfigReport{
+		Path:         "/repo/.cryptoscan.yaml",
+		Source:       scanner.ConfigSourceParentDirectory,
+		PathsSkipped: scanner.ConfigPathsSkipped{Files: 2},
+	}
+	out, err := NewTextReporter(false).Generate(results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{nothing, "Config file applied: /repo/.cryptoscan.yaml", "ignore.files kept 2 files out of the scan"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("the report of a scan whose config file kept every file out lacks %q", want)
+		}
+	}
+	if strings.Contains(out, "No cryptographic findings detected") {
+		t.Error("the report of a scan whose config file kept every file out prints the check mark line")
+	}
+	results.Config = nil
+
+	results.FilesScanned = 1
+	out, err = NewTextReporter(false).Generate(results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out, "✓ No cryptographic findings detected") {
+		t.Error("the report of a scan with 1 file scanned and no findings lost its check mark line")
+	}
+	if strings.Contains(out, "Nothing was checked") {
+		t.Error("the report of a scan with 1 file scanned says nothing was checked")
+	}
+}
+
 // TestFindingsByContextAgreesWithJSON scans crypto-samples and checks the text
 // report's "Findings by context" block against the JSON report of the same
 // scan: one line per summary.byEvidence key in sorted order, the reported

@@ -75,6 +75,16 @@ func (r *TextReporter) quantumIcon(q scanner.QuantumRisk) string {
 	}
 }
 
+// NothingScanned is the line printed in place of "No cryptographic findings
+// detected" when a scan read no files, as for an empty directory or one whose
+// every file was left out. Such a scan has no findings, but it checked
+// nothing, so the line has no check mark. The scan command's stream footer
+// prints the same line. The target comes last so that a target written as "."
+// does not end the line in "..".
+func NothingScanned(target string) string {
+	return "Nothing was checked: no files were scanned under " + target
+}
+
 // Generate creates the text report
 func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 	var b strings.Builder
@@ -235,9 +245,12 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 	b.WriteString("\n")
 
 	if len(results.Findings) == 0 {
-		if results.Config.Any() {
+		switch {
+		case results.FilesScanned == 0:
+			b.WriteString(r.color(colorYellow, "  "+NothingScanned(results.ScanTarget)+"\n"))
+		case results.Config.Any():
 			b.WriteString(r.color(colorYellow, "  ! "+noFindingsHeadline(results.Config)+"\n"))
-		} else {
+		default:
 			b.WriteString(r.color(colorGreen, "  ✓ No cryptographic findings detected\n"))
 		}
 		b.WriteString("\n")

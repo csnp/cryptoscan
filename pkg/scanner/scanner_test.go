@@ -4,6 +4,7 @@
 package scanner
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -209,6 +210,69 @@ func TestScanDefaultExcludesSkipDependencyAndBuildDirs(t *testing.T) {
 		if !found[rel] {
 			t.Errorf("%s has no findings; the default excludes must not skip it", rel)
 		}
+	}
+}
+
+// rsaKeysSource is the keys.py that scanProjectUnder writes: an import and a
+// key generation, which yield findings wherever the file is read.
+const rsaKeysSource = "from cryptography.hazmat.primitives.asymmetric import rsa\n" +
+	"key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\n"
+
+// scanProjectUnder writes rsaKeysSource to <base>/<parent>/project/src/keys.py
+// and scans <base>/<parent>/project. Besides the results it returns one line
+// per finding, sorted: the path from the scan root, line, column, ID,
+// severity, confidence and file type.
+func scanProjectUnder(t *testing.T, base, parent string) (*Results, []string) {
+	t.Helper()
+	root := filepath.Join(base, parent, "project")
+	path := filepath.Join(root, "src", "keys.py")
+	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(rsaKeysSource), 0644); err != nil {
+		t.Fatal(err)
+	}
+	results, err := New(Config{Target: root, MinSeverity: SeverityInfo}).Scan()
+	if err != nil {
+		t.Fatalf("Scan(%s) failed: %v", root, err)
+	}
+	var findings []string
+	for _, f := range results.Findings {
+		rel, err := filepath.Rel(root, f.File)
+		if err != nil {
+			t.Fatal(err)
+		}
+		findings = append(findings, fmt.Sprintf("%s:%d:%d %s %s %s %s",
+			filepath.ToSlash(rel), f.Line, f.Column, f.ID, f.Severity, f.Confidence, f.FileType))
+	}
+	slices.Sort(findings)
+	return results, findings
+}
+
+// TestScanParentDirectoryNameDoesNotChangeTheReport scans the same project
+// from under parent directories named like the documentation and build output
+// directories a scan leaves out. A directory above the scan root is not part
+// of what was asked to be scanned, so each scan must read keys.py, which sits
+// in a subdirectory of the root, and report exactly what the scan under an
+// ordinary parent reports.
+func TestScanParentDirectoryNameDoesNotChangeTheReport(t *testing.T) {
+	base := t.TempDir()
+	control, want := scanProjectUnder(t, base, "plain")
+	if control.FilesScanned != 1 || len(want) == 0 {
+		t.Fatalf("plain: filesScanned=%d findings=%d, want 1 file with findings; the fixture does not exercise the parent names",
+			control.FilesScanned, len(want))
+	}
+	for _, parent := range []string{"docs", "build", "dist", "wiki", "bin", "out", "coverage", "my-docs"} {
+		t.Run(parent, func(t *testing.T) {
+			results, got := scanProjectUnder(t, base, parent)
+			if results.FilesScanned != 1 || len(got) != len(want) {
+				t.Fatalf("filesScanned=%d findings=%d, want 1 and %d as under plain",
+					results.FilesScanned, len(got), len(want))
+			}
+			if !slices.Equal(got, want) {
+				t.Errorf("findings differ from the scan under plain:\n got %q\nwant %q", got, want)
+			}
+		})
 	}
 }
 

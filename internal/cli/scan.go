@@ -457,6 +457,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 			unique:   uniqueCount,
 			reported: len(results.Findings),
 			files:    results.FilesScanned,
+			target:   target,
 		}, duration, !noColor)
 	}
 
@@ -690,18 +691,20 @@ func printScanningHeader(useColor bool) {
 // matches of the same category on the same line are merged into one finding,
 // and a baseline removes findings that were already known.
 type streamTally struct {
-	listed   int // matches printed while scanning
-	unique   int // findings left after deduplication
-	reported int // findings the report counts as Total Findings
-	files    int // files scanned
+	listed   int    // matches printed while scanning
+	unique   int    // findings left after deduplication
+	reported int    // findings the report counts as Total Findings
+	files    int    // files scanned
+	target   string // the scan target as given, named when no file was scanned
 }
 
 func printScanningFooter(tally streamTally, duration time.Duration, useColor bool) {
 	const (
-		colorGreen = "\033[32m"
-		colorBold  = "\033[1m"
-		colorReset = "\033[0m"
-		colorDim   = "\033[2m"
+		colorGreen  = "\033[32m"
+		colorYellow = "\033[33m"
+		colorBold   = "\033[1m"
+		colorReset  = "\033[0m"
+		colorDim    = "\033[2m"
 	)
 
 	counts := fmt.Sprintf("%d %s in %d %s (%s)",
@@ -710,9 +713,18 @@ func printScanningFooter(tally streamTally, duration time.Duration, useColor boo
 		duration.Round(time.Millisecond))
 
 	fmt.Println()
-	if useColor {
+	switch {
+	case tally.files == 0:
+		// A scan that read no files checked nothing, so it gets no check mark
+		// and says so in the words the text report uses.
+		nothing := reporter.NothingScanned(tally.target)
+		if useColor {
+			nothing = colorYellow + nothing + colorReset
+		}
+		fmt.Printf("  Scan complete: %s\n  %s\n", counts, nothing)
+	case useColor:
 		fmt.Printf("%s%s  \u2713 Scan complete%s: %s\n", colorGreen, colorBold, colorReset, counts)
-	} else {
+	default:
 		fmt.Printf("  Scan complete: %s\n", counts)
 	}
 

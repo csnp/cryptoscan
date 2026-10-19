@@ -3,6 +3,25 @@
 All notable changes to CryptoScan are recorded here. This project follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- **A scan that read no files no longer reports a clean result.** A scan of an
+  empty directory, or of one where every file was left out, printed
+  `Scanned:  0 files • 0 lines • 0 B` and then a check mark with
+  `No cryptographic findings detected`, although nothing was checked. In
+  color, the stream footer also opened with a check mark:
+  `Scan complete: 0 findings in 0 files`. When no file is scanned, the text
+  report now prints `Nothing was checked: no files were scanned under <target>`
+  in place of the check mark line, and the stream footer prints the same line
+  under `Scan complete: 0 findings in 0 files`, with no check mark. When a
+  config file's `ignore.files` kept every file out, this line replaces
+  `No findings reported: the config file kept N files out of the scan`; the
+  config summary above it still names the file and what it kept out. The
+  check mark line now appears only when at least one file was scanned. JSON
+  output is unchanged and already records `filesScanned` as 0.
+
 ## [1.5.0] - 2026-10-18
 
 ### Added

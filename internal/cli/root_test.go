@@ -26,6 +26,10 @@ func executeRoot(t *testing.T, args ...string) (string, error) {
 	rootCmd.SetOut(&buf)
 	rootCmd.SetErr(&buf)
 	rootCmd.SetArgs(args)
+	// Tests that run the scan with scanTarget(scanCmd, ...) instead of through
+	// cobra leave this set, so start where the binary starts: with the usage
+	// block on for a usage error.
+	scanCmd.SilenceUsage = false
 	t.Cleanup(func() {
 		rootCmd.SetOut(nil)
 		rootCmd.SetErr(nil)
@@ -205,5 +209,63 @@ func TestUsageErrorsStillPrintUsage(t *testing.T) {
 	}
 	if !strings.Contains(output, "Usage:") {
 		t.Errorf("output = %q, want the usage block for a missing argument", output)
+	}
+}
+
+// A scan turns the usage block off on scanCmd, and in a test binary it stays
+// off after the test that ran the scan unless something turns it back on. A
+// usage error in a later test still has to print the usage block, whichever
+// helper ran the earlier scan and whichever helper runs the usage error.
+func TestUsageErrorsPrintUsageAfterAnEarlierScan(t *testing.T) {
+	earlierScans := []struct {
+		name string
+		scan func(t *testing.T, dir string)
+	}{
+		{"executeScan", func(t *testing.T, dir string) {
+			resetScanFlags(t)
+			if _, _, err := executeScan(t, dir); err != nil {
+				t.Fatalf("scan %s: %v", dir, err)
+			}
+		}},
+		{"runScanWith", func(t *testing.T, dir string) {
+			if out := runScanWith(t, dir); out.err != "" {
+				t.Fatalf("scan %s: %s", dir, out.err)
+			}
+		}},
+	}
+	usageErrors := []struct {
+		name string
+		run  func(t *testing.T) (string, error)
+	}{
+		{"executeRoot", func(t *testing.T) (string, error) {
+			return executeRoot(t, "scan")
+		}},
+		{"executeScan", func(t *testing.T) (string, error) {
+			_, cobraOutput, err := executeScan(t)
+			return cobraOutput, err
+		}},
+	}
+
+	for _, earlier := range earlierScans {
+		for _, usage := range usageErrors {
+			t.Run(earlier.name+" then "+usage.name, func(t *testing.T) {
+				ranScan := t.Run("earlier test", func(t *testing.T) {
+					earlier.scan(t, t.TempDir())
+					if !scanCmd.SilenceUsage {
+						t.Fatal("the scan left the usage block on, so this test no longer checks anything")
+					}
+				})
+				if !ranScan {
+					return
+				}
+				output, err := usage.run(t)
+				if err == nil {
+					t.Fatal("expected an error for a missing argument")
+				}
+				if !strings.Contains(output, "Usage:") {
+					t.Errorf("output = %q, want the usage block for a missing argument", output)
+				}
+			})
+		}
 	}
 }

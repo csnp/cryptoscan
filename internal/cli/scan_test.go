@@ -629,27 +629,55 @@ func TestRunScanEmptyDir(t *testing.T) {
 	}
 }
 
-// resetPipelineFlags puts the flag variables the scan pipeline reads back to
-// their defaults, so a test does not inherit another test's settings.
+// resetPipelineFlags sets the flag variables below to their defaults, with
+// colour off, now and when the test ends, so a test neither inherits another
+// test's values for them nor leaves its own to the next one.
 func resetPipelineFlags(t *testing.T) {
 	t.Helper()
-	outputFormat = "text"
-	outputFile = ""
-	includeGlobs = ""
-	excludeGlobs = ""
-	minSeverity = "info"
-	noColor = true
-	showProgress = false
-	ignorePatterns = ""
-	ignoreCategories = ""
-	failOn = ""
-	baselineFile = ""
-	configFile = ""
-	gateFailOn = "high"
-	t.Cleanup(func() {
+	reset := func() {
 		outputFormat = "text"
 		outputFile = ""
+		includeGlobs = ""
+		excludeGlobs = ""
+		minSeverity = "info"
+		noColor = true
+		showProgress = false
+		ignorePatterns = ""
+		ignoreCategories = ""
+		failOn = ""
+		baselineFile = ""
+		configFile = ""
+		gateFailOn = "high"
+	}
+	reset()
+	t.Cleanup(reset)
+}
+
+// A flag variable a test changes after calling resetPipelineFlags is back
+// where resetPipelineFlags put it when that test ends. The skipped-file tests
+// set failOn to "low" this way; TestRunScanExcludesFromFlagConfigAndDefaults,
+// which does not set failOn, then ran with that threshold, and its runScan
+// call ended the test binary with exit code 1.
+func TestResetPipelineFlagsPutsTheDefaultsBackWhenTheTestEnds(t *testing.T) {
+	t.Run("earlier test", func(t *testing.T) {
+		resetPipelineFlags(t)
+		failOn = "low"
+		minSeverity = "high"
+		excludeGlobs = "test/*"
+		configFile = "other.yaml"
+		gateFailOn = "critical"
 	})
+	for _, v := range []struct{ name, got, want string }{
+		{"failOn", failOn, ""},
+		{"minSeverity", minSeverity, "info"},
+		{"excludeGlobs", excludeGlobs, ""},
+		{"configFile", configFile, ""},
+		{"gateFailOn", gateFailOn, "high"},
+	} {
+		if v.got != v.want {
+			t.Errorf("%s = %q after the earlier test ended, want the default %q", v.name, v.got, v.want)
+		}
+	}
 }
 
 func TestExitCode(t *testing.T) {
@@ -1047,7 +1075,8 @@ func TestStreamFooterMatchesReportTotal(t *testing.T) {
 // executeScan runs "cryptoscan scan <args>" through the root command, the way
 // the binary does. It returns what the scan wrote to stdout, what cobra printed
 // (the error line and usage), and the error. The flag variables it can change
-// are restored afterwards so later tests start from the same state.
+// are restored afterwards, and the usage block the scan turns off is turned
+// back on, so later tests start from the same state.
 func executeScan(t *testing.T, args ...string) (stdout, cobraOutput string, err error) {
 	t.Helper()
 	savedFormat, savedMinSeverity, savedFailOn, savedConfig := outputFormat, minSeverity, failOn, configFile
@@ -1056,7 +1085,10 @@ func executeScan(t *testing.T, args ...string) (stdout, cobraOutput string, err 
 		rootCmd.SetArgs(nil)
 		rootCmd.SetOut(nil)
 		rootCmd.SetErr(nil)
+		scanCmd.SilenceUsage = false
 	})
+	// Start where the binary starts, with the usage block on; see executeRoot.
+	scanCmd.SilenceUsage = false
 
 	var cobraBuf bytes.Buffer
 	rootCmd.SetOut(&cobraBuf)

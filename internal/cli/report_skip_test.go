@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/csnp/cryptoscan/pkg/scanner"
+	"github.com/spf13/cobra"
 )
 
 // chdirForTest changes the working directory to dir until the test ends.
@@ -191,5 +192,69 @@ func TestScanDoesNotReadTheReportsEarlierRunsWrote(t *testing.T) {
 	if len(excluded.skipped) != 0 || len(excluded.findingFiles) != 1 || excluded.findingFiles["a.py"] == 0 {
 		t.Errorf("with the reports in --exclude: skippedFiles = %v, findings in %v; want none, and a.py alone",
 			excluded.skipped, excluded.findingFiles)
+	}
+}
+
+// The reproduction from the report on output saved with colour on: "scan
+// crypto-samples --no-color=false > out/scan.log" saved text output that
+// starts with the banner, and the next scan of out read it as source. What
+// scan, scan --stream=false and gate print with colour on, saved in the tree,
+// is now named as not scanned, and the findings come from the source file
+// alone.
+func TestScanDoesNotReadItsTextOutputSavedWithColourOn(t *testing.T) {
+	savedStream := streamFindings
+	t.Cleanup(func() { streamFindings = savedStream })
+
+	dir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "a.py"), []byte("import hashlib\nh = hashlib.md5(b\"a\")\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	chdirForTest(t, dir)
+
+	for _, run := range []struct {
+		file   string
+		cmd    *cobra.Command
+		target func(*cobra.Command, string) (int, error)
+		stream bool
+	}{
+		{"scan-output.log", scanCmd, scanTarget, true},
+		{"scan-report.log", scanCmd, scanTarget, false},
+		{"gate-output.log", gateCmd, gateTarget, true},
+	} {
+		resetPipelineFlags(t)
+		streamFindings = run.stream
+		// As --no-color=false sets it: given on the command line, the flag
+		// keeps colour on although the test's stdout is a pipe.
+		noColorFlag := run.cmd.Flags().Lookup("no-color")
+		if err := noColorFlag.Value.Set("false"); err != nil {
+			t.Fatal(err)
+		}
+		noColorFlag.Changed = true
+		out := captureStdout(func() {
+			if _, err := run.target(run.cmd, "a.py"); err != nil {
+				t.Errorf("%s a.py --no-color=false: %v", run.cmd.Name(), err)
+			}
+		})
+		noColorFlag.Changed = false
+		if !strings.Contains(out, "\x1b[") || !strings.Contains(out, "MD5") {
+			t.Fatalf("%s: the output has no colour sequence or names no MD5 finding:\n%s", run.file, out)
+		}
+		if err := os.WriteFile(run.file, []byte(out), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	scanHere(t, "json", "report.json", "")
+	got := readReportSummary(t, "report.json")
+	wantSkipped := map[string]string{
+		"gate-output.log": "CryptoScan report: text",
+		"scan-output.log": "CryptoScan report: text",
+		"scan-report.log": "CryptoScan report: text",
+	}
+	if !reflect.DeepEqual(got.skipped, wantSkipped) {
+		t.Errorf("skippedFiles = %v, want %v", got.skipped, wantSkipped)
+	}
+	if len(got.findingFiles) != 1 || got.findingFiles["a.py"] == 0 {
+		t.Errorf("findings are in %v, want a.py alone", got.findingFiles)
 	}
 }

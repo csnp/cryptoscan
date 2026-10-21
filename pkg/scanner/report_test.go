@@ -102,11 +102,24 @@ const (
 		"  │ h = hashlib.md5(b\"a\")\n"
 
 	// coloredStreamedText is streamedText with the header as a scan prints
-	// it with colour on.
+	// it with colour on. With colour on, the scan prints the banner ahead of
+	// the header; bannerText is its start.
 	coloredStreamedText = "\x1b[36m\x1b[1m  ⏳ Scanning...\x1b[0m \x1b[2m(findings appear as discovered)\x1b[0m\n" +
 		"\n" +
 		"  [MEDIUM] #1   MD5 Hash Function      a.py:2 [!]\n" +
 		"  │ h = hashlib.md5(b\"a\")\n"
+
+	// bannerText is the start of the banner that scan and gate print ahead
+	// of their text output when colour is on: its box, cut down to one line
+	// of art, and the two lines below the box.
+	bannerText = "\n" +
+		"\x1b[36m\x1b[1m  ╔═══════════════════════════════════════════════════════════════╗\n" +
+		"  ║    ██████╗██████╗ ██╗   ██╗██████╗ ████████╗ ██████╗            ║\n" +
+		"  ╚═══════════════════════════════════════════════════════════════╝\x1b[0m\n" +
+		"\n" +
+		"\x1b[34m  Crypto Scan: QRAMM Cryptographic Discovery\x1b[0m\n" +
+		"\x1b[2m  Quantum Readiness Assurance & Migration Tool\x1b[0m\n" +
+		"\n"
 
 	// quotedHeaderSource is source whose first line is a comment that ends
 	// with the stream header.
@@ -143,6 +156,8 @@ func TestReportFormat(t *testing.T) {
 		{"pqc text view", strings.Replace(textReport, "CRYPTOGRAPHIC SCAN RESULTS", "POST-QUANTUM READINESS    ", 1), "text"},
 		{"streamed scan output", streamedText, "text"},
 		{"streamed scan output in colour", coloredStreamedText, "text"},
+		{"streamed scan output in colour after the banner", bannerText + coloredStreamedText, "text"},
+		{"text report in colour after the banner", bannerText + coloredText, "text"},
 
 		// Files that are not CryptoScan reports are read as before.
 		{"SARIF from another tool",
@@ -161,6 +176,12 @@ func TestReportFormat(t *testing.T) {
 		{"source with the stream header at the end of line 1", quotedHeaderSource, ""},
 		{"the stream header with text after it", "Scanning... (findings appear as discovered) took 2s\nmd5 is broken\n", ""},
 		{"the stream header on line 2", "Notes\nScanning... (findings appear as discovered)\nmd5 is broken\n", ""},
+		{"a box with another line below it",
+			strings.Replace(bannerText, "Crypto Scan: QRAMM Cryptographic Discovery", "Release checklist", 1), ""},
+		{"the banner title with no box above it", "Crypto Scan: QRAMM Cryptographic Discovery\nmd5 is broken\n", ""},
+		{"the banner on line 2", "Notes\n" + bannerText + coloredStreamedText, ""},
+		{"a box with no line below it", "╔════════╗\n║ Notes  ║\n╚════════╝\n", ""},
+		{"a box that does not close", "╔════════╗\n║ Notes  ║\n║ md5    ║\n", ""},
 		{"source code", "import hashlib\nh = hashlib.md5(b\"a\")\n", ""},
 		{"an empty file", "", ""},
 	}

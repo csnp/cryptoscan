@@ -41,6 +41,12 @@ var byteOrderMark = []byte("\xef\xbb\xbf")
 // scan, gate or pqc.
 const textReportTitle = "QRAMM CryptoScan"
 
+// bannerTitle is the line below the box at the top of the banner that scan
+// and gate print ahead of their text output when colour is on. That output
+// starts with the banner's box, not with the stream header or the report's
+// box.
+const bannerTitle = "Crypto Scan: QRAMM Cryptographic Discovery"
+
 // textStreamHeader is the line a scan prints on standard output before the
 // findings it lists as it finds them, less its leading spaces.
 const textStreamHeader = "Scanning... (findings appear as discovered)"
@@ -76,25 +82,39 @@ func reportFormat(r io.Reader) string {
 }
 
 // isTextReport reports whether head starts like a text report: with the box
-// whose third line is textReportTitle, or with a first line that is the
-// stream header and nothing else.
+// whose third line is textReportTitle, with a box followed by bannerTitle
+// (the banner), or with a first line that is the stream header and nothing
+// else.
 func isTextReport(head []byte) bool {
+	// Read the first line and, when it opens a box, each line up to the one
+	// after the line that closes the box. Blank lines are left out, and each
+	// line is read without the spaces around it.
 	var lines []string
+	boxEnd := -1
 	rest := ansiEscape.ReplaceAllString(string(head), "")
-	for len(lines) < 3 && rest != "" {
+	for rest != "" {
 		var line string
 		line, rest, _ = strings.Cut(rest, "\n")
-		if line = strings.TrimSpace(line); line != "" {
-			lines = append(lines, line)
+		if line = strings.TrimSpace(line); line == "" {
+			continue
+		}
+		lines = append(lines, line)
+		if boxEnd >= 0 || !strings.HasPrefix(lines[0], "╔") {
+			break
+		}
+		if strings.HasPrefix(line, "╚") {
+			boxEnd = len(lines) - 1
 		}
 	}
 	switch {
 	case len(lines) > 0 && (lines[0] == textStreamHeader || lines[0] == coloredStreamHeader):
 		return true
-	case len(lines) == 3 && strings.HasPrefix(lines[0], "╔"):
-		return strings.Trim(lines[2], "║ ") == textReportTitle
+	case len(lines) < 3 || !strings.HasPrefix(lines[0], "╔"):
+		return false
+	case strings.Trim(lines[2], "║ ") == textReportTitle:
+		return true
 	}
-	return false
+	return boxEnd >= 0 && boxEnd+1 < len(lines) && lines[boxEnd+1] == bannerTitle
 }
 
 // jsonReportFormat reads the JSON object at the start of head, which may stop

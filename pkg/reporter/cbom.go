@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -143,6 +144,7 @@ type cbomDependency struct {
 // TestPrimitivesAreInCycloneDXEnum.
 const (
 	primitiveCombiner = "combiner"
+	primitiveAE       = "ae"
 )
 
 // categoryToAssetType maps a pattern category onto a CycloneDX asset type.
@@ -153,12 +155,16 @@ const (
 // was reported as an algorithm. A detected private key was emitted as
 // assetType "algorithm" named "Private Key Header", which is what the reporter
 // of issue #1 meant by incomplete key material representation.
+//
+// The TLS patterns use the categories "TLS/SSL" and "Deprecated Protocol",
+// which are protocols in CycloneDX; matched only as "tls" and "protocol", a
+// TLS finding was written as an algorithm with primitive "other".
 func categoryToAssetType(category string) string {
 	switch strings.ToLower(strings.TrimSpace(category)) {
 	case "asymmetric", "key-exchange", "symmetric", "hash", "mac", "kdf",
 		"post-quantum", "signature", "random":
 		return "algorithm"
-	case "tls", "protocol", "ssh", "ipsec":
+	case "tls", "tls/ssl", "deprecated protocol", "protocol", "ssh", "ipsec":
 		return "protocol"
 	case "certificate":
 		return "certificate"
@@ -169,6 +175,61 @@ func categoryToAssetType(category string) string {
 	default:
 		return "algorithm"
 	}
+}
+
+// nonAssetCategories are the categories, in lower case, of findings that
+// describe something other than a cryptographic asset: an import of a crypto
+// library, or a setting such as a hard-coded key size. CycloneDX has no asset
+// type for either, and written as algorithm components they carried a pattern
+// name, such as "Post-Quantum Crypto Library", and no algorithm properties.
+var nonAssetCategories = map[string]bool{
+	"configuration":      true,
+	"library import":     true,
+	"pqc library import": true,
+}
+
+// isCryptoAsset reports whether a finding becomes a CBOM component. A finding
+// that names an algorithm always does. The other report formats list every
+// finding whatever this returns.
+func isCryptoAsset(f scanner.Finding) bool {
+	return f.Algorithm != "" || !nonAssetCategories[strings.ToLower(strings.TrimSpace(f.Category))]
+}
+
+// protocolType maps a protocol finding's category onto the CycloneDX
+// protocolProperties.type enum. The TLS patterns also match SSL versions,
+// which CycloneDX counts as TLS.
+func protocolType(category string) string {
+	switch strings.ToLower(strings.TrimSpace(category)) {
+	case "ssh":
+		return "ssh"
+	case "ipsec":
+		return "ipsec"
+	default:
+		return "tls"
+	}
+}
+
+// componentName returns the component a finding belongs to and the key that
+// merges findings into it. An algorithm with a key size is a component of its
+// own, such as RSA-1024 beside RSA-2048, so that each carries the security
+// level of its size; merged under one name, every RSA finding took the level
+// of whichever was found first. A protocol is keyed on its version as well,
+// so TLS 1.2 and TLS 1.3 each carry their own version.
+func componentName(f scanner.Finding, assetType string) (name, key string) {
+	name = f.Algorithm
+	if name == "" {
+		name = f.Type
+	}
+	switch assetType {
+	case "algorithm":
+		if size := strconv.Itoa(f.KeySize); f.KeySize > 0 && !strings.HasSuffix(name, size) {
+			name += "-" + size
+		}
+		return name, name
+	case "protocol":
+		return name, strings.TrimSpace(name + " " + extractTLSVersion(f.Match))
+	}
+	return name, name
 }
 
 // relativeLocation expresses a finding's file relative to the scan root.
@@ -239,6 +300,12 @@ func relatedCryptoMaterialType(patternID, name string) string {
 func algorithmToPrimitive(algo string) string {
 	algoUpper := strings.ToUpper(algo)
 	switch {
+	// Authenticated encryption, which CycloneDX calls "ae". Checked before
+	// the MACs because ChaCha20-Poly1305 carries the name of its MAC, which
+	// made it a "mac"; AES-GCM matched no case and was written as "other".
+	case strings.Contains(algoUpper, "GCM"), strings.Contains(algoUpper, "CCM"),
+		strings.Contains(algoUpper, "CHACHA") && strings.Contains(algoUpper, "POLY1305"):
+		return primitiveAE
 	// MACs - check before hashes because HMAC-SHA256 contains SHA
 	case strings.Contains(algoUpper, "HMAC"), strings.Contains(algoUpper, "KMAC"),
 		strings.Contains(algoUpper, "CMAC"), strings.Contains(algoUpper, "GMAC"),
@@ -378,11 +445,13 @@ func (r *CBOMReporter) Generate(results *scanner.Results) (string, error) {
 	hybridComponents := make(map[string][]string) // Track hybrid -> component dependencies
 
 	for _, f := range results.Findings {
-		// Create unique component key
-		compKey := f.Algorithm
-		if compKey == "" {
-			compKey = f.Type
+		if !isCryptoAsset(f) {
+			continue
 		}
+
+		// Create unique component key
+		assetType := categoryToAssetType(f.Category)
+		name, compKey := componentName(f, assetType)
 
 		// Generate a stable BOM reference
 		bomRef := fmt.Sprintf("crypto-%s-%d", sanitizeBOMRef(compKey), len(componentMap))
@@ -391,10 +460,10 @@ func (r *CBOMReporter) Generate(results *scanner.Results) (string, error) {
 		comp := cbomComponent{
 			Type:        "cryptographic-asset",
 			BOMRef:      bomRef,
-			Name:        compKey,
+			Name:        name,
 			Description: f.Description,
 			CryptoProperties: &cbomCryptoProperties{
-				AssetType: categoryToAssetType(f.Category),
+				AssetType: assetType,
 			},
 			Evidence: &cbomEvidence{
 				Occurrences: []cbomOccurrence{
@@ -417,7 +486,7 @@ func (r *CBOMReporter) Generate(results *scanner.Results) (string, error) {
 		// being flattened into a component named after the PEM header.
 		if comp.CryptoProperties.AssetType == "related-crypto-material" {
 			comp.CryptoProperties.RelatedCryptoMaterialProperties = &cbomRelatedCryptoMaterial{
-				Type: relatedCryptoMaterialType(f.ID, compKey),
+				Type: relatedCryptoMaterialType(f.ID, name),
 				Size: f.KeySize,
 			}
 		}
@@ -462,9 +531,9 @@ func (r *CBOMReporter) Generate(results *scanner.Results) (string, error) {
 		}
 
 		// Add protocol properties for TLS findings
-		if f.Category == "tls" || f.Category == "protocol" {
+		if assetType == "protocol" {
 			comp.CryptoProperties.ProtocolProperties = &cbomProtocol{
-				Type: "tls",
+				Type: protocolType(f.Category),
 			}
 			// Extract TLS version if present
 			if version := extractTLSVersion(f.Match); version != "" {
@@ -628,7 +697,9 @@ func extractHybridComponents(algo string) (classical string, pqc string) {
 
 // extractTLSVersion extracts the TLS version from a match string
 func extractTLSVersion(match string) string {
-	matchUpper := strings.ToUpper(match)
+	// The TLS patterns also match TLS_1_2, TLSv1_2 and TLS-1.2, so a version
+	// written with "_" or "-" is read as one written with ".".
+	matchUpper := strings.NewReplacer("_", ".", "-", ".").Replace(strings.ToUpper(match))
 	switch {
 	case strings.Contains(matchUpper, "1.3") || strings.Contains(matchUpper, "TLS13"):
 		return "1.3"

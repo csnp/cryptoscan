@@ -38,12 +38,12 @@ The descriptions below are the ones `cryptoscan scan --help` prints.
 | `-g, --group-by string` | Group the text report by: file |
 | `-c, --context int` | Lines of source to show before and after each finding (default 3) |
 | `-p, --progress` | Show scan progress: the number of files scanned so far, updated in place (text output on a terminal) |
-| `--stream` | Show findings as they are discovered (default true) |
+| `--stream` | Show findings as they are discovered, up to the first 200 matches (default true) |
 | `--min-severity string` | Minimum severity to report: info, low, medium, high, critical (default "info") |
 | `--include-imports` | Include library import findings (normally suppressed as low-value) |
-| `--include-quantum-safe` | Include quantum-safe algorithm findings (SHA-256, AES-256) |
+| `--include-quantum-safe` | Include the SHA-2 and AES findings left out by default, which the report classes as PARTIAL |
 | `--include-narrative` | Include algorithms named in prose, log messages, documentation and config keys |
-| `-v, --verbose` | Show all findings including imports, quantum-safe algorithms and narrative mentions |
+| `-v, --verbose` | Show all findings including imports, the SHA-2 and AES findings left out by default, and narrative mentions |
 | `--no-color` | Disable colored output |
 | `--pretty` | Pretty print JSON output |
 | `-h, --help` | help for scan |
@@ -54,7 +54,7 @@ CI/CD flags:
 |------|-------------|
 | `--ignore string` | Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*") |
 | `--ignore-category string` | Categories to ignore (comma-separated, e.g., "Certificate,Library Import") |
-| `--fail-on string` | Exit non-zero if findings at this severity or higher (info, low, medium, high, critical), or if any file could not be analyzed |
+| `--fail-on string` | Exit non-zero if findings at this severity or higher (info, low, medium, high, critical), or if any file could not be analyzed. When neither this flag nor failOn in the config file is set, the scan exits 1 when any finding is CRITICAL |
 | `--baseline string` | Baseline JSON file - only report new findings |
 | `--config string` | Config file path (default: auto-detect .cryptoscan.yaml) |
 | `--no-config` | Do not read a config file; use only command-line options |
@@ -114,8 +114,8 @@ Shows post-quantum readiness: the post-quantum algorithms found (ML-KEM,
 ML-DSA, SLH-DSA, FN-DSA, XMSS, LMS, library imports) with up to three
 file:line locations each, the hybrid constructions found, the
 quantum-vulnerable algorithms with a count each, then the migration score and
-the QRAMM Dimension 1 practice levels. Quantum-safe findings are always
-included. Exits 0 whatever it finds; non-zero only when the scan fails. To
+the QRAMM Dimension 1 practice levels. The SHA-2 and AES findings that scan
+leaves out by default are always included. Exits 0 whatever it finds; non-zero only when the scan fails. To
 fail a build on findings, use cryptoscan gate.
 
 Flags:

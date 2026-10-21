@@ -4,6 +4,7 @@
 package types
 
 import (
+	"encoding/json"
 	"testing"
 )
 
@@ -315,5 +316,100 @@ func TestFindingFields(t *testing.T) {
 	}
 	if finding.Metadata["nist_status"] != "deprecated" {
 		t.Error("Metadata nist_status should be deprecated")
+	}
+}
+
+// A finding's severity is written by name, the form summary.bySeverity keys
+// on, rather than as the number 0 to 4.
+func TestFindingSeverityIsWrittenByName(t *testing.T) {
+	for _, sev := range []Severity{SeverityInfo, SeverityLow, SeverityMedium, SeverityHigh, SeverityCritical} {
+		data, err := json.Marshal(Finding{ID: "X-001", Severity: sev})
+		if err != nil {
+			t.Fatalf("marshal: %v", err)
+		}
+		var doc map[string]any
+		if err := json.Unmarshal(data, &doc); err != nil {
+			t.Fatalf("unmarshal: %v", err)
+		}
+		if got := doc["severity"]; got != sev.String() {
+			t.Errorf("severity %d is written as %#v, want %q", int(sev), got, sev.String())
+		}
+	}
+}
+
+// A severity is read by name in any case, and as the number an earlier
+// release wrote, so that an older JSON report still loads as a baseline.
+func TestSeverityReadsNameOrNumber(t *testing.T) {
+	for _, tc := range []struct {
+		in   string
+		want Severity
+	}{
+		{`"HIGH"`, SeverityHigh},
+		{`"critical"`, SeverityCritical},
+		{`"Info"`, SeverityInfo},
+		{`3`, SeverityHigh},
+		{`0`, SeverityInfo},
+		{`4`, SeverityCritical},
+	} {
+		var got Severity
+		if err := json.Unmarshal([]byte(tc.in), &got); err != nil {
+			t.Errorf("unmarshal %s: %v", tc.in, err)
+			continue
+		}
+		if got != tc.want {
+			t.Errorf("unmarshal %s = %s, want %s", tc.in, got, tc.want)
+		}
+	}
+	for _, bad := range []string{`"SEVERE"`, `5`, `-1`, `true`} {
+		var got Severity
+		if err := json.Unmarshal([]byte(bad), &got); err == nil {
+			t.Errorf("unmarshal %s = %s, want an error", bad, got)
+		}
+	}
+}
+
+// Every finding carries the algorithm and keySize keys: null when the pattern
+// names no algorithm or records no key size, the value otherwise. A finding
+// written this way reads back unchanged.
+func TestFindingAlwaysHasAlgorithmAndKeySizeKeys(t *testing.T) {
+	for _, f := range []Finding{
+		{ID: "KEYSIZE-001", Type: "Hardcoded Key Size", Severity: SeverityLow},
+		{ID: "RSA-001", Algorithm: "RSA", Severity: SeverityHigh},
+		{ID: "RSA-1024", Algorithm: "RSA", KeySize: 1024, Severity: SeverityCritical},
+	} {
+		data, err := json.Marshal(f)
+		if err != nil {
+			t.Fatalf("marshal %s: %v", f.ID, err)
+		}
+		var doc map[string]any
+		if err := json.Unmarshal(data, &doc); err != nil {
+			t.Fatalf("unmarshal %s: %v", f.ID, err)
+		}
+		algorithm, ok := doc["algorithm"]
+		if !ok {
+			t.Errorf("%s: no algorithm key in %s", f.ID, data)
+		}
+		keySize, ok := doc["keySize"]
+		if !ok {
+			t.Errorf("%s: no keySize key in %s", f.ID, data)
+		}
+		var wantAlgorithm, wantKeySize any
+		if f.Algorithm != "" {
+			wantAlgorithm = f.Algorithm
+		}
+		if f.KeySize != 0 {
+			wantKeySize = float64(f.KeySize)
+		}
+		if algorithm != wantAlgorithm || keySize != wantKeySize {
+			t.Errorf("%s: algorithm %#v, keySize %#v; want %#v and %#v", f.ID, algorithm, keySize, wantAlgorithm, wantKeySize)
+		}
+
+		var back Finding
+		if err := json.Unmarshal(data, &back); err != nil {
+			t.Fatalf("read back %s: %v", f.ID, err)
+		}
+		if back.ID != f.ID || back.Algorithm != f.Algorithm || back.KeySize != f.KeySize || back.Severity != f.Severity {
+			t.Errorf("%s read back as %+v", f.ID, back)
+		}
 	}
 }

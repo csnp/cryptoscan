@@ -194,6 +194,12 @@ type Results struct {
 	// so they are named rather than dropped without a word.
 	SkippedFiles []SkippedFile `json:"skippedFiles"`
 
+	// SkippedDependencyDirs lists the node_modules directories the scan did
+	// not enter, relative to the scan root and slash-separated. Installed
+	// packages are left out of every scan; this list says where they were,
+	// so that a report without their findings is not read as a full one.
+	SkippedDependencyDirs []string `json:"skippedDependencyDirs"`
+
 	// ScanRoot is the directory finding paths were walked from (a temporary
 	// clone for a Git URL). It is used to recompute the migration score and
 	// is not written to any report.
@@ -331,6 +337,10 @@ type Scanner struct {
 	// skipped holds files left out because they look minified or generated.
 	skipped []SkippedFile
 
+	// dependencyDirs holds the node_modules directories the walk did not
+	// enter, relative to the scan root.
+	dependencyDirs []string
+
 	// configWithheld holds, per configuration-file setting, the matches that
 	// setting kept out of a report that would otherwise have contained them.
 	// configSkipped counts the paths ignore.files kept out of the scan.
@@ -466,6 +476,9 @@ func (s *Scanner) Scan() (*Results, error) {
 	sort.Slice(skipped, func(i, j int) bool {
 		return skipped[i].File < skipped[j].File
 	})
+	dependencyDirs := make([]string, len(s.dependencyDirs))
+	copy(dependencyDirs, s.dependencyDirs)
+	sort.Strings(dependencyDirs)
 
 	// Build results
 	results := &Results{
@@ -481,6 +494,8 @@ func (s *Scanner) Scan() (*Results, error) {
 		Config:          configReport,
 		UnanalyzedFiles: unanalyzed,
 		SkippedFiles:    skipped,
+
+		SkippedDependencyDirs: dependencyDirs,
 	}
 
 	results.Summary = s.calculateSummary()
@@ -691,6 +706,14 @@ func (s *Scanner) shouldSkipDir(root, path, name string) error {
 		".terraform": true,
 	}
 	if !isRoot && skipDirs[name] {
+		// An installed dependency tree holds the code of every package the
+		// project uses, and the report names it so that its absence is not
+		// read as an absence of cryptography.
+		if name == "node_modules" {
+			s.mu.Lock()
+			s.dependencyDirs = append(s.dependencyDirs, filepath.ToSlash(relPath))
+			s.mu.Unlock()
+		}
 		return filepath.SkipDir
 	}
 

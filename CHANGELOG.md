@@ -5,6 +5,65 @@ All notable changes to CryptoScan are recorded here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- **A scan names the `node_modules` directories it did not enter.** Installed
+  packages were left out of every scan without a word. The text report of
+  `scan` now lists each `node_modules` directory the walk passed over,
+  relative to the scan root, under
+  `N dependency directories were not scanned, so the packages installed there are not in this report:`,
+  and says that passing a package's directory to `cryptoscan scan` scans it.
+  JSON output carries the list as `skippedDependencyDirs`, an empty array when
+  there is none, and JSON, CSV, SARIF and CBOM output print it on stderr. A
+  `node_modules` directory inside another one is not reached, so it is not
+  listed.
+
+### Changed
+
+- **A JSON finding names its severity.** `--format json` wrote each finding's
+  severity as a number from 0 to 4, as in `"severity": 3`, while
+  `summary.bySeverity` is keyed by name. Each finding now carries the name, as
+  in `"severity": "HIGH"`, the form `summary.bySeverity`, the text report, CSV
+  and `cryptoscan patterns list --format json` use. A reader that compared the
+  number has to compare the name. A JSON report written by an earlier release,
+  with numbers, still loads as a `--baseline`.
+- **Every JSON finding has `algorithm` and `keySize`.** Both keys were left out
+  of a finding that had no value for them. They are now on every finding, as
+  `null` when the pattern names no algorithm or records no key size, and they
+  are the last two keys of the finding object.
+- **CBOM components describe more of what was found.** In `--format cbom` and
+  `cryptoscan cbom` output, AES-GCM and ChaCha20-Poly1305 have the primitive
+  `ae`, the CycloneDX value for authenticated encryption, where they had
+  `other` and `mac`. TLS findings are `protocol` assets with
+  `protocolProperties` of type `tls` and the TLS version their match names,
+  one component per version, where they were algorithm assets with primitive
+  `other`. Findings in the `Configuration`, `Library Import` and
+  `PQC Library Import` categories that name no algorithm, such as
+  `Hardcoded Key Size` and `Post-Quantum Crypto Library`, are left out of the
+  CBOM rather than written as algorithm components with no properties; the
+  other formats still report them. A finding with a recorded key size is a
+  component of its own, named with the size, such as `RSA-1024` with
+  `classicalSecurityLevel` 80. One `RSA` component used to hold every RSA
+  finding with the level of the first one, which on `crypto-samples` gave 80
+  to all 15 occurrences; RSA findings with no recorded size now carry no
+  level. [CBOM fields](docs/cbom-fields.md) lists each field as it is now.
+- **The text report.** The footer no longer ends with the CSNP mission
+  statement. A file with one finding reads `(1 finding)` in the TOP PRIORITY
+  FILES rows and in the `--group-by file` headers, where it read
+  `(1 findings)`. The list printed while the scan runs stops after 200
+  matches with the line
+  `Matches after the first 200 are not listed while the scan runs; the report lists every finding.`,
+  and the stream footer says how many matches the scan found; the report
+  after it still lists every finding.
+- **Help text.** `cryptoscan --help` opens with what the tool finds, where it
+  opened with `A powerful tool for discovering cryptographic algorithms`.
+  `scan --help` says that the report classes SHA-2 and AES as PARTIAL and that
+  `--include-quantum-safe` lists the SHA-2 findings, and the AES findings at
+  INFO severity other than AES-GCM and AES-ECB, that a default scan leaves
+  out, where it called them quantum-safe; `pqc --help` calls them PARTIAL too. The `--fail-on` help says
+  that, when neither the flag nor `failOn` in the config file is set, the scan
+  exits 1 when any finding is CRITICAL.
+
 ### Fixed
 
 - **A scan that read no files no longer reports a clean result.** A scan of an

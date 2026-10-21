@@ -32,9 +32,9 @@ The view lists, in this order:
   - The migration readiness score and the QRAMM Dimension 1 practice levels,
     as the scan report prints them
 
-pqc always includes the quantum-safe findings, such as SHA-256 and AES, that
-scan withholds unless you pass --include-quantum-safe. Its score counts them,
-so it can differ from the score a default scan prints.
+pqc always includes the SHA-2 and AES findings, classed PARTIAL, that scan
+leaves out unless you pass --include-quantum-safe. Its score counts them, so
+it can differ from the score a default scan prints.
 
 A readiness view is information, not a verdict, so pqc exits 0 whatever it
 finds. It exits non-zero only when the scan fails. A baseline or minimum

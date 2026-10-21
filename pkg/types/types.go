@@ -4,6 +4,12 @@
 // Package types contains shared type definitions
 package types
 
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
+
 // Severity levels for findings
 type Severity int
 
@@ -90,6 +96,40 @@ func (s Severity) String() string {
 	default:
 		return "INFO"
 	}
+}
+
+// MarshalJSON writes a severity by name, such as "HIGH", which is how
+// summary.bySeverity, the text report, CSV and the patterns list name it.
+func (s Severity) MarshalJSON() ([]byte, error) {
+	return json.Marshal(s.String())
+}
+
+// UnmarshalJSON reads a severity by name, in any case. It also reads the
+// number 0 (INFO) to 4 (CRITICAL) that JSON reports from earlier releases
+// carry, so that such a report still loads as a baseline.
+func (s *Severity) UnmarshalJSON(data []byte) error {
+	if string(data) == "null" {
+		return nil
+	}
+	var name string
+	if err := json.Unmarshal(data, &name); err == nil {
+		for level := SeverityInfo; level <= SeverityCritical; level++ {
+			if strings.EqualFold(name, level.String()) {
+				*s = level
+				return nil
+			}
+		}
+		return fmt.Errorf("unknown severity %q", name)
+	}
+	var level int
+	if err := json.Unmarshal(data, &level); err != nil {
+		return fmt.Errorf("severity must be a name such as \"HIGH\" or a number from 0 to 4, not %s", data)
+	}
+	if level < int(SeverityInfo) || level > int(SeverityCritical) {
+		return fmt.Errorf("severity %d is outside 0 (INFO) to 4 (CRITICAL)", level)
+	}
+	*s = Severity(level)
+	return nil
 }
 
 // QuantumRisk indicates quantum vulnerability status
@@ -184,6 +224,29 @@ type Finding struct {
 	// EvidenceKind names the scanner rule that decided the match's context,
 	// for the summary's byEvidence counts. It is not serialized per finding.
 	EvidenceKind string `json:"-"`
+}
+
+// MarshalJSON writes the finding with the "algorithm" and "keySize" keys on
+// every finding: null when the pattern names no algorithm or records no key
+// size, so that a reader can index both keys without checking for them.
+// Reading such a finding back with encoding/json gives "" and 0.
+func (f Finding) MarshalJSON() ([]byte, error) {
+	// plain has Finding's fields and none of its methods, so marshaling it
+	// does not call this method again. The two fields below are less deeply
+	// nested than plain's fields of the same JSON name, so they replace them.
+	type plain Finding
+	out := struct {
+		plain
+		Algorithm *string `json:"algorithm"`
+		KeySize   *int    `json:"keySize"`
+	}{plain: plain(f)}
+	if f.Algorithm != "" {
+		out.Algorithm = &f.Algorithm
+	}
+	if f.KeySize != 0 {
+		out.KeySize = &f.KeySize
+	}
+	return json.Marshal(out)
 }
 
 // Priority calculates a priority score for sorting (higher = more urgent)

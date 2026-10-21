@@ -40,7 +40,7 @@ Scanning a repository that ships cryptographic reference data (a database of
 packages and the algorithms they use, for example) will report a finding per
 row. Use `--exclude` to skip those paths.
 
-Library imports and quantum-safe algorithms are also left out of the default report. `--include-imports`, `--include-quantum-safe` and `--include-narrative` bring each group back, and `--verbose` brings back all three.
+Library imports, SHA-2 findings, and AES findings at INFO severity other than AES-GCM and AES-ECB are also left out of the default report; the report classes SHA-2 and AES as PARTIAL, weakened but not broken by a quantum computer. `--include-imports`, `--include-quantum-safe` and `--include-narrative` bring each group back, and `--verbose` brings back all three.
 
 ## Detection coverage
 

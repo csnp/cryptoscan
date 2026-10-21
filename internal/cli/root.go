@@ -24,9 +24,9 @@ var rootCmd = &cobra.Command{
 	Version: version.Get(),
 	Long: `CryptoScan - QRAMM Cryptographic Discovery Scanner
 
-A powerful tool for discovering cryptographic algorithms, key sizes, and
-quantum-vulnerable patterns in your codebase. Part of the QRAMM (Quantum
-Readiness Assurance Maturity Model) toolkit by CSNP.
+CryptoScan finds the cryptographic algorithms, key sizes and quantum-vulnerable
+patterns in source code and configuration files. It is part of the QRAMM
+(Quantum Readiness Assurance Maturity Model) toolkit by CSNP.
 
 CryptoScan helps organizations prepare for post-quantum cryptography by:
   - Discovering hardcoded cryptographic algorithms (RSA, ECC, AES, etc.)

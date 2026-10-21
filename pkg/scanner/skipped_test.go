@@ -189,3 +189,43 @@ func TestSkippedFilesAreSortedAndAlwaysWritten(t *testing.T) {
 		t.Errorf("expected an empty skippedFiles array in JSON, got %s", data)
 	}
 }
+
+// A node_modules directory is never walked, and the results name each one the
+// walk passed over, relative to the scan root. One inside another is not
+// reached, so it is not listed. A scan with none lists an empty array.
+func TestScanListsNodeModulesDirectoriesItDidNotEnter(t *testing.T) {
+	dir := t.TempDir()
+	for _, sub := range []string{
+		filepath.Join("node_modules", "jsonwebtoken", "node_modules", "jws"),
+		filepath.Join("web", "node_modules", "left"),
+		"src",
+	} {
+		if err := os.MkdirAll(filepath.Join(dir, sub), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	md5 := "const h = crypto.createHash('md5');\n"
+	writeTestFile(t, dir, filepath.Join("node_modules", "jsonwebtoken", "index.js"), md5)
+	writeTestFile(t, dir, filepath.Join("node_modules", "jsonwebtoken", "node_modules", "jws", "index.js"), md5)
+	writeTestFile(t, dir, filepath.Join("web", "node_modules", "left", "index.js"), md5)
+	writeTestFile(t, dir, filepath.Join("src", "app.js"), md5)
+
+	results := scanWithConfig(t, Config{Target: dir, ExcludeGlobs: DefaultExcludeGlobs})
+	want := []string{"node_modules", "web/node_modules"}
+	if !reflect.DeepEqual(results.SkippedDependencyDirs, want) {
+		t.Errorf("SkippedDependencyDirs = %q, want %q", results.SkippedDependencyDirs, want)
+	}
+	for _, f := range results.Findings {
+		if strings.Contains(filepath.ToSlash(f.File), "/node_modules/") {
+			t.Errorf("a finding from %s, which is inside a node_modules directory", f.File)
+		}
+	}
+
+	data, err := json.Marshal(scanWithConfig(t, Config{Target: filepath.Join(dir, "src")}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), `"skippedDependencyDirs":[]`) {
+		t.Errorf("expected an empty skippedDependencyDirs array in JSON, got %s", data)
+	}
+}

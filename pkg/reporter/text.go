@@ -182,6 +182,9 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 	if len(results.SkippedFiles) > 0 {
 		r.writeSkippedFiles(&b, results.SkippedFiles)
 	}
+	if len(results.SkippedDependencyDirs) > 0 {
+		r.writeSkippedDependencyDirs(&b, results.SkippedDependencyDirs)
+	}
 	if results.Config != nil {
 		r.writeConfigSummary(&b, results)
 	}
@@ -424,7 +427,7 @@ func (r *TextReporter) generateGroupedByFile(results *scanner.Results, b *string
 
 		// File header
 		b.WriteString(r.color(colorBold+colorCyan, fmt.Sprintf("  ━━━ %s ", file)))
-		b.WriteString(r.color(colorYellow, fmt.Sprintf("(%d findings)", len(findings))))
+		b.WriteString(r.color(colorYellow, "("+findingCount(len(findings))+")"))
 		b.WriteString(r.color(colorBold+colorCyan, " ━━━\n"))
 		b.WriteString("\n")
 
@@ -525,6 +528,27 @@ func (r *TextReporter) writeSkippedFiles(b *strings.Builder, files []scanner.Ski
 	}
 }
 
+// writeSkippedDependencyDirs names the node_modules directories the scan did
+// not enter. The packages installed there are not in the report, and a report
+// that did not say so read as one that had covered them.
+func (r *TextReporter) writeSkippedDependencyDirs(b *strings.Builder, dirs []string) {
+	head := fmt.Sprintf("%d dependency directories were", len(dirs))
+	if len(dirs) == 1 {
+		head = "1 dependency directory was"
+	}
+	b.WriteString(r.color(colorYellow, fmt.Sprintf(
+		"\n  %s not scanned, so the packages installed there are not in this report:\n", head)))
+	for i, d := range dirs {
+		if i == maxSkippedListed {
+			fmt.Fprintf(b, "    and %d more, listed under skippedDependencyDirs in --format json\n", len(dirs)-maxSkippedListed)
+			break
+		}
+		fmt.Fprintf(b, "    %s\n", d)
+	}
+	b.WriteString("  Dependency manifests such as package.json are read for known crypto libraries.\n")
+	b.WriteString("  To scan one installed package, pass its directory to cryptoscan scan.\n")
+}
+
 // writeConfigSummary names the config file the scan applied and what each of
 // its settings removed. The file may sit in a directory above the scan target,
 // where a reader of the report would not think to look.
@@ -577,7 +601,10 @@ func (r *TextReporter) writeMigrationScore(b *strings.Builder, score *scanner.Mi
 				break
 			}
 			truncFile := truncatePath(f.File, 40)
-			b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    %d. %-42s (%d findings)", i+1, truncFile, f.TotalFindings) + r.color(colorCyan, "  │\n"))
+			// "(1 finding)" is padded to the width "(1 findings)" had, so
+			// the border stays where it was.
+			count := fmt.Sprintf("%-*s", len(fmt.Sprintf("(%d findings)", f.TotalFindings)), "("+findingCount(f.TotalFindings)+")")
+			b.WriteString(r.color(colorCyan, "│") + fmt.Sprintf("    %d. %-42s %s", i+1, truncFile, count) + r.color(colorCyan, "  │\n"))
 		}
 	}
 
@@ -746,10 +773,16 @@ func (r *TextReporter) writeFooter(b *strings.Builder) {
 	b.WriteString("  Part of the QRAMM Toolkit: https://qramm.org\n")
 	b.WriteString("  Assess your organisation: https://qramm.org/quick-assessment.html\n")
 	b.WriteString("  Developed by CSNP: https://csnp.org\n")
-	b.WriteString("\n")
-	b.WriteString(r.color(colorGreen, "  CSNP Mission: ") + "Advancing cybersecurity through education,\n")
-	b.WriteString("  research, and open-source tools that empower organizations.\n")
 	b.WriteString(r.color(colorBold, "═══════════════════════════════════════════════════════════════\n"))
+}
+
+// findingCount returns "1 finding" for one finding and "N findings" for any
+// other count.
+func findingCount(n int) string {
+	if n == 1 {
+		return "1 finding"
+	}
+	return fmt.Sprintf("%d findings", n)
 }
 
 func min(a, b int) int {

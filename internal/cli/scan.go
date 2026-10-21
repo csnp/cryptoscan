@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -79,9 +80,12 @@ The scanner detects:
   - TLS/SSL settings
   - Crypto library imports
 
-Quantum-safe algorithms, including AES and the SHA-2 family, are detected but
-withheld from the default report because they need no migration. Pass
---include-quantum-safe to see them.
+The report classes SHA-2 and AES as PARTIAL: a quantum computer weakens them
+but does not break them, so they need no post-quantum migration. SHA-2
+findings, and AES findings at INFO severity other than AES-GCM and AES-ECB,
+are left out of the default report; pass --include-quantum-safe to list
+them. Post-quantum algorithms such as ML-KEM are classed SAFE and are
+reported without that flag.
 
 Not detected: DSA. Standalone DSA key generation is not matched by any
 pattern, so a codebase using it will not be told that it is quantum
@@ -99,7 +103,8 @@ CI/CD Integration:
   --ignore              Suppress specific pattern IDs (e.g., "RSA-001,CERT-*")
   --ignore-category     Suppress entire categories (e.g., "Certificate,Library Import")
   --fail-on             Exit non-zero if findings at this severity or higher,
-                        or if any file could not be analyzed
+                        or if any file could not be analyzed. Without it,
+                        the scan exits 1 when any finding is CRITICAL
   --baseline            Only report new findings compared to baseline JSON
   --config              Path to .cryptoscan.yaml config file
   --no-config           Do not read a config file; use only command-line options
@@ -137,16 +142,16 @@ func init() {
 	scanCmd.Flags().BoolVar(&jsonPretty, "pretty", false, "Pretty print JSON output")
 	scanCmd.Flags().StringVarP(&groupBy, "group-by", "g", "", "Group the text report by: "+strings.Join(groupByNames, ", "))
 	scanCmd.Flags().IntVarP(&contextLines, "context", "c", 3, "Lines of source to show before and after each finding")
-	scanCmd.Flags().BoolVar(&streamFindings, "stream", true, "Show findings as they are discovered")
+	scanCmd.Flags().BoolVar(&streamFindings, "stream", true, "Show findings as they are discovered, up to the first "+strconv.Itoa(maxStreamedMatches)+" matches")
 	scanCmd.Flags().BoolVar(&includeImports, "include-imports", false, "Include library import findings (normally suppressed as low-value)")
-	scanCmd.Flags().BoolVar(&includeQuantumSafe, "include-quantum-safe", false, "Include quantum-safe algorithm findings (SHA-256, AES-256)")
+	scanCmd.Flags().BoolVar(&includeQuantumSafe, "include-quantum-safe", false, "Include the SHA-2 and AES findings left out by default, which the report classes as PARTIAL")
 	scanCmd.Flags().BoolVar(&includeNarrative, "include-narrative", false, "Include algorithms named in prose, log messages, documentation and config keys")
-	scanCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show all findings including imports, quantum-safe algorithms and narrative mentions")
+	scanCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show all findings including imports, the SHA-2 and AES findings left out by default, and narrative mentions")
 
 	// CI/CD flexibility flags
 	scanCmd.Flags().StringVar(&ignorePatterns, "ignore", "", "Pattern IDs to ignore (comma-separated, e.g., \"RSA-001,CERT-*\")")
 	scanCmd.Flags().StringVar(&ignoreCategories, "ignore-category", "", "Categories to ignore (comma-separated, e.g., \"Certificate,Library Import\")")
-	scanCmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero if findings at this severity or higher ("+strings.Join(severityNames, ", ")+"), or if any file could not be analyzed")
+	scanCmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero if findings at this severity or higher ("+strings.Join(severityNames, ", ")+"), or if any file could not be analyzed. When neither this flag nor failOn in the config file is set, the scan exits 1 when any finding is CRITICAL")
 	scanCmd.Flags().StringVar(&baselineFile, "baseline", "", "Baseline JSON file - only report new findings")
 	scanCmd.Flags().StringVar(&configFile, "config", "", "Config file path (default: auto-detect .cryptoscan.yaml)")
 	scanCmd.Flags().BoolVar(&noConfig, "no-config", false, "Do not read a config file; use only command-line options")
@@ -358,9 +363,18 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 			outputMu.Lock()
 			listedCount++
 			num := listedCount
-			// Clear the progress line before printing finding
-			clearProgressLine()
-			printStreamFinding(f, num, !noColor)
+			// Print the first matches, then one line saying the rest are in
+			// the report. Listing every match put the summary below all of
+			// them, however many a large tree gave. The progress line is
+			// cleared before either is printed.
+			switch {
+			case num <= maxStreamedMatches:
+				clearProgressLine()
+				printStreamFinding(f, num, !noColor)
+			case num == maxStreamedMatches+1:
+				clearProgressLine()
+				printStreamCapNotice(!noColor)
+			}
 			outputMu.Unlock()
 		}
 	}
@@ -454,6 +468,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	if streamFindings && textReport {
 		printScanningFooter(streamTally{
 			listed:   listedCount,
+			hidden:   max(listedCount-maxStreamedMatches, 0),
 			unique:   uniqueCount,
 			reported: len(results.Findings),
 			files:    results.FilesScanned,
@@ -510,6 +525,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 
 	writeUnanalyzedNotice(os.Stderr, outputFormat, results.UnanalyzedFiles)
 	writeSkippedNotice(os.Stderr, outputFormat, results.SkippedFiles)
+	writeSkippedDependencyNotice(os.Stderr, outputFormat, results.SkippedDependencyDirs)
 
 	return results, effectiveFailOn, nil
 }
@@ -588,6 +604,27 @@ func writeSkippedNotice(w io.Writer, format string, files []scanner.SkippedFile)
 			break
 		}
 		fmt.Fprintf(w, "  %s  %s\n", sk.File, sk.Reason)
+	}
+}
+
+// writeSkippedDependencyNotice names the node_modules directories the scan
+// did not enter, for the same formats as writeUnanalyzedNotice. The text
+// report lists them itself.
+func writeSkippedDependencyNotice(w io.Writer, format string, dirs []string) {
+	if format == "text" || len(dirs) == 0 {
+		return
+	}
+	head := fmt.Sprintf("%d dependency directories were", len(dirs))
+	if len(dirs) == 1 {
+		head = "1 dependency directory was"
+	}
+	fmt.Fprintf(w, "cryptoscan: %s not scanned, so the packages installed there are not in this report:\n", head)
+	for i, d := range dirs {
+		if i == maxSkippedNamed {
+			fmt.Fprintf(w, "  and %d more, listed under skippedDependencyDirs in --format json\n", len(dirs)-maxSkippedNamed)
+			break
+		}
+		fmt.Fprintf(w, "  %s\n", d)
 	}
 }
 
@@ -691,7 +728,8 @@ func printScanningHeader(useColor bool) {
 // matches of the same category on the same line are merged into one finding,
 // and a baseline removes findings that were already known.
 type streamTally struct {
-	listed   int    // matches printed while scanning
+	listed   int    // matches found while scanning
+	hidden   int    // matches found after the first maxStreamedMatches, not printed
 	unique   int    // findings left after deduplication
 	reported int    // findings the report counts as Total Findings
 	files    int    // files scanned
@@ -731,9 +769,15 @@ func printScanningFooter(tally streamTally, duration time.Duration, useColor boo
 	// The listed matches are numbered, so when their count differs from the
 	// report's, say where the difference went.
 	var notes []string
+	if tally.hidden > 0 {
+		notes = append(notes, fmt.Sprintf("The scan found %d matches; the list above shows the first %d.",
+			tally.listed, tally.listed-tally.hidden))
+	}
 	if tally.listed != tally.reported {
-		notes = append(notes, fmt.Sprintf("The list above has %d %s.",
-			tally.listed, plural(tally.listed, "match", "matches")))
+		if tally.hidden == 0 {
+			notes = append(notes, fmt.Sprintf("The list above has %d %s.",
+				tally.listed, plural(tally.listed, "match", "matches")))
+		}
 		if merged := tally.listed - tally.unique; merged > 0 {
 			notes = append(notes, fmt.Sprintf("%d %s a match of the same kind on the same line and %s counted with it.",
 				merged, plural(merged, "repeats", "repeat"), plural(merged, "is", "are")))
@@ -758,6 +802,20 @@ func plural(n int, one, many string) string {
 		return one
 	}
 	return many
+}
+
+// maxStreamedMatches is the number of matches the text report lists while
+// the scan runs. The report after the stream lists every finding.
+const maxStreamedMatches = 200
+
+// printStreamCapNotice prints the line that ends the streamed list once
+// maxStreamedMatches matches have been printed.
+func printStreamCapNotice(useColor bool) {
+	line := fmt.Sprintf("  Matches after the first %d are not listed while the scan runs; the report lists every finding.", maxStreamedMatches)
+	if useColor {
+		line = "\033[2m" + line + "\033[0m"
+	}
+	fmt.Println(line)
 }
 
 // printStreamFinding prints a compact finding line during scanning

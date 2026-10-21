@@ -142,6 +142,18 @@ All notable changes to CryptoScan are recorded here. This project follows
   `fix` and `remediation` fields of JSON findings; SARIF writes it as the
   `help.text` of the finding's rule, and CSV in its Remediation column.
 
+- **The dependency insight lists its libraries in name order.** In
+  `--format json` output, the `description` of the `dependency_update`
+  insight names the quantum-vulnerable libraries found in dependency
+  manifests after `Libraries detected:`. That list followed the iteration
+  order of a Go map, which changes from run to run, so scans of the same tree
+  could list the libraries in different orders. Eight scans of a directory
+  whose `package.json` depends on `node-forge`, `tweetnacl` and `jose` and
+  whose `requirements.txt` lists `pycryptodome`, `pynacl` and `cryptography`
+  gave four different orders. The list is now sorted by name, as in
+  `Libraries detected: cryptography, jose, node-forge, pycryptodome, pynacl, tweetnacl.`,
+  and the same eight scans give that one order.
+
 ## [1.5.0] - 2026-10-18
 
 ### Added

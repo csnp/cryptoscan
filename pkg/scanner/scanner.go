@@ -77,6 +77,11 @@ type Config struct {
 	// that what each setting removes can be counted and reported. Checking
 	// them separately does not change which findings are reported.
 	ConfigFile *ConfigFileRules
+
+	// ReportFile is the file the scan's report is written to, if any. A file
+	// already at that path, which the scan would otherwise read, is left out
+	// and listed as skipped, whatever it holds, since the report replaces it.
+	ReportFile string
 }
 
 // Where a configuration file was found, as recorded in ConfigReport.Source.
@@ -189,9 +194,10 @@ type Results struct {
 	UnanalyzedFiles []UnanalyzedFile `json:"unanalyzedFiles"`
 
 	// SkippedFiles lists files left out of the scan because they look
-	// minified or generated, or because they are dependency manifests the
-	// scanner has no reader for. Cryptography in them is not in the report,
-	// so they are named rather than dropped without a word.
+	// minified or generated, because they are dependency manifests the
+	// scanner has no reader for, or because they are reports CryptoScan
+	// wrote. Cryptography in them is not in the report, so they are named
+	// rather than dropped without a word.
 	SkippedFiles []SkippedFile `json:"skippedFiles"`
 
 	// SkippedDependencyDirs lists the node_modules directories the scan did
@@ -230,8 +236,9 @@ func (u UnanalyzedFile) IsInternalError() bool {
 }
 
 // SkippedFile is a file the scanner did not search for cryptography because
-// its name or its line lengths mark it as minified or generated code, or
-// because it is a dependency manifest the scanner has no reader for.
+// its name or its line lengths mark it as minified or generated code, because
+// it is a dependency manifest the scanner has no reader for, or because it is
+// a report CryptoScan wrote.
 type SkippedFile struct {
 	File   string `json:"file"`
 	Reason string `json:"reason"`
@@ -246,6 +253,12 @@ const unreadManifestReason = "dependency manifest: the scanner does not read thi
 // minified or generated.
 func (sk SkippedFile) IsUnreadManifest() bool {
 	return sk.Reason == unreadManifestReason
+}
+
+// IsCryptoScanReport reports whether the file was skipped because it is a
+// report CryptoScan wrote, or the file the scan's own report replaces.
+func (sk SkippedFile) IsCryptoScanReport() bool {
+	return strings.HasPrefix(sk.Reason, reportReasonPrefix)
 }
 
 // MetadataScanRoot is the Results.Metadata entry holding the directory the
@@ -334,12 +347,17 @@ type Scanner struct {
 	// unanalyzed holds files whose analysis stopped on an internal error.
 	unanalyzed []UnanalyzedFile
 
-	// skipped holds files left out because they look minified or generated.
+	// skipped holds files left out because they look minified or generated,
+	// are dependency manifests the scanner does not read, or are reports
+	// CryptoScan wrote.
 	skipped []SkippedFile
 
 	// dependencyDirs holds the node_modules directories the walk did not
 	// enter, relative to the scan root.
 	dependencyDirs []string
+
+	// reportFile is the file at Config.ReportFile when the scan began, or nil.
+	reportFile os.FileInfo
 
 	// configWithheld holds, per configuration-file setting, the matches that
 	// setting kept out of a report that would otherwise have contained them.
@@ -388,6 +406,12 @@ func (s *Scanner) Scan() (*Results, error) {
 	info, err := os.Stat(target)
 	if err != nil {
 		return nil, fmt.Errorf("cannot access target: %w", err)
+	}
+
+	if s.config.ReportFile != "" {
+		if reportInfo, err := os.Stat(s.config.ReportFile); err == nil {
+			s.reportFile = reportInfo
+		}
 	}
 
 	if info.IsDir() {
@@ -482,7 +506,7 @@ func (s *Scanner) Scan() (*Results, error) {
 
 	// Build results
 	results := &Results{
-		Tool:            ToolInfo{Name: "CryptoScan", Version: version.Get()},
+		Tool:            ToolInfo{Name: toolName, Version: version.Get()},
 		Findings:        s.findings,
 		MigrationScore:  migrationScore,
 		ScanRoot:        root,
@@ -973,6 +997,17 @@ func (s *Scanner) scanFile(path string) error {
 		return nil
 	}
 	fileSize := fileInfo.Size()
+
+	// A report CryptoScan wrote is not source, and it is not read as a
+	// dependency manifest either.
+	if s.reportFile != nil && os.SameFile(s.reportFile, fileInfo) {
+		s.skip(path, reportFileReason)
+		return nil
+	}
+	if format := reportFormat(file); format != "" {
+		s.skip(path, reportReasonPrefix+format)
+		return nil
+	}
 
 	// Analyze file context
 	fileCtx := s.analyzeFile(path)
@@ -1764,8 +1799,8 @@ func betterRepresentative(a, b Finding) bool {
 }
 
 // skip records a file left out of the scan because it looks minified or
-// generated, or because it is a dependency manifest the scanner has no reader
-// for, with the reason given.
+// generated, because it is a dependency manifest the scanner has no reader
+// for, or because it is a report CryptoScan wrote, with the reason given.
 func (s *Scanner) skip(path, reason string) {
 	s.mu.Lock()
 	s.skipped = append(s.skipped, SkippedFile{File: path, Reason: reason})

@@ -38,19 +38,24 @@ type DependencyFinding struct {
 	Remediation string
 }
 
-// KnownCryptoLibraries contains well-known cryptographic libraries
+// KnownCryptoLibraries contains well-known cryptographic libraries. For a
+// library without post-quantum algorithms, Migration names the algorithms to
+// move and their replacements, and the post-quantum library the remediation
+// engine names for that language, where it names one.
 var KnownCryptoLibraries = []CryptoLibrary{
 	// Python
 	{Name: "cryptography", Package: "cryptography", Language: LangPython,
 		Algorithms: []string{"RSA", "ECC", "AES", "ChaCha20"}, QuantumSafe: false,
 		Description: "Python cryptographic recipes and primitives",
-		Migration:   "Add liboqs-python for PQC support alongside cryptography"},
+		Migration:   "Add liboqs-python alongside cryptography and move RSA and ECC to ML-KEM-768 for key exchange and ML-DSA-65 for signatures"},
 	{Name: "PyCryptodome", Package: "pycryptodome", Language: LangPython,
 		Algorithms: []string{"RSA", "ECC", "AES", "DES", "3DES"}, QuantumSafe: false,
-		Description: "Self-contained Python crypto library"},
+		Description: "Self-contained Python crypto library",
+		Migration:   "Add liboqs-python and move RSA and ECC from pycryptodome to ML-KEM-768 for key exchange and ML-DSA-65 for signatures"},
 	{Name: "PyNaCl", Package: "pynacl", Language: LangPython,
 		Algorithms: []string{"X25519", "Ed25519", "ChaCha20"}, QuantumSafe: false,
-		Description: "Python binding to libsodium"},
+		Description: "Python binding to libsodium",
+		Migration:   "Add liboqs-python and move X25519 key exchange from pynacl to ML-KEM-768 and Ed25519 signatures to ML-DSA-65"},
 	{Name: "liboqs-python", Package: "liboqs-python", Language: LangPython,
 		Algorithms: []string{"ML-KEM", "ML-DSA", "SLH-DSA"}, QuantumSafe: true,
 		Description: "Python bindings for liboqs (post-quantum algorithms)"},
@@ -62,7 +67,8 @@ var KnownCryptoLibraries = []CryptoLibrary{
 		Migration:   "Replace crypto-js with node:crypto in Node.js or the Web Crypto API (crypto.subtle) in the browser, then remove crypto-js from package.json"},
 	{Name: "node-forge", Package: "node-forge", Language: LangJavaScript,
 		Algorithms: []string{"RSA", "AES", "DES", "SHA", "MD5"}, QuantumSafe: false,
-		Description: "JavaScript implementation of TLS and crypto"},
+		Description: "JavaScript implementation of TLS and crypto",
+		Migration:   "Add liboqs-node and move RSA from node-forge to ML-KEM-768 for encryption and key exchange and ML-DSA-65 for signatures"},
 	{Name: "bcrypt", Package: "bcrypt", Language: LangJavaScript,
 		Algorithms: []string{"bcrypt"}, QuantumSafe: true,
 		Description: "bcrypt password hashing (quantum-resistant for passwords)"},
@@ -71,10 +77,12 @@ var KnownCryptoLibraries = []CryptoLibrary{
 		Description: "Argon2 password hashing (quantum-resistant)"},
 	{Name: "tweetnacl", Package: "tweetnacl", Language: LangJavaScript,
 		Algorithms: []string{"X25519", "Ed25519", "XSalsa20"}, QuantumSafe: false,
-		Description: "Port of TweetNaCl cryptographic library"},
+		Description: "Port of TweetNaCl cryptographic library",
+		Migration:   "Add liboqs-node and move X25519 key exchange from tweetnacl to ML-KEM-768 and Ed25519 signatures to ML-DSA-65"},
 	{Name: "jose", Package: "jose", Language: LangJavaScript,
 		Algorithms: []string{"RSA", "ECDSA", "EdDSA", "AES"}, QuantumSafe: false,
-		Description: "JavaScript Object Signing and Encryption"},
+		Description: "JavaScript Object Signing and Encryption",
+		Migration:   "Add liboqs-node and move RSA, ECDSA and EdDSA signatures made with jose to ML-DSA-65, and RSA key encryption to ML-KEM-768"},
 
 	// Go
 	{Name: "circl", Package: "github.com/cloudflare/circl", Language: LangGo,
@@ -82,7 +90,8 @@ var KnownCryptoLibraries = []CryptoLibrary{
 		Description: "Cloudflare Interoperable Reusable Cryptographic Library with PQC"},
 	{Name: "go-jose", Package: "github.com/go-jose/go-jose", Language: LangGo,
 		Algorithms: []string{"RSA", "ECDSA", "EdDSA"}, QuantumSafe: false,
-		Description: "Go implementation of JOSE standards"},
+		Description: "Go implementation of JOSE standards",
+		Migration:   "Add cloudflare/circl and move RSA, ECDSA and EdDSA signatures made with go-jose to ML-DSA-65, and RSA key encryption to ML-KEM-768"},
 
 	// Java
 	{Name: "Bouncy Castle", Package: "org.bouncycastle", Language: LangJava,
@@ -91,15 +100,18 @@ var KnownCryptoLibraries = []CryptoLibrary{
 		Migration:   "Upgrade to BC 1.78+ for ML-KEM and ML-DSA support"},
 	{Name: "Google Tink", Package: "com.google.crypto.tink", Language: LangJava,
 		Algorithms: []string{"AES-GCM", "ECDSA", "Ed25519"}, QuantumSafe: false,
-		Description: "Multi-language, cross-platform crypto library"},
+		Description: "Multi-language, cross-platform crypto library",
+		Migration:   "Add BouncyCastle and move ECDSA and Ed25519 signatures from Google Tink to ML-DSA-65"},
 
 	// Rust
 	{Name: "ring", Package: "ring", Language: LangRust,
 		Algorithms: []string{"AES-GCM", "ChaCha20", "RSA", "ECDSA"}, QuantumSafe: false,
-		Description: "Safe, fast, small crypto using Rust"},
+		Description: "Safe, fast, small crypto using Rust",
+		Migration:   "Add pqcrypto and move RSA and ECDSA signatures from ring to ML-DSA-65"},
 	{Name: "rustcrypto", Package: "aes", Language: LangRust,
 		Algorithms: []string{"AES", "ChaCha20"}, QuantumSafe: false,
-		Description: "Pure Rust implementation of crypto algorithms"},
+		Description: "Pure Rust implementation of crypto algorithms",
+		Migration:   "Use Aes256, a 256-bit key, in place of Aes128 and Aes192 from the aes crate"},
 	{Name: "pqcrypto", Package: "pqcrypto", Language: LangRust,
 		Algorithms: []string{"ML-KEM", "ML-DSA", "SLH-DSA"}, QuantumSafe: true,
 		Description: "Post-quantum cryptography for Rust"},
@@ -107,10 +119,12 @@ var KnownCryptoLibraries = []CryptoLibrary{
 	// Ruby
 	{Name: "OpenSSL Ruby", Package: "openssl", Language: LangRuby,
 		Algorithms: []string{"RSA", "ECC", "AES"}, QuantumSafe: false,
-		Description: "Ruby OpenSSL bindings"},
+		Description: "Ruby OpenSSL bindings",
+		Migration:   "Move RSA and ECC keys made with the openssl gem to ML-KEM-768 for key exchange and ML-DSA-65 for signatures"},
 	{Name: "RbNaCl", Package: "rbnacl", Language: LangRuby,
 		Algorithms: []string{"X25519", "Ed25519", "XSalsa20"}, QuantumSafe: false,
-		Description: "Ruby binding to libsodium"},
+		Description: "Ruby binding to libsodium",
+		Migration:   "Move X25519 key exchange from rbnacl to ML-KEM-768 and Ed25519 signatures to ML-DSA-65"},
 }
 
 // utf8BOM is the UTF-8 byte order mark. It marks the file's encoding and is

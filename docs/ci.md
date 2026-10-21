@@ -44,11 +44,20 @@ as an error in the SARIF run's `invocations[].toolExecutionNotifications`.
 Without `--fail-on`, such a file does not change the exit code.
 
 A file skipped because it looks minified or generated, such as `app.min.js`,
-or because it is a dependency manifest the scanner has no reader for, such as
-`build.gradle` or `Pipfile`, is named in the text summary or, for the other
-formats, on stderr (up to ten files, with a count of the rest), and JSON
-output also carries it under `skippedFiles`. It does not change the exit code,
-with or without `--fail-on`.
+because it is a dependency manifest the scanner has no reader for, such as
+`build.gradle` or `Pipfile`, or because it is a report CryptoScan wrote, such
+as the `baseline.json` or `results.sarif` that the commands on this page write
+into the project, is named in the text summary or, for the other formats, on
+stderr (up to ten files, with a count of the rest), and JSON output also
+carries it under `skippedFiles`. It does not change the exit code, with or
+without `--fail-on`.
+
+CryptoScan recognizes its reports by how they start: the tool name in a JSON,
+SARIF or CBOM report, the header row of a CSV report, and the title box of a
+text report or the `Scanning...` line that starts a scan's streamed output.
+The file `--output` names is left out of the scan that writes it, whatever it
+holds. To keep reports off the list, write them outside the scanned directory
+or name them in `--exclude`.
 
 Without `--fail-on`, the scan exits 1 on any CRITICAL finding. The full table is in [Exit codes](commands.md#exit-codes).
 

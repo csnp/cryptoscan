@@ -141,9 +141,57 @@ func TestScanCountsSkippedDirectoriesAndIncludeSkippedScansThem(t *testing.T) {
 	}
 }
 
+// The reproduction from the report on the pqc text view: one file, under
+// examples/. The view said only that nothing was checked, while scan printed
+// the count and the hint. The view now prints both lines and the command
+// prints no notice beside it; --format json prints the notice on stderr; with
+// --include-skipped the view lists the file's MD5 call and no count.
+func TestPqcCountsTheFilesInSkippedDirectories(t *testing.T) {
+	dir := t.TempDir()
+	writeFixtureFile(t, filepath.Join(dir, "examples", "a.py"), "import hashlib; h = hashlib.md5()\n")
+	const (
+		summary = "1 file in 1 directory was not scanned (default rules: examples)."
+		hint    = "Scan them with --include-skipped."
+	)
+
+	resetPipelineFlags(t)
+	var out string
+	stderr := captureStderr(func() { out, _ = runPqcCapture(t, dir) })
+	for _, want := range []string{
+		"  Nothing was checked: no files were scanned under " + dir + "\n",
+		"  " + summary + "\n  " + hint + "\n",
+	} {
+		if !strings.Contains(out, want) {
+			t.Errorf("pqc text view lacks %q:\n%s", want, out)
+		}
+	}
+	if strings.Contains(stderr, "default rules") {
+		t.Errorf("pqc text view also printed the notice on stderr: %q", stderr)
+	}
+
+	resetPipelineFlags(t)
+	outputFormat = "json"
+	stderr = captureStderr(func() { out, _ = runPqcCapture(t, dir) })
+	if !json.Valid([]byte(out)) {
+		t.Errorf("pqc --format json output is not JSON:\n%s", out)
+	}
+	if want := "cryptoscan: " + summary + " " + hint + "\n"; stderr != want {
+		t.Errorf("pqc --format json stderr = %q, want %q", stderr, want)
+	}
+
+	resetPipelineFlags(t)
+	includeSkipped = true
+	t.Cleanup(func() { includeSkipped = false })
+	out, _ = runPqcCapture(t, dir)
+	if strings.Contains(out, "default rules") || strings.Contains(out, "Nothing was checked") || !strings.Contains(out, "    MD5 ") {
+		t.Errorf("with --include-skipped, pqc should list the MD5 call and count no skipped files:\n%s", out)
+	}
+}
+
 // Every command that runs a scan takes the flag the report suggests, with
-// the same help, since gate prints the scan's text report and cbom and pqc
-// print the notice for their formats.
+// the same help, since gate prints the scan's text report, cbom prints the
+// notice, and pqc prints the text report's two lines in its text view and the
+// notice for --format json (TestPqcCountsTheFilesInSkippedDirectories).
 func TestIncludeSkippedOnEveryCommandThatScans(t *testing.T) {
 	for _, cmd := range []*cobra.Command{scanCmd, gateCmd, cbomCmd, pqcCmd} {
 		f := cmd.Flags().Lookup("include-skipped")

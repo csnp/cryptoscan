@@ -47,7 +47,9 @@ func isHybridFinding(f scanner.Finding) bool { return strings.HasPrefix(f.ID, "H
 // prints: post-quantum algorithms, hybrid constructions and quantum-vulnerable
 // algorithms found, then the readiness score and QRAMM Dimension 1 levels as
 // the scan report prints them. For a scan that read no files, the scan
-// report's NothingScanned line takes the place of the three lists.
+// report's NothingScanned line takes the place of the three lists. When the
+// directories the default rules left out hold files, the view says how many
+// and how to scan them, as the scan report does.
 type PQCReporter struct {
 	text *TextReporter
 }
@@ -105,6 +107,15 @@ func (r *PQCReporter) Generate(results *scanner.Results) (string, error) {
 			"  %d finding(s) withheld as documentation, log or comment text.\n"+
 				"  Show them with: cryptoscan scan %s --include-quantum-safe --include-narrative\n\n",
 			results.Summary.NarrativeSuppressed, results.ScanTarget)))
+	}
+
+	// Say, too, how many files the scan did not read because the default
+	// rules left their directories out. The command prints no notice of them
+	// for the text format, so the view prints the two lines the scan report
+	// prints for them.
+	if results.Skipped.Files > 0 {
+		b.WriteString(t.color(colorYellow, "  "+SkippedDirectoriesSummary(results.Skipped)+"\n"))
+		b.WriteString("  " + IncludeSkippedHint + "\n\n")
 	}
 
 	b.WriteString(fmt.Sprintf("  To see each finding with its source lines, run:\n    cryptoscan scan %s --include-quantum-safe\n\n", results.ScanTarget))

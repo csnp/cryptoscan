@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/csnp/cryptoscan/pkg/analyzer"
 	"github.com/csnp/cryptoscan/pkg/scanner"
 )
 
@@ -66,6 +67,64 @@ func TestTextReportCountsTheFilesInSkippedDirectories(t *testing.T) {
 	}
 	if strings.Contains(output, "include-skipped") || strings.Contains(output, "default rules") {
 		t.Errorf("text report mentions skipped directories that hold no files:\n%s", output)
+	}
+}
+
+// The pqc view printed neither line, and the command prints no notice for a
+// text view, so a view of a tree whose one file was under examples/ said only
+// that nothing was checked. The view now prints the text report's two lines,
+// once, the count in yellow, for a scan with findings and for one that read no
+// files, and neither line when the skipped directories hold no files.
+func TestPQCViewCountsTheFilesInSkippedDirectories(t *testing.T) {
+	const (
+		summary = "  3 files in 3 directories were not scanned (default rules: examples, fixtures, testdata)."
+		hint    = "  Scan them with --include-skipped."
+	)
+	cases := []struct {
+		name    string
+		results *scanner.Results
+	}{
+		{"with findings", pqcTestResults()},
+		{"no files scanned", &scanner.Results{ScanTarget: "/repo/empty", MigrationScore: analyzer.CalculateMigrationScore(nil)}},
+	}
+	for _, c := range cases {
+		c.results.Skipped = threeSkipped
+		report, err := NewTextReporter(false).Generate(c.results)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		view, err := NewPQCReporter(false).Generate(c.results)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		for _, line := range []string{summary, hint} {
+			if got := lineContaining(report, strings.TrimSpace(line)); got != line {
+				t.Fatalf("%s: the text report prints %q, want %q", c.name, got, line)
+			}
+			if n := strings.Count(view, line+"\n"); n != 1 {
+				t.Errorf("%s: the view has %q %d times, want 1:\n%s", c.name, line, n, view)
+			}
+		}
+		if !strings.Contains(view, summary+"\n"+hint+"\n") {
+			t.Errorf("%s: the view does not print the hint under the count:\n%s", c.name, view)
+		}
+
+		colored, err := NewPQCReporter(true).Generate(c.results)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		if want := colorYellow + summary + "\n" + colorReset + hint + "\n"; !strings.Contains(colored, want) {
+			t.Errorf("%s: the colored view lacks %q:\n%q", c.name, want, colored)
+		}
+
+		c.results.Skipped = scanner.SkippedDirectories{Directories: 1, Rules: []string{"dist"}, Paths: []string{"dist"}}
+		view, err = NewPQCReporter(false).Generate(c.results)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		if strings.Contains(view, "include-skipped") || strings.Contains(view, "default rules") {
+			t.Errorf("%s: the view mentions skipped directories that hold no files:\n%s", c.name, view)
+		}
 	}
 }
 

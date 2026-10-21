@@ -93,8 +93,9 @@ const IncludeSkippedHint = "Scan them with --include-skipped."
 // SkippedDirectoriesSummary says how many files the directories the default
 // rules left out hold, and which rules those were, as in "3 files in 2
 // directories were not scanned (default rules: examples, node_modules)." The
-// text report, the SARIF report and the notice the scan command prints for
-// the other formats all use it, and all of them only when Files is not 0.
+// text report, the pqc text view, the SARIF report and the notice the scan
+// command prints for the other formats all use it, and all of them only when
+// Files is not 0.
 func SkippedDirectoriesSummary(s scanner.SkippedDirectories) string {
 	verb := "were"
 	if s.Files == 1 {

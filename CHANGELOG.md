@@ -23,8 +23,8 @@ All notable changes to CryptoScan are recorded here. This project follows
   the scan target were left out with no word in the report: an RSA key
   generation call under `testdata/` gave no finding, and the report said
   only `Scanned: 1 files`. When the directories left out by default,
-  `node_modules` among them, hold files, the text report now prints, for
-  example,
+  `node_modules` among them, hold files, the text report and the `pqc` text
+  view now print, for example,
   `3 files in 3 directories were not scanned (default rules: examples, fixtures, testdata).`
   and `Scan them with --include-skipped.`; JSON, CSV, SARIF and CBOM output
   print the same on stderr, and SARIF output also carries it as a note in

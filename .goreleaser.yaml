@@ -32,12 +32,12 @@ builds:
 
 archives:
   - id: default
-    format: tar.gz
+    formats: [tar.gz]
     name_template: >-
       {{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}
     format_overrides:
       - goos: windows
-        format: zip
+        formats: [zip]
     files:
       - LICENSE
       - README.md
@@ -102,21 +102,20 @@ release:
 
     Verify your download with the checksums.txt file.
 
-brews:
+# A cask has no install or test block: its binary stanza installs cryptoscan.
+homebrew_casks:
   - name: cryptoscan
     repository:
       owner: csnp
       name: homebrew-tap
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     skip_upload: true
-    directory: Formula
+    directory: Casks
     homepage: https://qramm.org
     description: Cryptographic discovery tool for the post-quantum era
     license: Apache-2.0
-    install: |
-      bin.install "cryptoscan"
-    test: |
-      system "#{bin}/cryptoscan", "--version"
+    binaries:
+      - cryptoscan
 
 nfpms:
   - id: packages

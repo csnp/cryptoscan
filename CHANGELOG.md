@@ -81,6 +81,61 @@ All notable changes to CryptoScan are recorded here. This project follows
   check mark line now appears only when at least one file was scanned. JSON
   output is unchanged and already records `filesScanned` as 0.
 
+- **Reports CryptoScan wrote into the scanned tree are listed as not
+  scanned, instead of being read as source.** The
+  README and `docs/ci.md` write reports into the tree they scan, for example
+  with `cryptoscan scan . --format sarif --output results.sarif`, and the next
+  scan read them as source. Run twice in a copy of `crypto-samples`, that
+  command wrote 110 results and then 903. A directory holding only the pretty
+  JSON report of `crypto-samples` gave 1313 findings, its SARIF report 793 and
+  its CBOM 184, and each of those scans exited 1. A scan now leaves out a file
+  that starts like a CryptoScan report: JSON from `scan`, `gate` or `pqc`
+  (`tool.name` is `CryptoScan`), SARIF (`runs[].tool.driver.name`), a
+  CycloneDX CBOM (`metadata.tools[].name`), a CSV report (its header row), or
+  a text report (its title box, or the `Scanning...` line of streamed
+  output). It also leaves out the file `--output` names, whatever that file
+  holds. Each such file is named as not scanned, with a reason such as
+  `CryptoScan report: SARIF` or
+  `CryptoScan report: the --output file of this scan`, in the text summary,
+  on stderr for the other formats, and under `skippedFiles` in JSON. A report
+  saved as documentation, such as `report.txt` or a file under `docs/`, was
+  already left out of the scan and is still not listed. The text summary adds
+  `To leave CryptoScan reports off this list, write them outside the scanned folder or pass their names to --exclude.`
+  The same command now writes 110 results on both runs, and each of the
+  three report directories gives 0 findings and exits 0. The CSV report and
+  the single-line JSON report of `crypto-samples` were already left out, as
+  minified; they are now named as CryptoScan reports.
+
+- **Dependency findings for libraries without post-quantum algorithms name a
+  change.** Eleven of the libraries the scanner recognizes in dependency
+  manifests, among them `node-forge`, `tweetnacl`, `jose` and `pycryptodome`,
+  printed `Fix: Plan migration to a PQC-capable library or enable hybrid mode when available.`,
+  which names no change to make. Each library without post-quantum
+  algorithms now names what to move and what to move it to and, for
+  public-key algorithms in a Python, JavaScript, Go, Java or Rust library,
+  the post-quantum library the remediation engine names for that language,
+  for example
+  `Add liboqs-node and move RSA from node-forge to ML-KEM-768 for encryption and key exchange and ML-DSA-65 for signatures`.
+  The `cryptography` entry, which said
+  `Add liboqs-python for PQC support alongside cryptography`, now names what
+  to move as well. The text is the `Fix:` line of the text report and the
+  `fix` and `remediation` fields of JSON findings; SARIF writes it as the
+  `help.text` of the finding's rule, and CSV in its Remediation column.
+
+### Changed
+
+- **The release configuration uses the current GoReleaser keys.**
+  `goreleaser check` (GoReleaser 2.17.1) reported `archives.format`,
+  `archives.format_overrides.format` and `brews` as deprecated and exited 2.
+  The archives now set `formats`, and the Homebrew definition is a cask
+  (`homebrew_casks`), written to `dist/homebrew/Casks/cryptoscan.rb` in place
+  of the formula in `dist/homebrew/Formula/cryptoscan.rb`. It is still not
+  uploaded to the tap (`skip_upload: true`). A cask has no `install` or `test`
+  block, so the formula's `bin.install` and `--version` test are gone; the
+  cask's `binary "cryptoscan"` stanza installs the binary. `goreleaser check`
+  now exits 0, and a snapshot build writes the same six archives as before:
+  tar.gz for Linux and macOS, zip for Windows.
+
 ## [1.5.0] - 2026-10-18
 
 ### Added

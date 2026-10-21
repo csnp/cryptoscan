@@ -350,6 +350,10 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		ConfigFile:         cfgRules,
 	}
 
+	// The file --output names holds an earlier report, if anything, and this
+	// run replaces it, so the scan does not read it.
+	cfg.ReportFile = outputFile
+
 	// The banner and streamed findings belong to the scan's text report, not
 	// to a view.
 	textReport := outputFormat == "text" && opts.view == nil
@@ -590,9 +594,9 @@ func writeUnanalyzedNotice(w io.Writer, format string, files []scanner.Unanalyze
 const maxSkippedNamed = 10
 
 // writeSkippedNotice names the files the scan left out as minified or
-// generated, or as dependency manifests it has no reader for, for the same
-// formats and reasons as writeUnanalyzedNotice. The exit code does not depend
-// on them.
+// generated, as dependency manifests it has no reader for, or as reports
+// CryptoScan wrote, for the same formats and reasons as writeUnanalyzedNotice.
+// The exit code does not depend on them.
 func writeSkippedNotice(w io.Writer, format string, files []scanner.SkippedFile) {
 	if format == "text" || len(files) == 0 {
 		return

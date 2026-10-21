@@ -261,26 +261,34 @@ func TestPqcOutputIsDeterministic(t *testing.T) {
 		}
 	}
 
-	// The JSON check covers pqcFindings, the part pqc adds. The embedded
-	// migrationScore is the object scan reports, and its topRiskFiles order
-	// among files with equal risk scores is not yet fixed from run to run.
-	var first string
+	// The JSON check covers pqcFindings, the part pqc adds, and the embedded
+	// migrationScore, whose topRiskFiles lists files the six fixture files
+	// tie on.
+	var firstFindings, firstScore string
 	for n := 0; n < 3; n++ {
 		resetPipelineFlags(t)
 		outputFormat = "json"
 		out, _ := runPqcCapture(t, dir)
 		var view struct {
-			PQCFindings json.RawMessage `json:"pqcFindings"`
+			PQCFindings    json.RawMessage `json:"pqcFindings"`
+			MigrationScore json.RawMessage `json:"migrationScore"`
 		}
 		if err := json.Unmarshal([]byte(out), &view); err != nil {
 			t.Fatalf("pqc --format json is not JSON: %v", err)
 		}
 		if n == 0 {
-			first = string(view.PQCFindings)
+			firstFindings = string(view.PQCFindings)
+			firstScore = string(view.MigrationScore)
+			if firstScore == "" {
+				t.Fatalf("pqc --format json has no migrationScore:\n%s", out)
+			}
 			continue
 		}
-		if string(view.PQCFindings) != first {
+		if string(view.PQCFindings) != firstFindings {
 			t.Fatalf("pqc --format json: pqcFindings in run %d differs from run 0", n)
+		}
+		if string(view.MigrationScore) != firstScore {
+			t.Fatalf("pqc --format json: migrationScore in run %d differs from run 0", n)
 		}
 	}
 }

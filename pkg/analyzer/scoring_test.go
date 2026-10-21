@@ -101,6 +101,43 @@ func TestCalculateMigrationScoreForRootIgnoresDirectoriesAboveTheTarget(t *testi
 	}
 }
 
+func TestTopRiskFilesOrdersTiedFilesByPath(t *testing.T) {
+	// src/high.go has two findings and the seven other files one each, so
+	// six files tie at the second place and only four of them fit in the
+	// list of five.
+	findings := []types.Finding{
+		scoringFinding("src/g.go", types.QuantumVulnerable),
+		scoringFinding("src/c.go", types.QuantumVulnerable),
+		scoringFinding("src/high.go", types.QuantumVulnerable),
+		scoringFinding("src/e.go", types.QuantumVulnerable),
+		scoringFinding("src/a.go", types.QuantumVulnerable),
+		scoringFinding("src/high.go", types.QuantumVulnerable),
+		scoringFinding("src/f.go", types.QuantumVulnerable),
+		scoringFinding("src/b.go", types.QuantumVulnerable),
+		scoringFinding("src/d.go", types.QuantumVulnerable),
+	}
+	want := []string{"src/high.go", "src/a.go", "src/b.go", "src/c.go", "src/d.go"}
+
+	// The files are collected in a map, so one run can match by chance.
+	for run := 0; run < 20; run++ {
+		input := make([]types.Finding, len(findings))
+		copy(input, findings)
+		score := CalculateMigrationScore(input)
+
+		var got []string
+		for _, fr := range score.TopRiskFiles {
+			got = append(got, fr.File)
+		}
+		if strings.Join(got, " ") != strings.Join(want, " ") {
+			t.Fatalf("run %d: TopRiskFiles = %v, want %v", run, got, want)
+		}
+		if score.TopRiskFiles[0].RiskScore != 2*score.TopRiskFiles[1].RiskScore {
+			t.Fatalf("run %d: RiskScore of %s = %d, want twice the %d of %s", run,
+				want[0], score.TopRiskFiles[0].RiskScore, score.TopRiskFiles[1].RiskScore, want[1])
+		}
+	}
+}
+
 func TestNoQuantumSafeRecommendationRespectsHybridFindings(t *testing.T) {
 	const noSafe = "No quantum-safe algorithms detected"
 

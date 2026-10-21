@@ -133,6 +133,13 @@ var coloredText = strings.NewReplacer(
 	"║ ", "\x1b[1m║ ", "║\n", "║\n\x1b[0m",
 ).Replace(textReport)
 
+// legacyBannerText is bannerText with the title that releases 1.0.0 to 1.3.0
+// printed below the box, which has an em dash (U+2014) where the current
+// title has a colon. 1.3.0 printed colour, and so the banner, even when standard output
+// was redirected to a file.
+var legacyBannerText = strings.Replace(bannerText,
+	"Crypto Scan: QRAMM", "Crypto Scan \xe2\x80\x94 QRAMM", 1)
+
 func TestReportFormat(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -158,6 +165,8 @@ func TestReportFormat(t *testing.T) {
 		{"streamed scan output in colour", coloredStreamedText, "text"},
 		{"streamed scan output in colour after the banner", bannerText + coloredStreamedText, "text"},
 		{"text report in colour after the banner", bannerText + coloredText, "text"},
+		{"streamed scan output in colour after the 1.3.0 banner", legacyBannerText + coloredStreamedText, "text"},
+		{"text report in colour after the 1.3.0 banner", legacyBannerText + coloredText, "text"},
 
 		// Files that are not CryptoScan reports are read as before.
 		{"SARIF from another tool",
@@ -179,6 +188,7 @@ func TestReportFormat(t *testing.T) {
 		{"a box with another line below it",
 			strings.Replace(bannerText, "Crypto Scan: QRAMM Cryptographic Discovery", "Release checklist", 1), ""},
 		{"the banner title with no box above it", "Crypto Scan: QRAMM Cryptographic Discovery\nmd5 is broken\n", ""},
+		{"the 1.3.0 banner title with no box above it", "Crypto Scan \xe2\x80\x94 QRAMM Cryptographic Discovery\nmd5 is broken\n", ""},
 		{"the banner on line 2", "Notes\n" + bannerText + coloredStreamedText, ""},
 		{"a box with no line below it", "╔════════╗\n║ Notes  ║\n╚════════╝\n", ""},
 		{"a box that does not close", "╔════════╗\n║ Notes  ║\n║ md5    ║\n", ""},
@@ -230,6 +240,7 @@ func TestScanLeavesOutCryptoScanReports(t *testing.T) {
 		"findings.csv":    csvReport,
 		"scan-output.log": streamedText,
 		"scan-report.log": coloredText,
+		"scan-1.3.0.log":  legacyBannerText + coloredStreamedText,
 	}
 	for name, content := range reports {
 		writeFixture(t, filepath.Join(dir, "reports", name), content)
@@ -252,6 +263,7 @@ func TestScanLeavesOutCryptoScanReports(t *testing.T) {
 		{File: filepath.Join(dir, "reports", "findings.csv"), Reason: "CryptoScan report: CSV"},
 		{File: filepath.Join(dir, "reports", "findings.json"), Reason: "CryptoScan report: JSON"},
 		{File: filepath.Join(dir, "reports", "results.sarif"), Reason: "CryptoScan report: SARIF"},
+		{File: filepath.Join(dir, "reports", "scan-1.3.0.log"), Reason: "CryptoScan report: text"},
 		{File: filepath.Join(dir, "reports", "scan-output.log"), Reason: "CryptoScan report: text"},
 		{File: filepath.Join(dir, "reports", "scan-report.log"), Reason: "CryptoScan report: text"},
 	}

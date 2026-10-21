@@ -54,7 +54,8 @@ without `--fail-on`.
 
 CryptoScan recognizes its reports by how they start: the tool name in a JSON,
 SARIF or CBOM report, the header row of a CSV report, and the title box of a
-text report, the banner that `scan` and `gate` print first when color is on,
+text report, the banner that `scan` and `gate` print first when color is on
+(under its current title or the title releases 1.0.0 to 1.3.0 printed),
 or the `Scanning...` line that starts a scan's streamed output, when that
 line has no other text on it. A source file whose first line only ends with
 that line, such as a comment that quotes it, is scanned as source.

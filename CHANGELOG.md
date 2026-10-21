@@ -161,7 +161,8 @@ All notable changes to CryptoScan are recorded here. This project follows
   (`tool.name` is `CryptoScan`), SARIF (`runs[].tool.driver.name`), a
   CycloneDX CBOM (`metadata.tools[].name`), a CSV report (its header row), or
   a text report (its title box, the banner that `scan` and `gate` print first
-  when color is on, or a first line that is the `Scanning...` line of
+  when color is on, under its current title or the title releases 1.0.0 to
+  1.3.0 printed, or a first line that is the `Scanning...` line of
   streamed output with no other text on it). A source file whose first line
   only ends with that line, such as a comment that quotes it, is scanned as
   source. It also leaves out the file `--output` names, whatever
@@ -175,7 +176,11 @@ All notable changes to CryptoScan are recorded here. This project follows
   The same command now writes 110 results on both runs, and each of the
   three report directories gives 0 findings and exits 0. The CSV report and
   the single-line JSON report of `crypto-samples` were already left out, as
-  minified; they are now named as CryptoScan reports.
+  minified; they are now named as CryptoScan reports. CryptoScan 1.3.0
+  printed color also when output was redirected, so
+  `cryptoscan scan crypto-samples > out/scan.log` saved the banner; a scan
+  of `out` gave 550 findings, all in `scan.log`, and exited 1. It now lists
+  `scan.log` as `CryptoScan report: text`, gives 0 findings and exits 0.
 
 - **Dependency findings for libraries without post-quantum algorithms name a
   change.** Eleven of the libraries the scanner recognizes in dependency

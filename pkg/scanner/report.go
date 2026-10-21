@@ -41,11 +41,16 @@ var byteOrderMark = []byte("\xef\xbb\xbf")
 // scan, gate or pqc.
 const textReportTitle = "QRAMM CryptoScan"
 
-// bannerTitle is the line below the box at the top of the banner that scan
-// and gate print ahead of their text output when colour is on. That output
-// starts with the banner's box, not with the stream header or the report's
-// box.
-const bannerTitle = "Crypto Scan: QRAMM Cryptographic Discovery"
+// bannerTitles are the lines below the box at the top of the banner that scan
+// and gate print ahead of their text output when colour is on: the current
+// title, and the title releases 1.0.0 to 1.3.0 printed there, which has an
+// em dash (U+2014, UTF-8 e2 80 94) where the current one has a colon. That
+// output starts with the banner's box, not with the stream header or the
+// report's box.
+var bannerTitles = []string{
+	"Crypto Scan: QRAMM Cryptographic Discovery",
+	"Crypto Scan \xe2\x80\x94 QRAMM Cryptographic Discovery",
+}
 
 // textStreamHeader is the line a scan prints on standard output before the
 // findings it lists as it finds them, less its leading spaces.
@@ -82,9 +87,9 @@ func reportFormat(r io.Reader) string {
 }
 
 // isTextReport reports whether head starts like a text report: with the box
-// whose third line is textReportTitle, with a box followed by bannerTitle
-// (the banner), or with a first line that is the stream header and nothing
-// else.
+// whose third line is textReportTitle, with a box followed by one of
+// bannerTitles (the banner), or with a first line that is the stream header
+// and nothing else.
 func isTextReport(head []byte) bool {
 	// Read the first line and, when it opens a box, each line up to the one
 	// after the line that closes the box. Blank lines are left out, and each
@@ -114,7 +119,7 @@ func isTextReport(head []byte) bool {
 	case strings.Trim(lines[2], "║ ") == textReportTitle:
 		return true
 	}
-	return boxEnd >= 0 && boxEnd+1 < len(lines) && lines[boxEnd+1] == bannerTitle
+	return boxEnd >= 0 && boxEnd+1 < len(lines) && slices.Contains(bannerTitles, lines[boxEnd+1])
 }
 
 // jsonReportFormat reads the JSON object at the start of head, which may stop

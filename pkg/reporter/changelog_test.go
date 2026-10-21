@@ -6,6 +6,7 @@ package reporter
 import (
 	"encoding/csv"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,7 +16,7 @@ import (
 )
 
 // changelogFile is the release history. Its entries quote text that the
-// reporters write, and the test in this file holds such a quote to the SARIF
+// reporters write, and a test in this file holds such a quote to the SARIF
 // and CSV output of a real scan.
 const changelogFile = "../../CHANGELOG.md"
 
@@ -77,6 +78,52 @@ func TestChangelogEntries(t *testing.T) {
 		if got[i] != want[i] {
 			t.Errorf("entry %d = %q, want %q", i, got[i], want[i])
 		}
+	}
+}
+
+// repeatedChangelogHeadings returns one line for each "### " heading of
+// markdown that appears again under the same "## " release, naming the
+// heading, the release and the line numbers of both.
+func repeatedChangelogHeadings(markdown string) []string {
+	var repeats []string
+	var release string
+	seen := map[string]int{}
+	for i, line := range strings.Split(markdown, "\n") {
+		switch {
+		case strings.HasPrefix(line, "## "):
+			release = strings.TrimPrefix(line, "## ")
+			seen = map[string]int{}
+		case strings.HasPrefix(line, "### "):
+			if first, ok := seen[line]; ok {
+				repeats = append(repeats, fmt.Sprintf("%q under %q is at lines %d and %d", line, release, first, i+1))
+			} else {
+				seen[line] = i + 1
+			}
+		}
+	}
+	return repeats
+}
+
+func TestRepeatedChangelogHeadings(t *testing.T) {
+	markdown := "# Changelog\n\n## [Unreleased]\n\n### Changed\n\n- **A.**\n\n### Fixed\n\n- **B.**\n\n" +
+		"### Changed\n\n- **C.**\n\n## [1.0.0]\n\n### Changed\n\n- **D.**\n"
+	got := repeatedChangelogHeadings(markdown)
+	want := []string{`"### Changed" under "[Unreleased]" is at lines 5 and 13`}
+	if len(got) != len(want) || got[0] != want[0] {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}
+
+// Each release lists one heading per kind of change. The [Unreleased] section
+// had a second "### Changed" after "### Fixed", holding an entry that belongs
+// under the first one.
+func TestChangelogReleasesHaveOneHeadingPerKind(t *testing.T) {
+	raw, err := os.ReadFile(changelogFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, repeat := range repeatedChangelogHeadings(string(raw)) {
+		t.Errorf("%s: %s; move the entries under the second one to the first", changelogFile, repeat)
 	}
 }
 

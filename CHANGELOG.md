@@ -63,6 +63,17 @@ All notable changes to CryptoScan are recorded here. This project follows
   out, where it called them quantum-safe; `pqc --help` calls them PARTIAL too. The `--fail-on` help says
   that, when neither the flag nor `failOn` in the config file is set, the scan
   exits 1 when any finding is CRITICAL.
+- **The release configuration uses the current GoReleaser keys.**
+  `goreleaser check` (GoReleaser 2.17.1) reported `archives.format`,
+  `archives.format_overrides.format` and `brews` as deprecated and exited 2.
+  The archives now set `formats`, and the Homebrew definition is a cask
+  (`homebrew_casks`), written to `dist/homebrew/Casks/cryptoscan.rb` in place
+  of the formula in `dist/homebrew/Formula/cryptoscan.rb`. It is still not
+  uploaded to the tap (`skip_upload: true`). A cask has no `install` or `test`
+  block, so the formula's `bin.install` and `--version` test are gone; the
+  cask's `binary "cryptoscan"` stanza installs the binary. `goreleaser check`
+  now exits 0, and a snapshot build writes the same six archives as before:
+  tar.gz for Linux and macOS, zip for Windows.
 
 ### Fixed
 
@@ -121,20 +132,6 @@ All notable changes to CryptoScan are recorded here. This project follows
   to move as well. The text is the `Fix:` line of the text report and the
   `fix` and `remediation` fields of JSON findings; SARIF writes it as the
   `help.text` of the finding's rule, and CSV in its Remediation column.
-
-### Changed
-
-- **The release configuration uses the current GoReleaser keys.**
-  `goreleaser check` (GoReleaser 2.17.1) reported `archives.format`,
-  `archives.format_overrides.format` and `brews` as deprecated and exited 2.
-  The archives now set `formats`, and the Homebrew definition is a cask
-  (`homebrew_casks`), written to `dist/homebrew/Casks/cryptoscan.rb` in place
-  of the formula in `dist/homebrew/Formula/cryptoscan.rb`. It is still not
-  uploaded to the tap (`skip_upload: true`). A cask has no `install` or `test`
-  block, so the formula's `bin.install` and `--version` test are gone; the
-  cask's `binary "cryptoscan"` stanza installs the binary. `goreleaser check`
-  now exits 0, and a snapshot build writes the same six archives as before:
-  tar.gz for Linux and macOS, zip for Windows.
 
 ## [1.5.0] - 2026-10-18
 

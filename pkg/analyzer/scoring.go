@@ -129,8 +129,13 @@ func CalculateMigrationScoreForRoot(findings []types.Finding, root string) *type
 			fileList = append(fileList, *fr)
 		}
 	}
+	// fileList comes from a map, so files with the same risk score are
+	// ordered by path to give the same list on every run.
 	sort.Slice(fileList, func(i, j int) bool {
-		return fileList[i].RiskScore > fileList[j].RiskScore
+		if fileList[i].RiskScore != fileList[j].RiskScore {
+			return fileList[i].RiskScore > fileList[j].RiskScore
+		}
+		return fileList[i].File < fileList[j].File
 	})
 	if len(fileList) > 5 {
 		fileList = fileList[:5]

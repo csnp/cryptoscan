@@ -77,6 +77,15 @@ All notable changes to CryptoScan are recorded here. This project follows
 
 ### Fixed
 
+- **Files with the same risk score are listed in the same order on every
+  run.** `migrationScore.topRiskFiles` in JSON output, and the
+  `TOP PRIORITY FILES` box of the text report, ordered files by risk score
+  alone, so files that tied came out in a different order from run to run.
+  When the tie fell at the fifth place, which files made the list changed
+  too. With three copies of `crypto-samples` in one directory, six runs of
+  `cryptoscan scan <dir> --format json --no-config` gave six different
+  lists. Files that tie are now ordered by path.
+
 - **A scan that read no files no longer reports a clean result.** A scan of an
   empty directory, or of one where every file was left out, printed
   `Scanned:  0 files • 0 lines • 0 B` and then a check mark with

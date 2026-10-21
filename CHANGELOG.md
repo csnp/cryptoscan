@@ -210,6 +210,18 @@ All notable changes to CryptoScan are recorded here. This project follows
   `Libraries detected: cryptography, jose, node-forge, pycryptodome, pynacl, tweetnacl.`,
   and the same eight scans give that one order.
 
+### Documentation
+
+- **The terms in `LICENSE` match the Apache License 2.0 text word for word.**
+  The definition of "Contribution" read "submitted to the Licensor for
+  inclusion in the Work", where the text the Apache Software Foundation
+  publishes at https://www.apache.org/licenses/LICENSE-2.0.txt reads
+  "submitted to Licensor for inclusion in the Work". The copyright line and
+  license notice after `END OF TERMS AND CONDITIONS` are unchanged.
+  `TestLicenseTermsMatchTheApacheLicense` in `cmd/cryptoscan` compares the
+  terms in `LICENSE` word for word with a copy of the published file, and
+  fails at the first word that differs, naming its line.
+
 ## [1.5.0] - 2026-10-18
 
 ### Added

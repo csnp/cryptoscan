@@ -206,9 +206,10 @@ type Results struct {
 	// so that a report without their findings is not read as a full one.
 	SkippedDependencyDirs []string `json:"skippedDependencyDirs"`
 
-	// ScanRoot is the directory finding paths were walked from (a temporary
-	// clone for a Git URL). It is used to recompute the migration score and
-	// is not written to any report.
+	// ScanRoot is the directory finding paths were walked from, or empty for
+	// a Git URL, whose finding paths are relative to the repository root. It
+	// is used to recompute the migration score and is not written to any
+	// report.
 	ScanRoot string `json:"-"`
 }
 
@@ -264,7 +265,8 @@ func (sk SkippedFile) IsCryptoScanReport() bool {
 // MetadataScanRoot is the Results.Metadata entry holding the directory the
 // scan's file paths are under. ScanTarget is the target as it was given, such
 // as "." or a repository URL, so a saved report needs this to turn each
-// finding's path back into a path relative to the scanned tree.
+// finding's path back into a path relative to the scanned tree. A Git URL
+// scan has no entry: its paths are relative to the repository root already.
 const MetadataScanRoot = "scanRoot"
 
 // Insight provides actionable intelligence derived from findings
@@ -393,6 +395,7 @@ func (s *Scanner) Scan() (*Results, error) {
 	target := s.config.Target
 
 	// Handle Git URL - clone to temp directory
+	cloneRoot := ""
 	if isGitURL(target) {
 		clonePath, err := s.cloneRepository(target)
 		if err != nil {
@@ -401,6 +404,8 @@ func (s *Scanner) Scan() (*Results, error) {
 		// Clean up temp directory when done
 		defer s.Cleanup()
 		target = clonePath
+		cloneRoot = clonePath
+		s.streamRelativeTo(cloneRoot)
 	}
 
 	info, err := os.Stat(target)
@@ -455,6 +460,22 @@ func (s *Scanner) Scan() (*Results, error) {
 		configReport = s.configReport(raw)
 	}
 
+	// The clone of a URL scan is removed when the scan ends, so the report
+	// gives each path relative to the repository root, where it is found in
+	// any checkout. The path rules applied during the walk saw the clone's
+	// paths, which is why the paths change only here.
+	if cloneRoot != "" {
+		for i := range s.findings {
+			s.findings[i].File = repoRelative(cloneRoot, s.findings[i].File)
+		}
+		for i := range s.unanalyzed {
+			s.unanalyzed[i].File = repoRelative(cloneRoot, s.unanalyzed[i].File)
+		}
+		for i := range s.skipped {
+			s.skipped[i].File = repoRelative(cloneRoot, s.skipped[i].File)
+		}
+	}
+
 	// Sort findings by priority, breaking ties on location so that the order
 	// is fully determined by the scanned content rather than by the order
 	// files happened to be walked.
@@ -484,8 +505,15 @@ func (s *Scanner) Scan() (*Results, error) {
 
 	// Calculate migration score and enhance findings with QRAMM mapping.
 	// Finding paths start with the walked directory, so directories above it
-	// are not mistaken for test directories.
+	// are not mistaken for test directories. A URL scan's paths are relative
+	// to the repository root already, and it records no root.
 	root := s.root
+	metadata := map[string]string{}
+	if cloneRoot != "" {
+		root = ""
+	} else {
+		metadata[MetadataScanRoot] = root
+	}
 	migrationScore := analyzer.CalculateMigrationScoreForRoot(s.findings, root)
 
 	// Sorted for the same reason as the findings: files are scanned in
@@ -514,7 +542,7 @@ func (s *Scanner) Scan() (*Results, error) {
 		LinesScanned:    s.stats.linesScanned,
 		BytesScanned:    s.stats.bytesScanned,
 		LanguageStats:   s.stats.languageStats,
-		Metadata:        map[string]string{MetadataScanRoot: s.root},
+		Metadata:        metadata,
 		Config:          configReport,
 		UnanalyzedFiles: unanalyzed,
 		SkippedFiles:    skipped,
@@ -600,6 +628,33 @@ func (s *Scanner) Cleanup() {
 		os.RemoveAll(s.tempDir)
 		s.tempDir = ""
 	}
+}
+
+// streamRelativeTo makes the streaming and progress callbacks of a URL scan
+// see each path relative to the repository root cloned at root, the form the
+// report gives it.
+func (s *Scanner) streamRelativeTo(root string) {
+	if onFinding := s.config.OnFinding; onFinding != nil {
+		s.config.OnFinding = func(f Finding) {
+			f.File = repoRelative(root, f.File)
+			onFinding(f)
+		}
+	}
+	if onFileScanned := s.config.OnFileScanned; onFileScanned != nil {
+		s.config.OnFileScanned = func(path string) {
+			onFileScanned(repoRelative(root, path))
+		}
+	}
+}
+
+// repoRelative returns path relative to root, slash-separated, or path as it
+// is when it is not below root.
+func repoRelative(root, path string) string {
+	rel, err := filepath.Rel(root, path)
+	if err != nil || rel == "." || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+		return path
+	}
+	return filepath.ToSlash(rel)
 }
 
 func (s *Scanner) scanDirectory(root string) error {

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -319,6 +320,48 @@ func TestBaselineFromEarlierRelease(t *testing.T) {
 			if len(got) != 0 {
 				t.Errorf("an earlier baseline should still cover the reviewed findings, got %d new:\n  %s",
 					len(got), describe(got))
+			}
+		})
+	}
+}
+
+// A URL scan reports paths relative to the repository root and records no
+// scan root. A baseline written by an earlier URL scan holds the paths of a
+// clone that has since been removed, with or without that clone as its
+// recorded root, and must still cover the same findings.
+func TestBaselineCoversURLScanWithRelativePaths(t *testing.T) {
+	const url = "https://example.invalid/org/repo.git"
+	clone := filepath.Join(t.TempDir(), "cryptoscan-1234")
+	finding := func(file string, line int) scanner.Finding {
+		return scanner.Finding{
+			ID:    "SHA1-001-" + strconv.Itoa(line) + "-11",
+			File:  file,
+			Line:  line,
+			Match: "hashlib.sha1(data)",
+		}
+	}
+	// The current scan: one line added at the top shifts the finding.
+	current := []scanner.Finding{finding("src/app.py", 6)}
+
+	for _, tc := range []struct {
+		name string
+		b    baseline
+	}{
+		{"this release", baseline{ScanTarget: url,
+			Findings: []scanner.Finding{finding("src/app.py", 5)}}},
+		{"earlier release with scanRoot", baseline{ScanTarget: url,
+			Metadata: map[string]string{scanner.MetadataScanRoot: clone},
+			Findings: []scanner.Finding{finding(filepath.Join(clone, "src", "app.py"), 5)}}},
+		{"1.4.0 without scanRoot", baseline{ScanTarget: url,
+			Findings: []scanner.Finding{finding(filepath.Join(clone, "src", "app.py"), 5)}}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := filterNewFindings(current, "", &tc.b); len(got) != 0 {
+				t.Errorf("the baseline should cover the finding, got %d new:\n  %s", len(got), describe(got))
+			}
+			moved := []scanner.Finding{finding("lib/app.py", 6)}
+			if got := filterNewFindings(moved, "", &tc.b); len(got) != 1 {
+				t.Errorf("a finding in another file should be new, got %d new", len(got))
 			}
 		})
 	}

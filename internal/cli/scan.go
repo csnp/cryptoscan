@@ -40,6 +40,7 @@ var (
 	includeImports     bool
 	includeQuantumSafe bool
 	includeNarrative   bool
+	includeSkipped     bool
 	verbose            bool
 
 	// CI/CD flexibility flags
@@ -60,6 +61,10 @@ var (
 	severityNames = []string{"info", "low", "medium", "high", "critical"}
 	groupByNames  = []string{"file"}
 )
+
+// includeSkippedUsage is the --include-skipped help of every command that
+// scans, so that the flag reads the same wherever the report suggests it.
+const includeSkippedUsage = "Scan the directories left out by default, such as .git, node_modules, vendor, dist, build, examples and testdata"
 
 // progressShown records whether the running scan prints the in-place
 // progress line, so that the line is cleared before anything else is printed
@@ -146,6 +151,7 @@ func init() {
 	scanCmd.Flags().BoolVar(&includeImports, "include-imports", false, "Include library import findings (normally suppressed as low-value)")
 	scanCmd.Flags().BoolVar(&includeQuantumSafe, "include-quantum-safe", false, "Include the SHA-2 and AES findings left out by default, which the report classes as PARTIAL")
 	scanCmd.Flags().BoolVar(&includeNarrative, "include-narrative", false, "Include algorithms named in prose, log messages, documentation and config keys")
+	scanCmd.Flags().BoolVar(&includeSkipped, "include-skipped", false, includeSkippedUsage)
 	scanCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show all findings including imports, the SHA-2 and AES findings left out by default, and narrative mentions")
 
 	// CI/CD flexibility flags
@@ -267,9 +273,6 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		}
 	}
 
-	// Add default excludes
-	excludes = append(excludes, scanner.DefaultExcludeGlobs...)
-
 	// Parse ignore patterns from CLI flags
 	var ignoreIDs, ignoreCats []string
 	if ignorePatterns != "" {
@@ -348,6 +351,11 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		IgnoreIDs:          ignoreIDs,
 		IgnoreCategories:   ignoreCats,
 		ConfigFile:         cfgRules,
+		// The default excludes are passed apart from --exclude, so that the
+		// directories they keep out are counted in the report and
+		// --include-skipped can walk them.
+		DefaultExcludes: scanner.DefaultExcludeGlobs,
+		IncludeSkipped:  includeSkipped,
 	}
 
 	// The file --output names holds an earlier report, if anything, and this
@@ -530,6 +538,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	writeUnanalyzedNotice(os.Stderr, outputFormat, results.UnanalyzedFiles)
 	writeSkippedNotice(os.Stderr, outputFormat, results.SkippedFiles)
 	writeSkippedDependencyNotice(os.Stderr, outputFormat, results.SkippedDependencyDirs)
+	writeSkippedDirectoriesNotice(os.Stderr, outputFormat, results.Skipped)
 
 	return results, effectiveFailOn, nil
 }
@@ -630,6 +639,17 @@ func writeSkippedDependencyNotice(w io.Writer, format string, dirs []string) {
 		}
 		fmt.Fprintf(w, "  %s\n", d)
 	}
+}
+
+// writeSkippedDirectoriesNotice says how many files the directories the
+// default rules left out hold, for the same formats as writeUnanalyzedNotice.
+// The text report says it itself, and the JSON report carries the counts as
+// well, under skipped.
+func writeSkippedDirectoriesNotice(w io.Writer, format string, skipped scanner.SkippedDirectories) {
+	if format == "text" || skipped.Files == 0 {
+		return
+	}
+	fmt.Fprintf(w, "cryptoscan: %s %s\n", reporter.SkippedDirectoriesSummary(skipped), reporter.IncludeSkippedHint)
 }
 
 func printBanner() {

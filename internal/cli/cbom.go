@@ -40,6 +40,7 @@ func init() {
 	cbomCmd.Flags().StringVar(&ignorePatterns, "ignore", "", "Pattern IDs to ignore (comma-separated, e.g., \"RSA-001,CERT-*\")")
 	cbomCmd.Flags().StringVar(&ignoreCategories, "ignore-category", "", "Categories to ignore (comma-separated, e.g., \"Certificate,Library Import\")")
 	cbomCmd.Flags().StringVar(&configFile, "config", "", "Config file path (default: auto-detect .cryptoscan.yaml)")
+	cbomCmd.Flags().BoolVar(&includeSkipped, "include-skipped", false, includeSkippedUsage)
 }
 
 func runCbom(cmd *cobra.Command, args []string) error {

@@ -43,6 +43,7 @@ The descriptions below are the ones `cryptoscan scan --help` prints.
 | `--include-imports` | Include library import findings (normally suppressed as low-value) |
 | `--include-quantum-safe` | Include the SHA-2 and AES findings left out by default, which the report classes as PARTIAL |
 | `--include-narrative` | Include algorithms named in prose, log messages, documentation and config keys |
+| `--include-skipped` | Scan the directories left out by default, such as `.git`, `node_modules`, `vendor`, `dist`, `build`, `examples` and `testdata` |
 | `-v, --verbose` | Show all findings including imports, the SHA-2 and AES findings left out by default, and narrative mentions |
 | `--no-color` | Disable colored output |
 | `--pretty` | Pretty print JSON output |
@@ -87,6 +88,7 @@ Flags:
       --ignore string           Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*")
       --ignore-category string  Categories to ignore (e.g., "Certificate,Library Import")
       --config string           Config file path (default: auto-detect .cryptoscan.yaml)
+      --include-skipped         Scan the directories left out by default, such as .git, node_modules, vendor, dist, build, examples and testdata
 ```
 
 ```
@@ -104,6 +106,7 @@ Flags:
       --ignore string           Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*")
       --ignore-category string  Categories to ignore (e.g., "Certificate,Library Import")
       --config string           Config file path (default: auto-detect .cryptoscan.yaml)
+      --include-skipped         Scan the directories left out by default, such as .git, node_modules, vendor, dist, build, examples and testdata
       --no-color                Disable colored output
 ```
 
@@ -124,6 +127,7 @@ Flags:
   -e, --exclude string          File patterns to exclude (comma-separated globs)
       --ignore string           Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*")
       --config string           Config file path (default: auto-detect .cryptoscan.yaml)
+      --include-skipped         Scan the directories left out by default, such as .git, node_modules, vendor, dist, build, examples and testdata
       --no-color                Disable colored output
 ```
 

@@ -82,6 +82,18 @@ type Config struct {
 	// already at that path, which the scan would otherwise read, is left out
 	// and listed as skipped, whatever it holds, since the report replaces it.
 	ReportFile string
+
+	// DefaultExcludes are exclude patterns applied as default rules rather
+	// than as the user's own; the scan command passes DefaultExcludeGlobs.
+	// They are matched like ExcludeGlobs, after them. A directory one of them
+	// keeps out of the scan is counted in Results.Skipped.
+	DefaultExcludes []string
+
+	// IncludeSkipped walks the directories the default rules leave out: those
+	// the built-in directory rules name and those a DefaultExcludes pattern
+	// matches. DefaultExcludes patterns still apply to files, except the ones
+	// that name a directory and everything in it, such as "vendor/*".
+	IncludeSkipped bool
 }
 
 // Where a configuration file was found, as recorded in ConfigReport.Source.
@@ -148,9 +160,10 @@ const (
 	configRuleCount
 )
 
-// DefaultExcludeGlobs are the exclude patterns the scan command adds to every
-// scan: version control metadata, dependency and virtual environment trees,
-// build output, and generated or minified files.
+// DefaultExcludeGlobs are the exclude patterns the scan command applies to
+// every scan as Config.DefaultExcludes: version control metadata, dependency
+// and virtual environment trees, build output, and generated or minified
+// files.
 var DefaultExcludeGlobs = []string{
 	".git/*", ".svn/*", ".hg/*",
 	"node_modules/*", "vendor/*", "venv/*", ".venv/*",
@@ -206,6 +219,11 @@ type Results struct {
 	// so that a report without their findings is not read as a full one.
 	SkippedDependencyDirs []string `json:"skippedDependencyDirs"`
 
+	// Skipped counts the directories the default rules kept out of the scan
+	// and the files in them, so that a report without their findings is not
+	// read as one that covered them. JSON always carries it.
+	Skipped SkippedDirectories `json:"skipped"`
+
 	// ScanRoot is the directory finding paths were walked from, or empty for
 	// a Git URL, whose finding paths are relative to the repository root. It
 	// is used to recompute the migration score and is not written to any
@@ -243,6 +261,31 @@ func (u UnanalyzedFile) IsInternalError() bool {
 type SkippedFile struct {
 	File   string `json:"file"`
 	Reason string `json:"reason"`
+}
+
+// SkippedDirectories describes the directories the default rules kept out of
+// the scan, such as version control metadata, installed dependencies, editor
+// state, build output, and example, sample, demo, mock and test data
+// directories. Files is the number of files in them, counted without being
+// read, down to the depth limit. Rules names the rules that matched, such as
+// ".git", "node_modules" or "vendor", in name order, and Paths the
+// directories, relative to the scan root and slash-separated, in path order.
+//
+// A directory that the user's exclude patterns or the config file's
+// ignore.files also name, or that the depth limit keeps out, is not counted,
+// since Config.IncludeSkipped would not scan it either.
+type SkippedDirectories struct {
+	Files       int      `json:"files"`
+	Directories int      `json:"directories"`
+	Rules       []string `json:"rules"`
+	Paths       []string `json:"paths"`
+}
+
+// skippedDir is one directory a default rule kept out of the walk.
+type skippedDir struct {
+	path  string // relative to the scan root, slash-separated
+	rule  string
+	files int
 }
 
 // unreadManifestReason is the Reason of a dependency manifest the scanner has
@@ -357,6 +400,9 @@ type Scanner struct {
 	// dependencyDirs holds the node_modules directories the walk did not
 	// enter, relative to the scan root.
 	dependencyDirs []string
+
+	// skippedDirs holds the directories a default rule kept out of the walk.
+	skippedDirs []skippedDir
 
 	// reportFile is the file at Config.ReportFile when the scan began, or nil.
 	reportFile os.FileInfo
@@ -531,6 +577,7 @@ func (s *Scanner) Scan() (*Results, error) {
 	dependencyDirs := make([]string, len(s.dependencyDirs))
 	copy(dependencyDirs, s.dependencyDirs)
 	sort.Strings(dependencyDirs)
+	skippedDirs := s.skippedDirectories()
 
 	// Build results
 	results := &Results{
@@ -548,6 +595,7 @@ func (s *Scanner) Scan() (*Results, error) {
 		SkippedFiles:    skipped,
 
 		SkippedDependencyDirs: dependencyDirs,
+		Skipped:               skippedDirs,
 	}
 
 	results.Summary = s.calculateSummary()
@@ -753,62 +801,78 @@ func (s *Scanner) analyzeFile(path string) *analyzer.FileContext {
 	return ctx
 }
 
+// skipDirNames are the directory names the walk does not enter by default.
+var skipDirNames = map[string]bool{
+	// Version control
+	".git": true, ".svn": true, ".hg": true,
+	// Dependencies
+	"node_modules": true, "__pycache__": true,
+	// IDE
+	".idea": true, ".vscode": true,
+	// Build outputs (these contain compiled/bundled code with false positives)
+	".next": true, "dist": true, "build": true, "out": true,
+	".output": true, ".nuxt": true, ".cache": true,
+	// Coverage and test artifacts
+	"coverage": true, ".nyc_output": true,
+	// Compiled binaries
+	"bin": true,
+	// Example/demo directories (often contain non-production code)
+	"examples": true, "example": true, "samples": true, "sample": true,
+	"demo": true, "demos": true, "mock": true, "mocks": true,
+	"fixtures": true, "testdata": true, "test-fixtures": true,
+	// Terraform/infrastructure state
+	".terraform": true,
+}
+
+// skipPathPatterns are matched against the lowercased scan-relative path of a
+// directory, as relPath returns it. Any path component that is a skip
+// directory is caught, including nested cases like .next/standalone/.next/ or
+// sdk/typescript/dist/.
+var skipPathPatterns = []string{
+	"/.next/", "/dist/", "/build/", "/out/", "/.output/",
+	"/.nuxt/", "/.cache/", "/node_modules/", "/__pycache__/",
+	"/coverage/", "/.nyc_output/", "/bin/",
+	"/standalone/",    // Next.js standalone builds
+	"/target/apidocs", // Java generated API docs
+	"/target/site/",   // Maven site docs
+	"/.egg-info/",     // Python build artifacts
+}
+
+// builtinSkipRule returns the built-in rule that keeps a directory out of the
+// walk, given its name and its lowercased scan-relative path, or "" when no
+// built-in rule does. The rule is the directory name for skipDirNames and the
+// pattern without its slashes for skipPathPatterns.
+func builtinSkipRule(name, pathLower string) string {
+	if skipDirNames[name] {
+		return name
+	}
+	for _, pattern := range skipPathPatterns {
+		if strings.Contains(pathLower, pattern) {
+			return strings.Trim(pattern, "/")
+		}
+	}
+	return ""
+}
+
 func (s *Scanner) shouldSkipDir(root, path, name string) error {
 	relPath, _ := filepath.Rel(root, path)
-	pathLower := strings.ToLower(s.relPath(path))
 
 	// The scan root is what the user asked to scan, so the built-in skip
 	// rules below never apply to it, whatever it is called. User exclude
 	// patterns still do.
 	isRoot := path == root
 
-	// Always skip these directory names
-	skipDirs := map[string]bool{
-		// Version control
-		".git": true, ".svn": true, ".hg": true,
-		// Dependencies
-		"node_modules": true, "__pycache__": true,
-		// IDE
-		".idea": true, ".vscode": true,
-		// Build outputs (these contain compiled/bundled code with false positives)
-		".next": true, "dist": true, "build": true, "out": true,
-		".output": true, ".nuxt": true, ".cache": true,
-		// Coverage and test artifacts
-		"coverage": true, ".nyc_output": true,
-		// Compiled binaries
-		"bin": true,
-		// Example/demo directories (often contain non-production code)
-		"examples": true, "example": true, "samples": true, "sample": true,
-		"demo": true, "demos": true, "mock": true, "mocks": true,
-		"fixtures": true, "testdata": true, "test-fixtures": true,
-		// Terraform/infrastructure state
-		".terraform": true,
-	}
-	if !isRoot && skipDirs[name] {
-		// An installed dependency tree holds the code of every package the
-		// project uses, and the report names it so that its absence is not
-		// read as an absence of cryptography.
-		if name == "node_modules" {
-			s.mu.Lock()
-			s.dependencyDirs = append(s.dependencyDirs, filepath.ToSlash(relPath))
-			s.mu.Unlock()
-		}
-		return filepath.SkipDir
-	}
-
-	// Also check if ANY path component is a skip directory
-	// This catches nested cases like .next/standalone/.next/ or sdk/typescript/dist/
-	skipPathPatterns := []string{
-		"/.next/", "/dist/", "/build/", "/out/", "/.output/",
-		"/.nuxt/", "/.cache/", "/node_modules/", "/__pycache__/",
-		"/coverage/", "/.nyc_output/", "/bin/",
-		"/standalone/",    // Next.js standalone builds
-		"/target/apidocs", // Java generated API docs
-		"/target/site/",   // Maven site docs
-		"/.egg-info/",     // Python build artifacts
-	}
-	for _, pattern := range skipPathPatterns {
-		if strings.Contains(pathLower, pattern) {
+	if !isRoot && !s.config.IncludeSkipped {
+		if rule := builtinSkipRule(name, strings.ToLower(s.relPath(path))); rule != "" {
+			// An installed dependency tree holds the code of every package
+			// the project uses, and the report names it so that its absence
+			// is not read as an absence of cryptography.
+			if name == "node_modules" {
+				s.mu.Lock()
+				s.dependencyDirs = append(s.dependencyDirs, filepath.ToSlash(relPath))
+				s.mu.Unlock()
+			}
+			s.skipDefaultDir(root, path, relPath, rule)
 			return filepath.SkipDir
 		}
 	}
@@ -817,24 +881,138 @@ func (s *Scanner) shouldSkipDir(root, path, name string) error {
 		return filepath.SkipDir
 	}
 
-	if rules := s.config.ConfigFile; rules != nil {
-		for _, pattern := range rules.IgnoreFiles {
+	if !s.config.IncludeSkipped {
+		for _, pattern := range s.config.DefaultExcludes {
 			if matchesExclude(pattern, relPath, true) {
-				s.mu.Lock()
-				s.configSkipped.Directories++
-				s.mu.Unlock()
+				// The rule is named for the directory the pattern names, as
+				// "vendor" for "vendor/*".
+				rule, _ := dirPattern(pattern)
+				s.skipDefaultDir(root, path, relPath, rule)
 				return filepath.SkipDir
 			}
 		}
 	}
 
+	if s.ignoredByConfigFile(relPath, true) {
+		s.mu.Lock()
+		s.configSkipped.Directories++
+		s.mu.Unlock()
+		return filepath.SkipDir
+	}
+
 	return nil
+}
+
+// skipDefaultDir records the directory at path, which a default rule keeps
+// out of the walk, with the number of files in it. A directory that would
+// stay out of the scan without the default rules is not recorded, since
+// --include-skipped would not scan it: one that an exclude pattern of the
+// user's or the config file's ignore.files names, and one at the depth limit.
+func (s *Scanner) skipDefaultDir(root, path, rel, rule string) {
+	if s.excluded(rel, true) || s.ignoredByConfigFile(rel, true) {
+		return
+	}
+	if s.config.MaxDepth > 0 && depth(root, path) >= s.config.MaxDepth {
+		return
+	}
+	files := s.countFiles(root, path)
+	s.mu.Lock()
+	s.skippedDirs = append(s.skippedDirs, skippedDir{path: filepath.ToSlash(rel), rule: rule, files: files})
+	s.mu.Unlock()
+}
+
+// countFiles returns the number of files the walk would reach under dir if it
+// entered it: every entry that is not a directory, down to the depth limit.
+// The files are not opened.
+func (s *Scanner) countFiles(root, dir string) int {
+	n := 0
+	_ = filepath.WalkDir(dir, func(path string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return nil
+		}
+		if d.IsDir() {
+			if path != dir && s.config.MaxDepth > 0 && depth(root, path) >= s.config.MaxDepth {
+				return fs.SkipDir
+			}
+			return nil
+		}
+		n++
+		return nil
+	})
+	return n
+}
+
+// skippedDirectories returns what Results.Skipped reports, in an order that
+// does not depend on the order of the walk.
+func (s *Scanner) skippedDirectories() SkippedDirectories {
+	out := SkippedDirectories{Rules: []string{}, Paths: []string{}}
+	dirs := make([]skippedDir, len(s.skippedDirs))
+	copy(dirs, s.skippedDirs)
+	sort.Slice(dirs, func(i, j int) bool {
+		return dirs[i].path < dirs[j].path
+	})
+	rules := make(map[string]bool)
+	for _, d := range dirs {
+		out.Files += d.files
+		out.Paths = append(out.Paths, d.path)
+		if !rules[d.rule] {
+			rules[d.rule] = true
+			out.Rules = append(out.Rules, d.rule)
+		}
+	}
+	out.Directories = len(dirs)
+	sort.Strings(out.Rules)
+	return out
+}
+
+// dirPattern returns an exclude pattern without a leading "./" and without a
+// "/", "/*" or "/**" ending, and reports whether it had such an ending: a
+// pattern with one names a directory and everything in it.
+func dirPattern(pattern string) (string, bool) {
+	pattern = strings.TrimPrefix(pattern, "./")
+	for _, suffix := range []string{"/**", "/*", "/"} {
+		if strings.HasSuffix(pattern, suffix) {
+			return strings.TrimSuffix(pattern, suffix), true
+		}
+	}
+	return pattern, false
 }
 
 // excluded reports whether any exclude pattern matches rel, a path relative to
 // the scan root.
 func (s *Scanner) excluded(rel string, isDir bool) bool {
 	for _, pattern := range s.config.ExcludeGlobs {
+		if matchesExclude(pattern, rel, isDir) {
+			return true
+		}
+	}
+	return false
+}
+
+// defaultExcluded reports whether a DefaultExcludes pattern matches the file
+// at rel, a path relative to the scan root. With IncludeSkipped, the patterns
+// that name a directory and everything in it are not applied, since the
+// directories they name are walked.
+func (s *Scanner) defaultExcluded(rel string) bool {
+	for _, pattern := range s.config.DefaultExcludes {
+		if _, namesDir := dirPattern(pattern); namesDir && s.config.IncludeSkipped {
+			continue
+		}
+		if matchesExclude(pattern, rel, false) {
+			return true
+		}
+	}
+	return false
+}
+
+// ignoredByConfigFile reports whether a pattern in the config file's
+// ignore.files matches rel, a path relative to the scan root.
+func (s *Scanner) ignoredByConfigFile(rel string, isDir bool) bool {
+	rules := s.config.ConfigFile
+	if rules == nil {
+		return false
+	}
+	for _, pattern := range rules.IgnoreFiles {
 		if matchesExclude(pattern, rel, isDir) {
 			return true
 		}
@@ -859,20 +1037,12 @@ func (s *Scanner) excluded(rel string, isDir bool) bool {
 // by passing it as the target. Each "/"-separated segment is matched with
 // path.Match, where "*" does not cross a "/".
 func matchesExclude(pattern, rel string, isDir bool) bool {
-	pattern = strings.TrimPrefix(pattern, "./")
 	rel = filepath.ToSlash(rel)
 	if rel == "" || rel == "." {
 		return false
 	}
 
-	dirOnly := false
-	for _, suffix := range []string{"/**", "/*", "/"} {
-		if strings.HasSuffix(pattern, suffix) {
-			pattern = strings.TrimSuffix(pattern, suffix)
-			dirOnly = true
-			break
-		}
-	}
+	pattern, dirOnly := dirPattern(pattern)
 	if pattern == "" {
 		return false
 	}
@@ -1003,21 +1173,17 @@ func (s *Scanner) shouldScanFile(root, path string) bool {
 	if err != nil {
 		rel = name
 	}
-	if s.excluded(rel, false) {
+	if s.excluded(rel, false) || s.defaultExcluded(rel) {
 		return false
 	}
 
 	// Checked last, so that a file is counted only if it would otherwise have
 	// been scanned.
-	if rules := s.config.ConfigFile; rules != nil {
-		for _, pattern := range rules.IgnoreFiles {
-			if matchesExclude(pattern, rel, false) {
-				s.mu.Lock()
-				s.configSkipped.Files++
-				s.mu.Unlock()
-				return false
-			}
-		}
+	if s.ignoredByConfigFile(rel, false) {
+		s.mu.Lock()
+		s.configSkipped.Files++
+		s.mu.Unlock()
+		return false
 	}
 
 	return true

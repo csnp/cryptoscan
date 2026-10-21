@@ -643,8 +643,8 @@ func writeSkippedDependencyNotice(w io.Writer, format string, dirs []string) {
 
 // writeSkippedDirectoriesNotice says how many files the directories the
 // default rules left out hold, for the same formats as writeUnanalyzedNotice.
-// The text report says it itself, and the JSON report carries the counts as
-// well, under skipped.
+// The text report and the pqc text view say it themselves, and the JSON
+// report carries the counts as well, under skipped.
 func writeSkippedDirectoriesNotice(w io.Writer, format string, skipped scanner.SkippedDirectories) {
 	if format == "text" || skipped.Files == 0 {
 		return

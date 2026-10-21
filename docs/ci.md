@@ -54,7 +54,9 @@ without `--fail-on`.
 
 CryptoScan recognizes its reports by how they start: the tool name in a JSON,
 SARIF or CBOM report, the header row of a CSV report, and the title box of a
-text report or the `Scanning...` line that starts a scan's streamed output.
+text report or the `Scanning...` line that starts a scan's streamed output,
+when that line has no other text on it. A source file whose first line only
+ends with that line, such as a comment that quotes it, is scanned as source.
 The file `--output` names is left out of the scan that writes it, whatever it
 holds. To keep reports off the list, write them outside the scanned directory
 or name them in `--exclude`.

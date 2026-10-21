@@ -126,9 +126,11 @@ All notable changes to CryptoScan are recorded here. This project follows
   that starts like a CryptoScan report: JSON from `scan`, `gate` or `pqc`
   (`tool.name` is `CryptoScan`), SARIF (`runs[].tool.driver.name`), a
   CycloneDX CBOM (`metadata.tools[].name`), a CSV report (its header row), or
-  a text report (its title box, or the `Scanning...` line of streamed
-  output). It also leaves out the file `--output` names, whatever that file
-  holds. Each such file is named as not scanned, with a reason such as
+  a text report (its title box, or a first line that is the `Scanning...`
+  line of streamed output with no other text on it). A source file whose
+  first line only ends with that line, such as a comment that quotes it, is
+  scanned as source. It also leaves out the file `--output` names, whatever
+  that file holds. Each such file is named as not scanned, with a reason such as
   `CryptoScan report: SARIF` or
   `CryptoScan report: the --output file of this scan`, in the text summary,
   on stderr for the other formats, and under `skippedFiles` in JSON. A report

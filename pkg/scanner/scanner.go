@@ -92,7 +92,9 @@ type Config struct {
 	// IncludeSkipped walks the directories the default rules leave out: those
 	// the built-in directory rules name and those a DefaultExcludes pattern
 	// matches. DefaultExcludes patterns still apply to files, except the ones
-	// that name a directory and everything in it, such as "vendor/*".
+	// that name a directory and everything in it, such as "vendor/*". The
+	// .git directory of a URL scan's clone is not walked: the clone made it,
+	// and it is not part of the repository.
 	IncludeSkipped bool
 }
 
@@ -273,7 +275,8 @@ type SkippedFile struct {
 //
 // A directory that the user's exclude patterns or the config file's
 // ignore.files also name, or that the depth limit keeps out, is not counted,
-// since Config.IncludeSkipped would not scan it either.
+// since Config.IncludeSkipped would not scan it either. Nor is the .git
+// directory of a URL scan's clone, which the clone made.
 type SkippedDirectories struct {
 	Files       int      `json:"files"`
 	Directories int      `json:"directories"`
@@ -375,6 +378,7 @@ type Scanner struct {
 	mu       sync.Mutex
 	findings []Finding
 	tempDir  string // Temporary directory for cloned repos
+	cloneGit string // The .git directory of a URL scan's clone, which the walk leaves out (see shouldSkipDir)
 	root     string // Scan root; path rules see only paths below it (see relPath)
 	stats    struct {
 		filesScanned  int
@@ -451,6 +455,7 @@ func (s *Scanner) Scan() (*Results, error) {
 		defer s.Cleanup()
 		target = clonePath
 		cloneRoot = clonePath
+		s.cloneGit = filepath.Join(clonePath, ".git")
 		s.streamRelativeTo(cloneRoot)
 	}
 
@@ -855,6 +860,13 @@ func builtinSkipRule(name, pathLower string) string {
 }
 
 func (s *Scanner) shouldSkipDir(root, path, name string) error {
+	// The .git directory of a URL scan's clone was made by the clone and is
+	// not part of the repository's content, so it is left out without being
+	// counted as skipped, and IncludeSkipped does not walk it either.
+	if s.cloneGit != "" && path == s.cloneGit {
+		return filepath.SkipDir
+	}
+
 	relPath, _ := filepath.Rel(root, path)
 
 	// The scan root is what the user asked to scan, so the built-in skip

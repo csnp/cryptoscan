@@ -138,6 +138,61 @@ func TestScanRootIsNotCountedAsSkipped(t *testing.T) {
 	}
 }
 
+// A URL scan clones the repository and walks the clone, whose .git directory
+// the clone itself created. It was counted like a .git directory in a scanned
+// folder, so a scan of a repository with nothing else left out reported, for
+// example, "29 files in 1 directory were not scanned (default rules: .git)", and
+// IncludeSkipped then scanned the clone's git metadata. The clone's .git is
+// now neither counted nor walked; the repository's own directories are still
+// counted, and a checkout's .git is still counted in a local scan.
+func TestURLScanDoesNotCountItsCloneGitDirectory(t *testing.T) {
+	work := writeRSATree(t, "src/a.py", "examples/b.py")
+	url := serveGitRepository(t, work)
+
+	results := scanWithConfig(t, Config{Target: url, DefaultExcludes: DefaultExcludeGlobs})
+	want := SkippedDirectories{Files: 1, Directories: 1, Rules: []string{"examples"}, Paths: []string{"examples"}}
+	if !reflect.DeepEqual(results.Skipped, want) {
+		t.Errorf("Skipped = %+v, want %+v", results.Skipped, want)
+	}
+	if results.FilesScanned != 1 {
+		t.Errorf("FilesScanned = %d, want 1 (src/a.py)", results.FilesScanned)
+	}
+
+	all := scanWithConfig(t, Config{Target: url, DefaultExcludes: DefaultExcludeGlobs, IncludeSkipped: true})
+	none := SkippedDirectories{Rules: []string{}, Paths: []string{}}
+	if !reflect.DeepEqual(all.Skipped, none) {
+		t.Errorf("with IncludeSkipped, Skipped = %+v, want %+v", all.Skipped, none)
+	}
+	if all.FilesScanned != 2 {
+		t.Errorf("with IncludeSkipped, FilesScanned = %d, want 2 (src/a.py and examples/b.py)", all.FilesScanned)
+	}
+	files := map[string]bool{}
+	for _, f := range all.Findings {
+		files[f.File] = true
+	}
+	for _, sk := range all.SkippedFiles {
+		files[sk.File] = true
+	}
+	for _, u := range all.UnanalyzedFiles {
+		files[u.File] = true
+	}
+	got := make([]string, 0, len(files))
+	for f := range files {
+		got = append(got, f)
+	}
+	sort.Strings(got)
+	if !reflect.DeepEqual(got, []string{"examples/b.py", "src/a.py"}) {
+		t.Errorf("with IncludeSkipped, the report names %q, want examples/b.py and src/a.py only", got)
+	}
+
+	// The checkout the repository was committed from has its own .git, which
+	// is part of what a local scan of it walks.
+	local := scanWithConfig(t, Config{Target: work, DefaultExcludes: DefaultExcludeGlobs})
+	if want := []string{".git", "examples"}; !reflect.DeepEqual(local.Skipped.Paths, want) {
+		t.Errorf("local scan: Skipped.Paths = %q, want %q", local.Skipped.Paths, want)
+	}
+}
+
 // JSON always carries the skipped object, with zeros and empty arrays when
 // nothing was skipped, so that a reader can tell "nothing skipped" from an
 // older report without the field.

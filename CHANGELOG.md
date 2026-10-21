@@ -35,7 +35,10 @@ All notable changes to CryptoScan are recorded here. This project follows
   `ignore.files` or `--max-depth` would also keep out is not counted.
   `scan`, `gate`, `cbom` and `pqc` take `--include-skipped`, which walks
   these directories; the default exclude patterns that name files, such as
-  `*.lock`, still apply.
+  `*.lock`, still apply. When the target is a repository URL, the `.git`
+  directory of the clone the scan makes is not counted, and
+  `--include-skipped` does not walk it: the clone creates it, and it is not
+  part of the repository.
 
 ### Changed
 

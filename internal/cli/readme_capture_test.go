@@ -33,7 +33,10 @@ import (
 //	go test -ldflags "-X github.com/csnp/cryptoscan/pkg/version.value=<version>" \
 //	  ./internal/cli -run TestReadmeExcerptIsCurrent -update-capture=/tmp/cryptoscan
 //
-// The directory must be empty or absent; its path appears in the capture.
+// The directory's last path element must be cryptoscan, the name the test
+// scans from without -update-capture, since the report abbreviates paths to
+// their last characters; another name is refused. The directory must be empty
+// or absent; its path appears in the capture.
 const (
 	readmePath      = "../../README.md"
 	captureMetaPath = "../../docs/captures/scan-crypto-samples.json"
@@ -41,10 +44,17 @@ const (
 
 	// readmeExcerptLead begins the README line that introduces the block.
 	readmeExcerptLead = "What `cryptoscan scan crypto-samples` prints"
+
+	// captureRootName is the last path element of the directory the scan runs
+	// in. The report abbreviates paths to their last characters, and the
+	// README shows ...scan/crypto-samples/.
+	captureRootName = "cryptoscan"
 )
 
 var updateCapture = flag.String("update-capture", "",
-	"directory in which to scan a copy of crypto-samples; rewrites docs/captures/scan-crypto-samples.{txt,json} and the README block from that scan")
+	"directory in which to scan a copy of crypto-samples; the directory must be empty or absent and have "+captureRootName+
+		" as its last path element, as in /tmp/"+captureRootName+
+		"; rewrites docs/captures/scan-crypto-samples.{txt,json} and the README block from that scan")
 
 // captureMeta is scan-crypto-samples.json, in the order the file keeps.
 type captureMeta struct {
@@ -430,13 +440,35 @@ func writeCapture(t *testing.T, out string, code int, root string, at time.Time)
 	t.Logf("wrote %s, %s and the README block from a %d-line scan", meta.Capture, filepath.Base(captureMetaPath), len(lines))
 }
 
+// updateCaptureRoot returns the absolute path of the -update-capture
+// directory, or an error saying why the capture cannot be made there. Its last
+// path element must be captureRootName, the name TestReadmeExcerptIsCurrent
+// scans from without -update-capture, and it must be empty or absent.
+func updateCaptureRoot(dir string) (string, error) {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return "", err
+	}
+	if name := filepath.Base(abs); name != captureRootName {
+		return "", fmt.Errorf("-update-capture=%s: the last path element is %q, and it must be %s: "+
+			"the report abbreviates paths to their last characters, as in ...scan/crypto-samples/, "+
+			"and the README lines are checked against a scan from a directory named %s; use one such as /tmp/%s",
+			dir, name, captureRootName, captureRootName, captureRootName)
+	}
+	if entries, err := os.ReadDir(abs); err == nil && len(entries) > 0 {
+		return "", fmt.Errorf("%s is not empty; the capture must come from a directory holding only crypto-samples", abs)
+	}
+	return abs, nil
+}
+
 // TestReadmeExcerptIsCurrent scans crypto-samples the way the capture was
 // made, from a directory named cryptoscan that holds only the fixture, and
 // checks that every line the README shows is still printed. Streamed findings
 // are matched without their discovery number and in any order; the other
 // lines must appear in the README's order. Durations and the clock are
-// ignored. With -update-capture, the scan runs in that directory and the
-// capture, its metadata and the README block are rewritten from it first.
+// ignored. With -update-capture, the scan runs in that directory, which must be
+// named cryptoscan, and the capture, its metadata and the README block are
+// rewritten from it first.
 func TestReadmeExcerptIsCurrent(t *testing.T) {
 	meta := loadCaptureMeta(t)
 	if meta.Command != "cryptoscan scan crypto-samples" {
@@ -445,12 +477,9 @@ func TestReadmeExcerptIsCurrent(t *testing.T) {
 
 	var root string
 	if *updateCapture != "" {
-		abs, err := filepath.Abs(*updateCapture)
+		abs, err := updateCaptureRoot(*updateCapture)
 		if err != nil {
 			t.Fatal(err)
-		}
-		if entries, err := os.ReadDir(abs); err == nil && len(entries) > 0 {
-			t.Fatalf("%s is not empty; the capture must come from a directory holding only crypto-samples", abs)
 		}
 		root = abs
 	} else {
@@ -462,7 +491,7 @@ func TestReadmeExcerptIsCurrent(t *testing.T) {
 			t.Fatalf("create fixture directory: %v", err)
 		}
 		t.Cleanup(func() { os.RemoveAll(dir) })
-		root = filepath.Join(dir, "cryptoscan")
+		root = filepath.Join(dir, captureRootName)
 	}
 
 	at := time.Now()
@@ -514,5 +543,55 @@ func TestReadmeExcerptIsCurrent(t *testing.T) {
 	if len(missing) > 0 {
 		t.Errorf("%d of the %d lines the README shows for cryptoscan scan crypto-samples are not in a fresh scan; regenerate %s and the README block with -update-capture:\n%s",
 			len(missing), len(excerpt), meta.Capture, strings.Join(missing, "\n"))
+	}
+}
+
+// TestUpdateCaptureRefusesOtherDirectoryNames checks the directories
+// -update-capture accepts. A capture made in a directory with another last
+// path element, such as other, writes README lines that
+// TestReadmeExcerptIsCurrent then reports as missing from a fresh scan, so a
+// directory not named cryptoscan is refused with a message that names the rule.
+func TestUpdateCaptureRefusesOtherDirectoryNames(t *testing.T) {
+	base := t.TempDir()
+	absent := filepath.Join(base, "absent", captureRootName)
+	empty := filepath.Join(base, "empty", captureRootName)
+	full := filepath.Join(base, "full", captureRootName)
+	other := filepath.Join(base, "other")
+	for _, dir := range []string{empty, filepath.Join(full, "crypto-samples"), other} {
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	sep := string(filepath.Separator)
+
+	for _, tc := range []struct{ dir, want string }{
+		{absent, absent},
+		{absent + sep, absent},
+		{empty, empty},
+	} {
+		if got, err := updateCaptureRoot(tc.dir); err != nil || got != tc.want {
+			t.Errorf("updateCaptureRoot(%q) = %q, %v; want %q, nil", tc.dir, got, err, tc.want)
+		}
+	}
+
+	for _, dir := range []string{
+		other,                             // empty
+		filepath.Join(base, "new"),        // absent
+		filepath.Join(base, "CryptoScan"), // the name in another case
+		filepath.Join(base, "cryptoscan-old"),
+		empty + sep + "..", // the parent of a directory named cryptoscan
+	} {
+		_, err := updateCaptureRoot(dir)
+		if err == nil {
+			t.Errorf("updateCaptureRoot(%q) accepted a directory whose last path element is not %s", dir, captureRootName)
+			continue
+		}
+		if msg := err.Error(); !strings.Contains(msg, "last path element") || !strings.Contains(msg, "must be "+captureRootName) {
+			t.Errorf("updateCaptureRoot(%q) refused it with %q, which does not name the rule", dir, msg)
+		}
+	}
+
+	if _, err := updateCaptureRoot(full); err == nil || !strings.Contains(err.Error(), "is not empty") {
+		t.Errorf("updateCaptureRoot(%q) = %v; want the refusal of a directory that is not empty", full, err)
 	}
 }

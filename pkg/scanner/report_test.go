@@ -100,6 +100,17 @@ const (
 		"\n" +
 		"  [MEDIUM] #1   MD5 Hash Function      a.py:2 [!]\n" +
 		"  │ h = hashlib.md5(b\"a\")\n"
+
+	// coloredStreamedText is streamedText with the header as a scan prints
+	// it with colour on.
+	coloredStreamedText = "\x1b[36m\x1b[1m  ⏳ Scanning...\x1b[0m \x1b[2m(findings appear as discovered)\x1b[0m\n" +
+		"\n" +
+		"  [MEDIUM] #1   MD5 Hash Function      a.py:2 [!]\n" +
+		"  │ h = hashlib.md5(b\"a\")\n"
+
+	// quotedHeaderSource is source whose first line is a comment that ends
+	// with the stream header.
+	quotedHeaderSource = "# The scan prints: Scanning... (findings appear as discovered)\n" + md5Source
 )
 
 // coloredText is textReport as the text reporter writes it with colour on,
@@ -131,6 +142,7 @@ func TestReportFormat(t *testing.T) {
 		{"text report in colour", coloredText, "text"},
 		{"pqc text view", strings.Replace(textReport, "CRYPTOGRAPHIC SCAN RESULTS", "POST-QUANTUM READINESS    ", 1), "text"},
 		{"streamed scan output", streamedText, "text"},
+		{"streamed scan output in colour", coloredStreamedText, "text"},
 
 		// Files that are not CryptoScan reports are read as before.
 		{"SARIF from another tool",
@@ -146,6 +158,9 @@ func TestReportFormat(t *testing.T) {
 		{"another CSV", "ID,Severity,Type\n1,HIGH,md5\n", ""},
 		{"a box with another title", strings.Replace(textReport, "QRAMM CryptoScan", "Release checklist", 1), ""},
 		{"text naming the report title", "Notes\n\nThe report title reads QRAMM CryptoScan.\nmd5 is broken\n", ""},
+		{"source with the stream header at the end of line 1", quotedHeaderSource, ""},
+		{"the stream header with text after it", "Scanning... (findings appear as discovered) took 2s\nmd5 is broken\n", ""},
+		{"the stream header on line 2", "Notes\nScanning... (findings appear as discovered)\nmd5 is broken\n", ""},
 		{"source code", "import hashlib\nh = hashlib.md5(b\"a\")\n", ""},
 		{"an empty file", "", ""},
 	}
@@ -227,6 +242,20 @@ func TestScanLeavesOutCryptoScanReports(t *testing.T) {
 			t.Errorf("%s: IsCryptoScanReport = %v, IsUnreadManifest = %v; want true and false",
 				sk.File, sk.IsCryptoScanReport(), sk.IsUnreadManifest())
 		}
+	}
+}
+
+// A source file whose first line ends with the stream header, after other
+// text, is source and not a report: it is scanned and its finding reported.
+func TestScanReadsSourceThatQuotesTheStreamHeader(t *testing.T) {
+	dir := t.TempDir()
+	writeFixture(t, filepath.Join(dir, "a.py"), quotedHeaderSource)
+
+	results := scanTarget(t, dir)
+
+	if len(md5Findings(results)) != 1 || results.FilesScanned != 1 || len(results.SkippedFiles) != 0 {
+		t.Errorf("md5Findings = %d, filesScanned = %d, skippedFiles = %+v; want 1, 1 and none",
+			len(md5Findings(results)), results.FilesScanned, results.SkippedFiles)
 	}
 }
 

@@ -41,9 +41,13 @@ var byteOrderMark = []byte("\xef\xbb\xbf")
 // scan, gate or pqc.
 const textReportTitle = "QRAMM CryptoScan"
 
-// textStreamHeader ends the line a scan prints on standard output before the
-// findings it lists as it finds them.
+// textStreamHeader is the line a scan prints on standard output before the
+// findings it lists as it finds them, less its leading spaces.
 const textStreamHeader = "Scanning... (findings appear as discovered)"
+
+// coloredStreamHeader is the same line as a scan prints it with colour on,
+// less its leading spaces and colour sequences.
+const coloredStreamHeader = "⏳ " + textStreamHeader
 
 // ansiEscape matches the colour and style sequences a text report carries
 // when it is written while standard output is a terminal.
@@ -72,7 +76,8 @@ func reportFormat(r io.Reader) string {
 }
 
 // isTextReport reports whether head starts like a text report: with the box
-// whose third line is textReportTitle, or with textStreamHeader.
+// whose third line is textReportTitle, or with a first line that is the
+// stream header and nothing else.
 func isTextReport(head []byte) bool {
 	var lines []string
 	rest := ansiEscape.ReplaceAllString(string(head), "")
@@ -84,7 +89,7 @@ func isTextReport(head []byte) bool {
 		}
 	}
 	switch {
-	case len(lines) > 0 && strings.HasSuffix(lines[0], textStreamHeader):
+	case len(lines) > 0 && (lines[0] == textStreamHeader || lines[0] == coloredStreamHeader):
 		return true
 	case len(lines) == 3 && strings.HasPrefix(lines[0], "╔"):
 		return strings.Trim(lines[2], "║ ") == textReportTitle

@@ -91,17 +91,21 @@ func pqcView(format string) reporter.Reporter {
 	return reporter.NewPQCReporter(!noColor)
 }
 
-// pqcJSONReporter writes the pqc view as JSON: the tool, the migration score
-// object scan reports, and the post-quantum and hybrid findings.
+// pqcJSONReporter writes the pqc view as JSON: the tool, the filesScanned
+// count and the migration score object scan reports, and the post-quantum and
+// hybrid findings. filesScanned is 0 when the scan read no files, which the
+// text view reports as nothing checked.
 type pqcJSONReporter struct{}
 
 func (pqcJSONReporter) Generate(results *scanner.Results) (string, error) {
 	data, err := json.Marshal(struct {
 		Tool           scanner.ToolInfo        `json:"tool"`
+		FilesScanned   int                     `json:"filesScanned"`
 		MigrationScore *scanner.MigrationScore `json:"migrationScore"`
 		PQCFindings    []scanner.Finding       `json:"pqcFindings"`
 	}{
 		Tool:           results.Tool,
+		FilesScanned:   results.FilesScanned,
 		MigrationScore: results.MigrationScore,
 		PQCFindings:    reporter.PQCFindings(results.Findings),
 	})

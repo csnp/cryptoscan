@@ -106,14 +106,70 @@ func TestPQCReporterSections(t *testing.T) {
 	}
 }
 
+// A scan that read a file and found nothing says None found. under each
+// list. A scan that read no files is TestPQCReporterSaysNothingWasScanned.
 func TestPQCReporterEmptySections(t *testing.T) {
-	results := &scanner.Results{ScanTarget: "/empty", MigrationScore: analyzer.CalculateMigrationScore(nil)}
+	results := &scanner.Results{ScanTarget: "/empty", FilesScanned: 1, MigrationScore: analyzer.CalculateMigrationScore(nil)}
 	out, err := NewPQCReporter(false).Generate(results)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if n := strings.Count(out, "None found."); n != 3 {
 		t.Errorf("an empty scan should say None found. under each of the 3 sections, got %d:\n%s", n, out)
+	}
+}
+
+// TestPQCReporterSaysNothingWasScanned checks the view of a scan that read no
+// files, as for an empty directory. The line the scan report prints for it,
+// colors included, takes the place of the three lists, so no list says
+// "None found.", and the readiness block still follows. A scan that read a
+// file keeps the lists and does not say that nothing was checked.
+func TestPQCReporterSaysNothingWasScanned(t *testing.T) {
+	results := &scanner.Results{ScanTarget: "/repo/empty", MigrationScore: analyzer.CalculateMigrationScore(nil)}
+	const nothing = "Nothing was checked: no files were scanned under /repo/empty"
+	lists := []string{"Post-quantum algorithms found", "Hybrid constructions found", "Quantum-vulnerable algorithms", "None found."}
+
+	for _, useColor := range []bool{false, true} {
+		view, err := NewPQCReporter(useColor).Generate(results)
+		if err != nil {
+			t.Fatal(err)
+		}
+		report, err := NewTextReporter(useColor).Generate(results)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := lineContaining(report, nothing)
+		if want == "" {
+			t.Fatalf("color %v: the scan report of a scan with 0 files scanned has no line containing %q", useColor, nothing)
+		}
+		if n := strings.Count(view, nothing); n != 1 {
+			t.Errorf("color %v: the view of a scan with 0 files scanned has %q %d times, want 1:\n%s", useColor, nothing, n, view)
+		}
+		if got := lineContaining(view, nothing); got != want {
+			t.Errorf("color %v: the view prints\n\t%q\nthe scan report prints\n\t%q", useColor, got, want)
+		}
+		for _, s := range lists {
+			if strings.Contains(view, s) {
+				t.Errorf("color %v: the view of a scan with 0 files scanned prints %q:\n%s", useColor, s, view)
+			}
+		}
+		if !strings.Contains(view, "QUANTUM MIGRATION READINESS") {
+			t.Errorf("color %v: the view of a scan with 0 files scanned has no readiness block:\n%s", useColor, view)
+		}
+	}
+
+	results.FilesScanned = 1
+	view, err := NewPQCReporter(false).Generate(results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(view, "Nothing was checked") {
+		t.Errorf("the view of a scan with 1 file scanned says nothing was checked:\n%s", view)
+	}
+	for _, s := range lists {
+		if !strings.Contains(view, s) {
+			t.Errorf("the view of a scan with 1 file scanned and no findings lacks %q:\n%s", s, view)
+		}
 	}
 }
 
@@ -153,6 +209,15 @@ func section(t *testing.T, out, from, to string) string {
 func lineStartingWith(out, prefix string) string {
 	for _, line := range strings.Split(out, "\n") {
 		if strings.HasPrefix(line, prefix) {
+			return line
+		}
+	}
+	return ""
+}
+
+func lineContaining(out, s string) string {
+	for _, line := range strings.Split(out, "\n") {
+		if strings.Contains(line, s) {
 			return line
 		}
 	}

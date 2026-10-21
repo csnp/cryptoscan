@@ -79,7 +79,8 @@ func (r *TextReporter) quantumIcon(q scanner.QuantumRisk) string {
 // detected" when a scan read no files, as for an empty directory or one whose
 // every file was left out. Such a scan has no findings, but it checked
 // nothing, so the line has no check mark. The scan command's stream footer
-// prints the same line. The target comes last so that a target written as "."
+// prints the same line, and the pqc view prints it in place of its three
+// lists. The target comes last so that a target written as "."
 // does not end the line in "..".
 func NothingScanned(target string) string {
 	return "Nothing was checked: no files were scanned under " + target

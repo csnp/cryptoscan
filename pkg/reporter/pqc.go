@@ -46,7 +46,8 @@ func isHybridFinding(f scanner.Finding) bool { return strings.HasPrefix(f.ID, "H
 // PQCReporter writes the post-quantum readiness view that the pqc command
 // prints: post-quantum algorithms, hybrid constructions and quantum-vulnerable
 // algorithms found, then the readiness score and QRAMM Dimension 1 levels as
-// the scan report prints them.
+// the scan report prints them. For a scan that read no files, the scan
+// report's NothingScanned line takes the place of the three lists.
 type PQCReporter struct {
 	text *TextReporter
 }
@@ -76,43 +77,16 @@ func (r *PQCReporter) Generate(results *scanner.Results) (string, error) {
 	b.WriteString("\n")
 	b.WriteString(fmt.Sprintf("  %s %s\n\n", t.color(colorBold, "Target:"), results.ScanTarget))
 
-	// Post-quantum algorithms, in the fixed order above. A PQC pattern the
-	// list does not know yet is still shown, after it, under its own name.
-	pqc := groupFindings(results.Findings, isPQCFinding, func(f scanner.Finding) (string, int) {
-		for i, alg := range pqcAlgorithms {
-			if strings.HasPrefix(f.ID, alg.prefix) {
-				return alg.label, i
-			}
-		}
-		return findingName(f), len(pqcAlgorithms)
-	})
-	sort.SliceStable(pqc, func(i, j int) bool {
-		if pqc[i].rank != pqc[j].rank {
-			return pqc[i].rank < pqc[j].rank
-		}
-		return pqc[i].label < pqc[j].label
-	})
-	r.writeSection(&b, "Post-quantum algorithms found", pqc, true)
-
-	hybrid := groupFindings(results.Findings, isHybridFinding, func(f scanner.Finding) (string, int) {
-		if f.Type != "" {
-			return f.Type, 0
-		}
-		return findingName(f), 0
-	})
-	sort.SliceStable(hybrid, func(i, j int) bool { return hybrid[i].label < hybrid[j].label })
-	r.writeSection(&b, "Hybrid constructions found", hybrid, true)
-
-	vulnerable := groupFindings(results.Findings, func(f scanner.Finding) bool {
-		return f.Quantum == scanner.QuantumVulnerable
-	}, func(f scanner.Finding) (string, int) { return findingName(f), 0 })
-	sort.SliceStable(vulnerable, func(i, j int) bool {
-		if len(vulnerable[i].findings) != len(vulnerable[j].findings) {
-			return len(vulnerable[i].findings) > len(vulnerable[j].findings)
-		}
-		return vulnerable[i].label < vulnerable[j].label
-	})
-	r.writeSection(&b, "Quantum-vulnerable algorithms", vulnerable, false)
+	// A scan that read no files has no findings, but it checked nothing, so
+	// "None found." under each list would read as a clean result. The view
+	// prints the scan report's line in place of the lists, under the same
+	// condition as that report.
+	if results.FilesScanned == 0 && len(results.Findings) == 0 {
+		b.WriteString(t.color(colorYellow, "  "+NothingScanned(results.ScanTarget)+"\n"))
+		b.WriteString("\n")
+	} else {
+		r.writeLists(&b, results.Findings)
+	}
 
 	// The readiness lines are the scan report's own, so the two never differ.
 	if score := results.MigrationScore; score != nil {
@@ -137,6 +111,48 @@ func (r *PQCReporter) Generate(results *scanner.Results) (string, error) {
 	t.writeFooter(&b)
 
 	return b.String(), nil
+}
+
+// writeLists writes the three lists of the view: the post-quantum algorithms,
+// the hybrid constructions and the quantum-vulnerable algorithms found.
+func (r *PQCReporter) writeLists(b *strings.Builder, findings []scanner.Finding) {
+	// Post-quantum algorithms, in the fixed order above. A PQC pattern the
+	// list does not know yet is still shown, after it, under its own name.
+	pqc := groupFindings(findings, isPQCFinding, func(f scanner.Finding) (string, int) {
+		for i, alg := range pqcAlgorithms {
+			if strings.HasPrefix(f.ID, alg.prefix) {
+				return alg.label, i
+			}
+		}
+		return findingName(f), len(pqcAlgorithms)
+	})
+	sort.SliceStable(pqc, func(i, j int) bool {
+		if pqc[i].rank != pqc[j].rank {
+			return pqc[i].rank < pqc[j].rank
+		}
+		return pqc[i].label < pqc[j].label
+	})
+	r.writeSection(b, "Post-quantum algorithms found", pqc, true)
+
+	hybrid := groupFindings(findings, isHybridFinding, func(f scanner.Finding) (string, int) {
+		if f.Type != "" {
+			return f.Type, 0
+		}
+		return findingName(f), 0
+	})
+	sort.SliceStable(hybrid, func(i, j int) bool { return hybrid[i].label < hybrid[j].label })
+	r.writeSection(b, "Hybrid constructions found", hybrid, true)
+
+	vulnerable := groupFindings(findings, func(f scanner.Finding) bool {
+		return f.Quantum == scanner.QuantumVulnerable
+	}, func(f scanner.Finding) (string, int) { return findingName(f), 0 })
+	sort.SliceStable(vulnerable, func(i, j int) bool {
+		if len(vulnerable[i].findings) != len(vulnerable[j].findings) {
+			return len(vulnerable[i].findings) > len(vulnerable[j].findings)
+		}
+		return vulnerable[i].label < vulnerable[j].label
+	})
+	r.writeSection(b, "Quantum-vulnerable algorithms", vulnerable, false)
 }
 
 // writeSection writes a heading and one line per group with its count, and

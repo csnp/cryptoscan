@@ -101,6 +101,20 @@ All notable changes to CryptoScan are recorded here. This project follows
   check mark line now appears only when at least one file was scanned. JSON
   output is unchanged and already records `filesScanned` as 0.
 
+- **The pqc view says that nothing was checked when no file is scanned.**
+  `cryptoscan pqc` on an empty directory, or on one holding only a file the
+  scanner does not read, such as a `README.txt`, printed `None found.` under
+  `Post-quantum algorithms found`, `Hybrid constructions found` and
+  `Quantum-vulnerable algorithms`, which read as a clean result although no
+  file was read. When no file is scanned, the view now prints
+  `Nothing was checked: no files were scanned under <target>`, the line the
+  scan report prints, in place of those three lists; the readiness score and
+  the QRAMM Dimension 1 levels still follow. A scan that read at least one
+  file prints the three lists as before. The `--format json` output of `pqc`
+  adds `filesScanned`, the count `scan` reports under the same key: 0 for
+  those two directories, and the same count as `scan` for `crypto-samples`.
+  pqc still exits 0.
+
 - **Reports CryptoScan wrote into the scanned tree are listed as not
   scanned, instead of being read as source.** The
   README and `docs/ci.md` write reports into the tree they scan, for example

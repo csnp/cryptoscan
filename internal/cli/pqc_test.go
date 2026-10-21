@@ -30,6 +30,7 @@ type pqcJSONView struct {
 		Name    string `json:"name"`
 		Version string `json:"version"`
 	} `json:"tool"`
+	FilesScanned   *int `json:"filesScanned"`
 	MigrationScore *struct {
 		Score       float64        `json:"score"`
 		ByAlgorithm map[string]int `json:"byAlgorithm"`
@@ -168,6 +169,61 @@ func TestPqcExitsZeroWithVulnerableFindings(t *testing.T) {
 		if !strings.Contains(out, "DES") {
 			t.Errorf("pqc --format %s should show the DES usage it found:\n%s", format, out)
 		}
+	}
+}
+
+// TestPqcSaysNothingWasScanned runs pqc on an empty directory and on one that
+// holds only a README.txt, a file the scanner does not read. The text view
+// says that nothing was checked, in the words of the scan report, and no list
+// says "None found."; the JSON view has filesScanned 0. Both exit 0. On a
+// directory with one file the scanner reads, the lists are back and
+// filesScanned is 1.
+func TestPqcSaysNothingWasScanned(t *testing.T) {
+	readme := writeFixture(t, "README.txt", "Notes about the project.\n")
+	for _, dir := range []string{t.TempDir(), readme} {
+		resetPipelineFlags(t)
+		out, code := runPqcCapture(t, dir)
+		if code != 0 {
+			t.Errorf("pqc %s exit code = %d, want 0", dir, code)
+		}
+		nothing := "Nothing was checked: no files were scanned under " + dir
+		if !strings.Contains(out, nothing) {
+			t.Errorf("pqc %s lacks %q:\n%s", dir, nothing, out)
+		}
+		if strings.Contains(out, "None found.") {
+			t.Errorf("pqc %s says None found. although no file was scanned:\n%s", dir, out)
+		}
+
+		resetPipelineFlags(t)
+		outputFormat = "json"
+		out, code = runPqcCapture(t, dir)
+		if code != 0 {
+			t.Errorf("pqc %s --format json exit code = %d, want 0", dir, code)
+		}
+		var view pqcJSONView
+		if err := json.Unmarshal([]byte(out), &view); err != nil {
+			t.Fatalf("pqc %s --format json is not JSON: %v\n%s", dir, err, out)
+		}
+		if view.FilesScanned == nil || *view.FilesScanned != 0 {
+			t.Errorf("pqc %s --format json should have filesScanned 0:\n%s", dir, out)
+		}
+	}
+
+	dir := writeFixture(t, "app.py", pqcFixture)
+	resetPipelineFlags(t)
+	out, _ := runPqcCapture(t, dir)
+	if strings.Contains(out, "Nothing was checked") || !strings.Contains(out, "Post-quantum algorithms found") {
+		t.Errorf("pqc on a directory with one scanned file should list what it found:\n%s", out)
+	}
+	resetPipelineFlags(t)
+	outputFormat = "json"
+	out, _ = runPqcCapture(t, dir)
+	var view pqcJSONView
+	if err := json.Unmarshal([]byte(out), &view); err != nil {
+		t.Fatalf("pqc --format json is not JSON: %v\n%s", err, out)
+	}
+	if view.FilesScanned == nil || *view.FilesScanned != 1 {
+		t.Errorf("pqc --format json on a directory with one scanned file should have filesScanned 1:\n%s", out)
 	}
 }
 

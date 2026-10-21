@@ -96,6 +96,12 @@ All notable changes to CryptoScan are recorded here. This project follows
   cask's `binary "cryptoscan"` stanza installs the binary. `goreleaser check`
   now exits 0, and a snapshot build writes the same six archives as before:
   tar.gz for Linux and macOS, zip for Windows.
+- **A scan target URL is printed, reported and saved without its user
+  information.** The JSON report's `scanTarget`, the `scanTarget` read from a
+  `--baseline` file, the text and `pqc` reports, the line printed when no file
+  was scanned, and an error that quotes the target name a repository URL
+  without the user name and password in it. The clone uses the URL as it was
+  typed.
 
 ### Fixed
 

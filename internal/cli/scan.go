@@ -336,6 +336,11 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		return nil, "", err
 	}
 
+	// A repository URL can carry a user name and password for the clone. The
+	// scanner is given the target as it was typed; every copy the program
+	// prints or saves is shownTarget, which leaves them out.
+	shownTarget := displayTarget(target)
+
 	// Create scanner config
 	cfg := scanner.Config{
 		Target:             target,
@@ -421,13 +426,17 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		}
 	}
 
-	// Resolve target path
+	// Resolve target path. shownPath is cfg.Target as the program prints it.
+	shownPath := shownTarget
 	if !isURL(target) {
 		absPath, err := filepath.Abs(target)
 		if err != nil {
 			return nil, "", fmt.Errorf("invalid path: %w", err)
 		}
 		cfg.Target = absPath
+		if shownPath, err = filepath.Abs(shownTarget); err != nil {
+			return nil, "", fmt.Errorf("invalid path: %w", err)
+		}
 	}
 
 	// Print banner
@@ -445,7 +454,14 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	s := scanner.New(cfg)
 	results, err := s.Scan()
 	if err != nil {
-		return nil, "", withHint(fmt.Errorf("scan failed: %w", err), scanErrorHint(err))
+		err = fmt.Errorf("scan failed: %w", err)
+		if shownPath != cfg.Target {
+			// A URL with a scheme the scanner does not clone, such as
+			// ssh://, is read as a local path, and the error for that path
+			// quotes it.
+			err = &shownError{err: err, message: strings.ReplaceAll(err.Error(), cfg.Target, shownPath)}
+		}
+		return nil, "", withHint(err, scanErrorHint(err))
 	}
 	duration := time.Since(startTime)
 
@@ -484,7 +500,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 			unique:   uniqueCount,
 			reported: len(results.Findings),
 			files:    results.FilesScanned,
-			target:   target,
+			target:   shownTarget,
 		}, duration, !noColor)
 	}
 
@@ -513,7 +529,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 
 	// Add metadata
 	results.ScanDuration = duration
-	results.ScanTarget = target
+	results.ScanTarget = shownTarget
 	results.ScanTime = startTime
 
 	// Generate report
@@ -714,6 +730,17 @@ func scanErrorHint(err error) string {
 	}
 	return ""
 }
+
+// shownError is a scan error whose message quotes the target as the program
+// prints it. Unwrap returns the error underneath, so scanErrorHint chooses the
+// next step for it the same way.
+type shownError struct {
+	err     error
+	message string
+}
+
+func (e *shownError) Error() string { return e.message }
+func (e *shownError) Unwrap() error { return e.err }
 
 // autoConfigSource says where an auto-detected config file was found relative
 // to the scan target. The search walks up from the target, so a file in any

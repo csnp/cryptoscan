@@ -75,7 +75,10 @@ func filterNewFindings(findings []scanner.Finding, root string, b *baseline) []s
 }
 
 // root returns the directory the baseline's file paths are under. Reports
-// from this release record it. A report from 1.4.0 or earlier does not, and
+// from this release record it for a local target; a Git URL scan records
+// none, and its paths, relative to the repository root, are kept as they
+// are (inferBaselineRoot reads only absolute paths, so it returns "" for
+// them). A report from 1.4.0 or earlier does not record a root either, and
 // its scanTarget is the target as it was typed: an absolute path is used as
 // it is, and anything else ("." in the README's CI recipe, or a repository
 // URL that was cloned to a temporary directory) is inferred from the paths

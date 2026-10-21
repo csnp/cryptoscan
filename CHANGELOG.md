@@ -77,6 +77,18 @@ All notable changes to CryptoScan are recorded here. This project follows
 
 ### Fixed
 
+- **A Git URL scan gives paths inside the repository.** `cryptoscan scan`
+  with a repository URL clones it into a temporary directory and removes the
+  directory when the scan ends, and every path in the report pointed into
+  it, as in `/var/folders/.../T/cryptoscan-261244270/paramiko/pkey.py`, a
+  file that no longer existed. Each finding's `file` and `verify` command,
+  `migrationScore.topRiskFiles`, `skippedFiles`, `unanalyzedFiles` and the
+  list printed while the scan runs now give the path relative to the
+  repository root, as in `paramiko/pkey.py`. The JSON report of a URL scan
+  no longer carries `metadata.scanRoot`, which named the removed directory.
+  A `--baseline` written by an earlier URL scan, with the old paths, still
+  covers the same findings.
+
 - **Files with the same risk score are listed in the same order on every
   run.** `migrationScore.topRiskFiles` in JSON output, and the
   `TOP PRIORITY FILES` box of the text report, ordered files by risk score

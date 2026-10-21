@@ -24,7 +24,7 @@ The shell is one of `bash`, `fish`, `powershell` and `zsh`, and `--no-descriptio
 cryptoscan scan <path or URL> [flags]
 ```
 
-The path is required. It is a local directory, a file, or a Git URL to scan; use `.` for the current directory.
+The path is required. It is a local directory, a file, or a Git URL to scan; use `.` for the current directory. A Git URL is cloned into a temporary directory that is removed when the scan ends, so the report gives each path relative to the repository root, as in `src/app.py`.
 
 The descriptions below are the ones `cryptoscan scan --help` prints.
 

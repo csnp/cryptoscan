@@ -41,6 +41,10 @@ func loadBaseline(path string) (*baseline, error) {
 	if err := json.Unmarshal(data, &b); err != nil {
 		return nil, err
 	}
+	// A report from an earlier release holds the target as it was typed,
+	// which for a repository URL can include a user name and password. The
+	// baseline keeps and compares the target without them.
+	b.ScanTarget = displayTarget(b.ScanTarget)
 	return &b, nil
 }
 

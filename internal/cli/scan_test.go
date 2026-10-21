@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strconv"
@@ -16,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/csnp/cryptoscan/pkg/reporter"
 	"github.com/csnp/cryptoscan/pkg/scanner"
 	"github.com/csnp/cryptoscan/pkg/version"
 	"github.com/spf13/cobra"
@@ -1221,4 +1223,269 @@ func firstLine(s string) string {
 		line = line[:80] + "..."
 	}
 	return line
+}
+
+// userinfoTarget returns a repository URL that carries a user name and a
+// password, joined from fragments at run time, along with those two parts.
+// Port 1 on the loopback address refuses a connection, so a clone of the URL
+// fails at once unless git has been told to clone a local repository for it.
+func userinfoTarget() (target, user, password string) {
+	user = strings.Join([]string{"scan", "user"}, "")
+	password = strings.Join([]string{"fragment", "pass"}, "")
+	target = strings.Join([]string{"http", "://", user, ":", password, "@", "127.0.0.1:1", "/repo.git"}, "")
+	return target, user, password
+}
+
+// shownUserinfoTarget is the URL from userinfoTarget without its user
+// information.
+const shownUserinfoTarget = "http://127.0.0.1:1/repo.git"
+
+// isolateGit runs git for the rest of the test with no system or user
+// configuration and no proxy, so that git settings on the machine, such as a
+// URL rewrite or a proxy, do not change what a clone in the test does.
+func isolateGit(t *testing.T) {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git is not installed")
+	}
+	global := filepath.Join(t.TempDir(), "gitconfig")
+	if err := os.WriteFile(global, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("GIT_CONFIG_GLOBAL", global)
+	t.Setenv("GIT_CONFIG_NOSYSTEM", "1")
+	t.Setenv("GIT_CONFIG_COUNT", "0")
+	t.Setenv("GIT_TERMINAL_PROMPT", "0")
+	for _, name := range []string{"http_proxy", "https_proxy", "all_proxy", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY"} {
+		t.Setenv(name, "")
+		if err := os.Unsetenv(name); err != nil {
+			t.Fatal(err)
+		}
+	}
+}
+
+// cloneLocally commits the reviewed tree to a new local repository and has git
+// clone that repository whenever it is asked to clone one of urls, so that a
+// scan of any of them runs without reaching the network. Call isolateGit
+// first.
+func cloneLocally(t *testing.T, urls ...string) {
+	t.Helper()
+	repo := t.TempDir()
+	writeReviewedTree(t, repo, reviewedApp)
+	for _, args := range [][]string{
+		{"init", "--quiet"},
+		{"add", "."},
+		{"-c", "user.name=CryptoScan test", "-c", "user.email=test@example.invalid", "commit", "--quiet", "-m", "fixture"},
+	} {
+		if out, err := exec.Command("git", append([]string{"-C", repo}, args...)...).CombinedOutput(); err != nil {
+			t.Fatalf("git %s: %v\n%s", strings.Join(args, " "), err, out)
+		}
+	}
+	t.Setenv("GIT_CONFIG_COUNT", strconv.Itoa(len(urls)))
+	for i, url := range urls {
+		t.Setenv("GIT_CONFIG_KEY_"+strconv.Itoa(i), "url."+repo+".insteadOf")
+		t.Setenv("GIT_CONFIG_VALUE_"+strconv.Itoa(i), url)
+	}
+}
+
+// runCLI runs cryptoscan with args the way main does and returns everything it
+// printed: stdout, stderr, and cobra's error line with the hint after it.
+func runCLI(t *testing.T, args ...string) (string, error) {
+	t.Helper()
+	var printed string
+	var err error
+	stderr := captureStderr(func() {
+		printed, err = executeRoot(t, args...)
+	})
+	return printed + stderr, err
+}
+
+// reportScanTarget returns the scanTarget of the JSON report at path.
+func reportScanTarget(t *testing.T, path string) string {
+	t.Helper()
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		ScanTarget string `json:"scanTarget"`
+	}
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatalf("report is not JSON: %v", err)
+	}
+	return report.ScanTarget
+}
+
+// assertHoldsNone fails the test when text holds any of parts.
+func assertHoldsNone(t *testing.T, what, text string, parts ...string) {
+	t.Helper()
+	for _, part := range parts {
+		if strings.Contains(text, part) {
+			t.Errorf("%s holds %q:\n%s", what, part, text)
+		}
+	}
+}
+
+// A repository URL can carry a user name and a password for git to clone
+// with. The report's scanTarget, a baseline saved from that report, and the
+// text and pqc reports name the repository without them.
+func TestScanOfAURLWithUserInformationNamesTheRepositoryWithoutIt(t *testing.T) {
+	isolateGit(t)
+	target, user, password := userinfoTarget()
+	cloneLocally(t, target)
+	baseline := filepath.Join(t.TempDir(), "baseline.json")
+
+	t.Run("json report saved as a baseline", func(t *testing.T) {
+		resetPipelineFlags(t)
+		out, err := runCLI(t, "scan", target, "--no-color", "--format", "json", "--output", baseline)
+		if err != nil {
+			t.Fatalf("scan: %v\n%s", err, out)
+		}
+		assertHoldsNone(t, "the scan's output", out, user, password)
+		data, err := os.ReadFile(baseline)
+		if err != nil {
+			t.Fatal(err)
+		}
+		assertHoldsNone(t, "the report", string(data), user, password)
+		if got := reportScanTarget(t, baseline); got != shownUserinfoTarget {
+			t.Errorf("report scanTarget = %q, want %q", got, shownUserinfoTarget)
+		}
+		b, err := loadBaseline(baseline)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if b.ScanTarget != shownUserinfoTarget {
+			t.Errorf("baseline scanTarget = %q, want %q", b.ScanTarget, shownUserinfoTarget)
+		}
+	})
+
+	t.Run("text report", func(t *testing.T) {
+		resetPipelineFlags(t)
+		out, err := runCLI(t, "scan", target, "--no-color")
+		if err != nil {
+			t.Fatalf("scan: %v\n%s", err, out)
+		}
+		assertHoldsNone(t, "the text report", out, user, password)
+		if !strings.Contains(out, shownUserinfoTarget) {
+			t.Errorf("the text report does not name %s:\n%s", shownUserinfoTarget, out)
+		}
+	})
+
+	t.Run("pqc report", func(t *testing.T) {
+		resetPipelineFlags(t)
+		out, err := runCLI(t, "pqc", target, "--no-color")
+		if err != nil {
+			t.Fatalf("pqc: %v\n%s", err, out)
+		}
+		assertHoldsNone(t, "the pqc report", out, user, password)
+		if !strings.Contains(out, shownUserinfoTarget) {
+			t.Errorf("the pqc report does not name %s:\n%s", shownUserinfoTarget, out)
+		}
+	})
+
+	t.Run("nothing scanned", func(t *testing.T) {
+		resetPipelineFlags(t)
+		out, err := runCLI(t, "scan", target, "--no-color", "--stream", "--exclude", "*.py")
+		if err != nil {
+			t.Fatalf("scan: %v\n%s", err, out)
+		}
+		assertHoldsNone(t, "the output", out, user, password)
+		nothing := reporter.NothingScanned(shownUserinfoTarget)
+		if n := strings.Count(out, nothing); n != 2 {
+			t.Errorf("the stream footer and the report should each say %q; it appears %d times in:\n%s", nothing, n, out)
+		}
+	})
+}
+
+// A clone that is refused leaves neither the user nor the password of its URL
+// on any output stream or in any file the scan writes.
+func TestRefusedCloneOfAURLWithUserInformationPrintsAndSavesNeitherPart(t *testing.T) {
+	isolateGit(t)
+	resetPipelineFlags(t)
+	scratch := t.TempDir()
+	// The scan makes its clone directory under TMPDIR.
+	t.Setenv("TMPDIR", scratch)
+	target, user, password := userinfoTarget()
+
+	out, err := runCLI(t, "scan", target, "--no-color", "--format", "json", "--output", filepath.Join(scratch, "report.json"))
+	if err == nil {
+		t.Fatalf("the clone of %s should be refused; output:\n%s", shownUserinfoTarget, out)
+	}
+	if !strings.Contains(out, "repository not found or not accessible") {
+		t.Errorf("the output does not say the clone failed:\n%s", out)
+	}
+	assertHoldsNone(t, "the output", out, user, password)
+	err = filepath.Walk(scratch, func(path string, info os.FileInfo, err error) error {
+		if err != nil || info.IsDir() {
+			return err
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		assertHoldsNone(t, path, string(data), user, password)
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A URL with a scheme the scanner does not clone, such as ssh://, is read as a
+// local path. The error for that path names it without the URL's user
+// information, and the next step for a missing path still follows it.
+func TestScanOfAnUnclonedURLWithUserInformationNamesItWithoutIt(t *testing.T) {
+	resetPipelineFlags(t)
+	_, user, password := userinfoTarget()
+	target := strings.Join([]string{"ssh", "://", user, ":", password, "@", "127.0.0.1:1", "/repo.git"}, "")
+	shownPath, err := filepath.Abs("ssh://127.0.0.1:1/repo.git")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := runCLI(t, "scan", target, "--no-color")
+	if err == nil {
+		t.Fatalf("the scan should fail; output:\n%s", out)
+	}
+	assertHoldsNone(t, "the output", out, user, password)
+	if !strings.Contains(out, "cannot access target") || !strings.Contains(out, shownPath) {
+		t.Errorf("the error does not say it cannot access %s:\n%s", shownPath, out)
+	}
+	if !strings.Contains(out, "Check the path") {
+		t.Errorf("the output does not give the next step for a missing path:\n%s", out)
+	}
+}
+
+// A target with no user information is reported exactly as it was typed: a
+// URL without it, the user@host:path form, which has no place for a password,
+// and a local path holding "@".
+func TestScanTargetWithoutUserInformationIsReportedAsTyped(t *testing.T) {
+	isolateGit(t)
+	url := strings.Join([]string{"http", "://", "127.0.0.1:1", "/repo.git"}, "")
+	scp := strings.Join([]string{"git", "@", "127.0.0.1", ":", "repo.git"}, "")
+	cloneLocally(t, url, scp)
+	local := filepath.Join(t.TempDir(), "build@2")
+	writeReviewedTree(t, local, reviewedApp)
+
+	tests := []struct {
+		name   string
+		target string
+	}{
+		{"url without user information", url},
+		{"user@host:path", scp},
+		{"local path holding @", local},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetPipelineFlags(t)
+			report := filepath.Join(t.TempDir(), "report.json")
+			out, err := runCLI(t, "scan", tt.target, "--no-color", "--format", "json", "--output", report)
+			if err != nil {
+				t.Fatalf("scan: %v\n%s", err, out)
+			}
+			if got := reportScanTarget(t, report); got != tt.target {
+				t.Errorf("scanTarget = %q, want %q", got, tt.target)
+			}
+		})
+	}
 }

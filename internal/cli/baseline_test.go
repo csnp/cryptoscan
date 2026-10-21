@@ -366,3 +366,48 @@ func TestBaselineCoversURLScanWithRelativePaths(t *testing.T) {
 		})
 	}
 }
+
+// A baseline saved by an earlier release holds the scan target as it was
+// typed, which for a repository URL can include a user name and a password.
+// The baseline is read without them. A target with no user information, such
+// as an absolute path holding "@", is read as it is and is still the root of
+// the baseline's file paths.
+func TestBaselineScanTargetIsReadWithoutUserInformation(t *testing.T) {
+	target, user, password := userinfoTarget()
+	local := filepath.Join(t.TempDir(), "build@2")
+
+	tests := []struct {
+		name  string
+		saved string
+		want  string
+	}{
+		{"url with user information", target, shownUserinfoTarget},
+		{"absolute path holding @", local, local},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			data, err := json.Marshal(map[string]any{"scanTarget": tt.saved, "findings": []scanner.Finding{}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			path := filepath.Join(t.TempDir(), "baseline.json")
+			if err := os.WriteFile(path, data, 0o600); err != nil {
+				t.Fatal(err)
+			}
+
+			b, err := loadBaseline(path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if b.ScanTarget != tt.want {
+				t.Errorf("scanTarget = %q, want %q", b.ScanTarget, tt.want)
+			}
+			assertHoldsNone(t, "the baseline's scanTarget", b.ScanTarget, user, password)
+			if filepath.IsAbs(tt.want) {
+				if root := b.root(nil); root != tt.want {
+					t.Errorf("root = %q, want %q", root, tt.want)
+				}
+			}
+		})
+	}
+}

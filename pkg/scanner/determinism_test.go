@@ -89,3 +89,46 @@ d = 1  # sha1 stays until the legacy peers migrate
 		}
 	}
 }
+
+// TestDependencyInsightListsLibrariesByName covers the "Libraries detected:"
+// list of the dependency_update insight. The list was built by ranging over a
+// map, and Go randomises map iteration order, so two scans of the same tree
+// could list the libraries in different orders. It is sorted by name now.
+func TestDependencyInsightListsLibrariesByName(t *testing.T) {
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "package.json"), `{
+  "name": "fixture",
+  "version": "1.0.0",
+  "dependencies": {
+    "node-forge": "^1.3.1",
+    "tweetnacl": "^1.0.3",
+    "jose": "^5.2.0"
+  }
+}
+`)
+	write(t, filepath.Join(dir, "requirements.txt"), `pycryptodome==3.20.0
+pynacl==1.5.0
+cryptography==42.0.5
+`)
+
+	const want = "Libraries detected: cryptography, jose, node-forge, pycryptodome, pynacl, tweetnacl. " +
+		"These provide quantum-vulnerable algorithms."
+	for run := 0; run < 5; run++ {
+		results, err := New(Config{Target: dir, MinSeverity: types.SeverityInfo}).Scan()
+		if err != nil {
+			t.Fatalf("scan: %v", err)
+		}
+		var got []string
+		for _, insight := range results.Insights {
+			if insight.Type == "dependency_update" {
+				got = append(got, insight.Description)
+			}
+		}
+		if len(got) != 1 {
+			t.Fatalf("run %d: want one dependency_update insight, got %d: %q", run, len(got), got)
+		}
+		if got[0] != want {
+			t.Fatalf("run %d: description = %q, want %q", run, got[0], want)
+		}
+	}
+}

@@ -1693,6 +1693,9 @@ func (s *Scanner) generateInsights() []Insight {
 		for lib := range libs {
 			libList = append(libList, lib)
 		}
+		// Go randomises map iteration order, so without this sort two scans
+		// of the same tree could list the libraries in different orders.
+		sort.Strings(libList)
 		insights = append(insights, Insight{
 			Type:        "dependency_update",
 			Title:       fmt.Sprintf("Crypto Libraries Need PQC Upgrade (%d libraries)", len(libs)),

@@ -37,8 +37,9 @@ type sarifRun struct {
 // sarifInvocation carries the files the scanner could not analyze, as SARIF
 // 2.1.0 toolExecutionNotifications, and records how the run was configured
 // when a config file was applied, so that a consumer of the SARIF file can see
-// that rules from outside the command line shaped the results. It is written
-// only when there is something to say.
+// that rules from outside the command line shaped the results. It also says
+// how many files the directories the default rules left out hold. It is
+// written only when there is something to say.
 type sarifInvocation struct {
 	ExecutionSuccessful            bool                       `json:"executionSuccessful"`
 	ToolExecutionNotifications     []sarifNotification        `json:"toolExecutionNotifications,omitempty"`
@@ -53,7 +54,8 @@ type sarifNotification struct {
 }
 
 type sarifInvocationProperties struct {
-	ConfigFile *scanner.ConfigReport `json:"configFile"`
+	ConfigFile *scanner.ConfigReport       `json:"configFile,omitempty"`
+	Skipped    *scanner.SkippedDirectories `json:"skipped,omitempty"`
 }
 
 type sarifTool struct {
@@ -247,6 +249,23 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 			invocations[0].ToolConfigurationNotifications = cfg[0].ToolConfigurationNotifications
 			invocations[0].Properties = cfg[0].Properties
 		}
+	}
+	// The directories the default rules left out are a matter of how the
+	// tool is configured, so the note goes with the config file's, and the
+	// counts go in the invocation's properties for a consumer to read.
+	if results.Skipped.Files > 0 {
+		if len(invocations) == 0 {
+			invocations = []sarifInvocation{{ExecutionSuccessful: true}}
+		}
+		invocations[0].ToolConfigurationNotifications = append(invocations[0].ToolConfigurationNotifications, sarifNotification{
+			Level:   "note",
+			Message: sarifMessage{Text: SkippedDirectoriesSummary(results.Skipped) + " " + IncludeSkippedHint},
+		})
+		if invocations[0].Properties == nil {
+			invocations[0].Properties = &sarifInvocationProperties{}
+		}
+		skipped := results.Skipped
+		invocations[0].Properties.Skipped = &skipped
 	}
 
 	report := sarifReport{

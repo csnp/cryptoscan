@@ -17,6 +17,25 @@ All notable changes to CryptoScan are recorded here. This project follows
   there is none, and JSON, CSV, SARIF and CBOM output print it on stderr. A
   `node_modules` directory inside another one is not reached, so it is not
   listed.
+- **A scan counts the files in the directories it leaves out by default,
+  and `--include-skipped` scans them.** Directories such as `.git`,
+  `vendor`, `dist`, `build`, `examples`, `fixtures` and `testdata` inside
+  the scan target were left out with no word in the report: an RSA key
+  generation call under `testdata/` gave no finding, and the report said
+  only `Scanned: 1 files`. When the directories left out by default,
+  `node_modules` among them, hold files, the text report now prints, for
+  example,
+  `3 files in 3 directories were not scanned (default rules: examples, fixtures, testdata).`
+  and `Scan them with --include-skipped.`; JSON, CSV, SARIF and CBOM output
+  print the same on stderr, and SARIF output also carries it as a note in
+  `runs[0].invocations[].toolConfigurationNotifications`. JSON output has a
+  `skipped` object with `files`, `directories`, `rules` and `paths`, with
+  zeros and empty arrays when nothing was skipped. The files are counted
+  without being read. A directory that `--exclude`, the config file's
+  `ignore.files` or `--max-depth` would also keep out is not counted.
+  `scan`, `gate`, `cbom` and `pqc` take `--include-skipped`, which walks
+  these directories; the default exclude patterns that name files, such as
+  `*.lock`, still apply.
 
 ### Changed
 

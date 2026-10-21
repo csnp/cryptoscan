@@ -203,6 +203,9 @@ func TestScanFlagsEachChangeTheOutput(t *testing.T) {
 		"ignore":               {with: []string{"--ignore", "RSA-001"}},
 		"ignore-category":      {with: []string{"--ignore-category", "Deprecated Hash"}},
 		"fail-on":              {with: []string{"--fail-on", "high"}},
+		"include-skipped": {with: []string{"--include-skipped"}, setup: func(t *testing.T, dir, _ string) {
+			writeFixtureFile(t, filepath.Join(dir, "examples", "keys.py"), "key = rsa.generate_private_key(public_exponent=65537, key_size=2048)\n")
+		}},
 		"baseline": {with: []string{"--baseline", "{scratch}/baseline.json"}, setup: func(t *testing.T, dir, scratch string) {
 			runScanWith(t, dir, "--stream=false", "--format", "json", "--output", filepath.Join(scratch, "baseline.json"))
 		}},

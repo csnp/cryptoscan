@@ -61,6 +61,16 @@ The file `--output` names is left out of the scan that writes it, whatever it
 holds. To keep reports off the list, write them outside the scanned directory
 or name them in `--exclude`.
 
+Some directories inside the scan target are not scanned by default, such as
+`.git`, `node_modules`, `vendor`, `dist`, `build`, `examples` and `testdata`.
+When they hold files, the text summary says how many, as in
+`3 files in 3 directories were not scanned (default rules: examples, fixtures, testdata). Scan them with --include-skipped.`,
+the other formats print it on stderr, and SARIF output also carries it in
+the run's `invocations[].toolConfigurationNotifications`. JSON
+output carries the counts, the rules that matched and the directories under
+`skipped`. They do not change the exit code. Pass `--include-skipped` to scan
+them.
+
 Without `--fail-on`, the scan exits 1 on any CRITICAL finding. The full table is in [Exit codes](commands.md#exit-codes).
 
 ## Suppressing known issues

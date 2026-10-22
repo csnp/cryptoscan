@@ -44,6 +44,7 @@ The descriptions below are the ones `cryptoscan scan --help` prints.
 | `--include-quantum-safe` | Include the SHA-2 and AES findings left out by default, which the report classes as PARTIAL |
 | `--include-narrative` | Include algorithms named in prose, log messages, documentation and config keys |
 | `--include-skipped` | Scan the directories left out by default, such as `.git`, `node_modules`, `vendor`, `dist`, `build`, `examples` and `testdata` |
+| `--include-reports` | Scan as source the files left out because they start like a CryptoScan report |
 | `-v, --verbose` | Show all findings including imports, the SHA-2 and AES findings left out by default, and narrative mentions |
 | `--no-color` | Disable colored output |
 | `--pretty` | Pretty print JSON output |
@@ -89,6 +90,7 @@ Flags:
       --ignore-category string  Categories to ignore (e.g., "Certificate,Library Import")
       --config string           Config file path (default: auto-detect .cryptoscan.yaml)
       --include-skipped         Scan the directories left out by default, such as .git, node_modules, vendor, dist, build, examples and testdata
+      --include-reports         Scan as source the files left out because they start like a CryptoScan report
 ```
 
 ```
@@ -107,6 +109,7 @@ Flags:
       --ignore-category string  Categories to ignore (e.g., "Certificate,Library Import")
       --config string           Config file path (default: auto-detect .cryptoscan.yaml)
       --include-skipped         Scan the directories left out by default, such as .git, node_modules, vendor, dist, build, examples and testdata
+      --include-reports         Scan as source the files left out because they start like a CryptoScan report
       --no-color                Disable colored output
 ```
 
@@ -128,6 +131,7 @@ Flags:
       --ignore string           Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*")
       --config string           Config file path (default: auto-detect .cryptoscan.yaml)
       --include-skipped         Scan the directories left out by default, such as .git, node_modules, vendor, dist, build, examples and testdata
+      --include-reports         Scan as source the files left out because they start like a CryptoScan report
       --no-color                Disable colored output
 ```
 

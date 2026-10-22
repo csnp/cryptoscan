@@ -6,6 +6,7 @@ package scanner
 import (
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -341,6 +342,68 @@ func TestIsCryptoScanReport(t *testing.T) {
 	} {
 		if got := (SkippedFile{File: "f", Reason: tt.reason}).IsCryptoScanReport(); got != tt.want {
 			t.Errorf("IsCryptoScanReport for %q = %v, want %v", tt.reason, got, tt.want)
+		}
+	}
+}
+
+func TestIsRecognizedReport(t *testing.T) {
+	for _, tt := range []struct {
+		reason string
+		want   bool
+	}{
+		{"CryptoScan report: text", true},
+		{"CryptoScan report: SARIF", true},
+		{"CryptoScan report: the --output file of this scan", false},
+		{"minified: the file name ends in .min.js", false},
+		{"dependency manifest: the scanner does not read this format", false},
+	} {
+		if got := (SkippedFile{File: "f", Reason: tt.reason}).IsRecognizedReport(); got != tt.want {
+			t.Errorf("IsRecognizedReport for %q = %v, want %v", tt.reason, got, tt.want)
+		}
+	}
+}
+
+// The reproduction from the report: a source file whose first line is the
+// stream header, or whose first lines are the banner, is left out as a text
+// report, and nothing read it. With IncludeReports both are read as source
+// and give their findings. The file the scan's own report replaces is left
+// out either way.
+func TestScanWithIncludeReportsReadsFilesThatStartLikeAReport(t *testing.T) {
+	dir := t.TempDir()
+	bannered := filepath.Join(dir, "bannered.py")
+	headed := filepath.Join(dir, "headed.py")
+	report := filepath.Join(dir, "scan-report")
+	writeFixture(t, bannered, bannerText+md5Source)
+	writeFixture(t, headed, textStreamHeader+"\n"+md5Source)
+	writeFixture(t, report, md5Source)
+	reportSkipped := SkippedFile{File: report, Reason: "CryptoScan report: the --output file of this scan"}
+
+	for _, tt := range []struct {
+		includeReports bool
+		wantSkipped    []SkippedFile
+		wantMD5Files   []string
+	}{
+		{false, []SkippedFile{
+			{File: bannered, Reason: "CryptoScan report: text"},
+			{File: headed, Reason: "CryptoScan report: text"},
+			reportSkipped,
+		}, nil},
+		{true, []SkippedFile{reportSkipped}, []string{bannered, headed}},
+	} {
+		results, err := New(Config{Target: dir, MinSeverity: SeverityInfo, ReportFile: report, IncludeReports: tt.includeReports}).Scan()
+		if err != nil {
+			t.Fatal(err)
+		}
+		var md5Files []string
+		for _, f := range md5Findings(results) {
+			md5Files = append(md5Files, f.File)
+		}
+		slices.Sort(md5Files)
+		if !reflect.DeepEqual(results.SkippedFiles, tt.wantSkipped) || !reflect.DeepEqual(md5Files, tt.wantMD5Files) ||
+			results.FilesScanned != len(tt.wantMD5Files) {
+			t.Errorf("IncludeReports %v: skippedFiles = %+v, MD5 findings in %q, filesScanned = %d\nwant skippedFiles %+v, MD5 findings in %q, filesScanned %d",
+				tt.includeReports, results.SkippedFiles, md5Files, results.FilesScanned,
+				tt.wantSkipped, tt.wantMD5Files, len(tt.wantMD5Files))
 		}
 	}
 }

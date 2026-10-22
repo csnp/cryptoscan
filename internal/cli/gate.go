@@ -57,6 +57,7 @@ func init() {
 	gateCmd.Flags().StringVar(&ignoreCategories, "ignore-category", "", "Categories to ignore (comma-separated, e.g., \"Certificate,Library Import\")")
 	gateCmd.Flags().StringVar(&configFile, "config", "", "Config file path (default: auto-detect .cryptoscan.yaml)")
 	gateCmd.Flags().BoolVar(&includeSkipped, "include-skipped", false, includeSkippedUsage)
+	gateCmd.Flags().BoolVar(&includeReports, "include-reports", false, includeReportsUsage)
 	gateCmd.Flags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 }
 

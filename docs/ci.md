@@ -63,6 +63,14 @@ The file `--output` names is left out of the scan that writes it, whatever it
 holds. To keep reports off the list, write them outside the scanned directory
 or name them in `--exclude`.
 
+A source file that starts the same way, with the `Scanning...` line as its
+first line or with the banner as its first lines, is taken for a text report
+too: `scan` and `gate` leave it out and name it with the files that were not
+scanned, with the reason `CryptoScan report: text`, so `gate` does not fail
+on cryptography in it. To scan such a file, pass `--include-reports`, which
+`scan`, `gate`, `cbom` and `pqc` take: it reads as source the files left out
+because of how they start. The file `--output` names is still left out.
+
 Some directories inside the scan target are not scanned by default, such as
 `.git`, `node_modules`, `vendor`, `dist`, `build`, `examples` and `testdata`
 ([the full list](how-it-works.md#directories-left-out-by-default)).

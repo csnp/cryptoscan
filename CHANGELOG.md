@@ -39,6 +39,8 @@ All notable changes to CryptoScan are recorded here. This project follows
   directory of the clone the scan makes is not counted, and
   `--include-skipped` does not walk it: the clone creates it, and it is not
   part of the repository.
+  [How CryptoScan works](docs/how-it-works.md#directories-left-out-by-default)
+  lists every directory left out by default.
 
 ### Changed
 

@@ -42,6 +42,33 @@ row. Use `--exclude` to skip those paths.
 
 Library imports, SHA-2 findings, and AES findings at INFO severity other than AES-GCM and AES-ECB are also left out of the default report; the report classes SHA-2 and AES as PARTIAL, weakened but not broken by a quantum computer. `--include-imports`, `--include-quantum-safe` and `--include-narrative` bring each group back, and `--verbose` brings back all three.
 
+### Directories left out by default
+
+A scan does not read these directories, or anything inside them, wherever they sit below the scan target:
+
+| Kind | Directory names |
+|------|-----------------|
+| Version control | `.git`, `.svn`, `.hg` |
+| Dependencies | `node_modules`, `vendor`, `venv`, `.venv`, `.terraform` |
+| Editor state | `.idea`, `.vscode` |
+| Build and test output | `.next`, `dist`, `build`, `out`, `.output`, `.nuxt`, `.cache`, `__pycache__`, `coverage`, `.nyc_output`, `bin`, `target` |
+| Examples and fixtures | `examples`, `example`, `samples`, `sample`, `demo`, `demos`, `mock`, `mocks`, `fixtures`, `testdata`, `test-fixtures` |
+
+The directories below one named `standalone` or `.egg-info` are left out too. The scan target itself is read whatever it is called.
+
+When these directories hold files, the text report and the `pqc` text view count the files, without reading them, and name the rules that matched. For a tree with one Python file in each of `src`, `examples`, `fixtures` and `testdata`, `cryptoscan scan .` reports findings from `src` alone and prints these two lines in its summary:
+
+```
+  3 files in 3 directories were not scanned (default rules: examples, fixtures, testdata).
+  Scan them with --include-skipped.
+```
+
+JSON output carries the count under `skipped`: the number of files and of directories, the rules that matched, and the path of each directory. SARIF output adds the two sentences as a note in the run's `invocations[].toolConfigurationNotifications`, and JSON, SARIF, CSV and CBOM output print them on stderr. The count does not change the exit code. A directory that `--exclude`, the config file's `ignore.files` or `--max-depth` keeps out as well is not counted.
+
+`--include-skipped`, which `scan`, `gate`, `cbom` and `pqc` take, scans these directories. `--exclude` patterns, the config file's `ignore.files` and `--max-depth` still apply, and so do the default patterns that name files, such as `*.lock`. When the target is a repository URL, the `.git` directory of the clone the scan makes is neither counted nor scanned, since the clone creates it.
+
+Code under `docs`, `doc`, `documentation` and `wiki` directories is classified as documentation and is not read, with or without `--include-skipped`.
+
 ## Detection coverage
 
 | Category | What We Detect |

@@ -90,6 +90,12 @@ func NothingScanned(target string) string {
 // SkippedDirectoriesSummary counts.
 const IncludeSkippedHint = "Scan them with --include-skipped."
 
+// IncludeReportsHint names the flag that scans the files left out because
+// they start like a CryptoScan report. The text report and the notice the
+// scan command prints for the other formats add it to the list of files not
+// scanned when one of them is such a file.
+const IncludeReportsHint = "Pass --include-reports to scan as source the files listed as CryptoScan reports because of how they start."
+
 // SkippedDirectoriesSummary says how many files the directories the default
 // rules left out hold, and which rules those were, as in "3 files in 2
 // directories were not scanned (default rules: examples, node_modules)." The
@@ -538,13 +544,14 @@ func (r *TextReporter) writeSkippedFiles(b *strings.Builder, files []scanner.Ski
 		}
 		fmt.Fprintf(b, "    %s  %s\n", sk.File, sk.Reason)
 	}
-	minified, manifests, reports := false, false, false
+	minified, manifests, reports, recognized := false, false, false, false
 	for _, sk := range files {
 		switch {
 		case sk.IsUnreadManifest():
 			manifests = true
 		case sk.IsCryptoScanReport():
 			reports = true
+			recognized = recognized || sk.IsRecognizedReport()
 		default:
 			minified = true
 		}
@@ -557,6 +564,9 @@ func (r *TextReporter) writeSkippedFiles(b *strings.Builder, files []scanner.Ski
 	}
 	if reports {
 		b.WriteString("  To leave CryptoScan reports off this list, write them outside the scanned folder or pass their names to --exclude.\n")
+	}
+	if recognized {
+		b.WriteString("  " + IncludeReportsHint + "\n")
 	}
 }
 

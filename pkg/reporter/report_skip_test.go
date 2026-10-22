@@ -117,3 +117,40 @@ func TestTextReportAdvisesOnCryptoScanReports(t *testing.T) {
 		})
 	}
 }
+
+// The list of files not scanned names --include-reports, below the advice on
+// reports, when a file on it was left out for how it starts. The file --output
+// names is left out for being that file, and the flag does not read it, so it
+// alone gets no such line.
+func TestTextReportNamesIncludeReports(t *testing.T) {
+	advice := "\n  To leave CryptoScan reports off this list, write them outside the scanned folder or pass their names to --exclude.\n" +
+		"  " + IncludeReportsHint + "\n"
+	recognized := scanner.SkippedFile{File: "/test/path/legacy.py", Reason: "CryptoScan report: text"}
+	output := scanner.SkippedFile{File: "/test/path/scan-report", Reason: "CryptoScan report: the --output file of this scan"}
+	minified := scanner.SkippedFile{File: "/test/path/app.min.js", Reason: "minified: the file name ends in .min.js"}
+
+	for _, tt := range []struct {
+		name  string
+		files []scanner.SkippedFile
+		want  bool
+	}{
+		{"file that starts like a report", []scanner.SkippedFile{recognized}, true},
+		{"the --output file and that file", []scanner.SkippedFile{output, recognized}, true},
+		{"minified file and that file", []scanner.SkippedFile{minified, recognized}, true},
+		{"the --output file alone", []scanner.SkippedFile{output}, false},
+		{"minified file alone", []scanner.SkippedFile{minified}, false},
+	} {
+		results := createTestResults()
+		results.SkippedFiles = tt.files
+		text, err := NewTextReporter(false).Generate(results)
+		if err != nil {
+			t.Fatalf("Generate failed: %v", err)
+		}
+		if got := strings.Contains(text, advice); got != tt.want {
+			t.Errorf("%s: text report has %q: %v, want %v\n%s", tt.name, advice, got, tt.want, text)
+		}
+		if !tt.want && strings.Contains(text, "--include-reports") {
+			t.Errorf("%s: text report names --include-reports:\n%s", tt.name, text)
+		}
+	}
+}

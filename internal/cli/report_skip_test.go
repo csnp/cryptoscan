@@ -4,6 +4,7 @@
 package cli
 
 import (
+	"bytes"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/csnp/cryptoscan/pkg/reporter"
 	"github.com/csnp/cryptoscan/pkg/scanner"
 	"github.com/spf13/cobra"
 )
@@ -256,5 +258,175 @@ func TestScanDoesNotReadItsTextOutputSavedWithColourOn(t *testing.T) {
 	}
 	if len(got.findingFiles) != 1 || got.findingFiles["a.py"] == 0 {
 		t.Errorf("findings are in %v, want a.py alone", got.findingFiles)
+	}
+}
+
+// desSource creates a DES cipher, which is reported at CRITICAL, so gate fails
+// on it at its default threshold.
+const desSource = "from Crypto.Cipher import DES\n\n\n" +
+	"def encrypt(key, data):\n" +
+	"    cipher = DES.new(key, DES.MODE_ECB)\n" +
+	"    return cipher.encrypt(data)\n"
+
+// streamHeaderDES is desSource below the line a scan prints ahead of the
+// findings it streams, so that it starts like a scan's text output.
+const streamHeaderDES = "Scanning... (findings appear as discovered)\n" + desSource
+
+// setIncludeReports gives cmd --include-reports as the command line would,
+// and takes it back when the test ends.
+func setIncludeReports(t *testing.T, cmd *cobra.Command) {
+	t.Helper()
+	if err := cmd.ParseFlags([]string{"--include-reports"}); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		f := cmd.Flags().Lookup("include-reports")
+		_ = f.Value.Set(f.DefValue)
+		f.Changed = false
+	})
+}
+
+// The reproduction from the report: gate fails on a Python file that creates
+// a DES cipher, and passed the same file with the stream header as its first
+// line, which it listed as a CryptoScan report and did not read; no option
+// read it. Without the flag that is unchanged, and the list now names
+// --include-reports. With the flag, gate reads the file and fails on it.
+func TestGateIncludeReportsReadsSourceThatStartsWithTheStreamHeader(t *testing.T) {
+	plain := writeFixture(t, "legacy.py", desSource)
+	headed := writeFixture(t, "legacy.py", streamHeaderDES)
+	listed := "    " + filepath.Join(headed, "legacy.py") + "  CryptoScan report: text\n"
+	gate := func(dir string) (int, string) {
+		t.Helper()
+		var code int
+		out := captureStdout(func() {
+			var err error
+			if code, err = gateTarget(gateCmd, dir); err != nil {
+				t.Errorf("gate %s: %v", dir, err)
+			}
+		})
+		return code, out
+	}
+
+	resetPipelineFlags(t)
+	if code, out := gate(plain); code != 1 {
+		t.Fatalf("gate on the DES file: exit code %d, want 1\n%s", code, out)
+	}
+	code, out := gate(headed)
+	if code != 0 {
+		t.Errorf("gate on the DES file under the stream header: exit code %d, want 0 without --include-reports\n%s", code, out)
+	}
+	for _, want := range []string{listed, "\n  " + reporter.IncludeReportsHint + "\n"} {
+		if !strings.Contains(out, want) {
+			t.Errorf("gate text report lacks %q:\n%s", want, out)
+		}
+	}
+
+	setIncludeReports(t, gateCmd)
+	code, out = gate(headed)
+	if code != 1 || strings.Contains(out, listed) || strings.Contains(out, "--include-reports") {
+		t.Errorf("gate --include-reports: exit code %d, want 1, with the file read rather than listed:\n%s", code, out)
+	}
+	outputFormat = "json"
+	code, out = gate(headed)
+	var report scanner.Results
+	if err := json.Unmarshal([]byte(out), &report); err != nil {
+		t.Fatalf("gate --include-reports --format json stdout is not JSON: %v\n%s", err, out)
+	}
+	des := 0
+	for _, f := range report.Findings {
+		if f.Algorithm == "DES" {
+			des++
+		}
+	}
+	if code != 1 || report.FilesScanned != 1 || len(report.SkippedFiles) != 0 || des == 0 {
+		t.Errorf("gate --include-reports --format json: exit code %d, filesScanned %d, skippedFiles %+v, DES findings %d; want 1, 1, none and at least 1",
+			code, report.FilesScanned, report.SkippedFiles, des)
+	}
+}
+
+// cbom and pqc leave the same file out and name it on stderr, and read it
+// with --include-reports, when their output describes the DES cipher.
+func TestCbomAndPqcIncludeReports(t *testing.T) {
+	dir := writeFixture(t, "legacy.py", streamHeaderDES)
+	listed := "  " + filepath.Join(dir, "legacy.py") + "  CryptoScan report: text\n"
+	for _, run := range []struct {
+		cmd    *cobra.Command
+		target func(*cobra.Command, string) (int, error)
+	}{
+		{cbomCmd, cbomTarget},
+		{pqcCmd, pqcTarget},
+	} {
+		for _, include := range []bool{false, true} {
+			resetPipelineFlags(t)
+			outputFormat = "json"
+			if include {
+				setIncludeReports(t, run.cmd)
+			}
+			var stdout string
+			stderr := captureStderr(func() {
+				stdout = captureStdout(func() {
+					if _, err := run.target(run.cmd, dir); err != nil {
+						t.Errorf("%s: %v", run.cmd.Name(), err)
+					}
+				})
+			})
+			gotListed, gotDES := strings.Contains(stderr, listed), strings.Contains(stdout, `"DES"`)
+			if gotListed == include || gotDES != include {
+				t.Errorf("%s, --include-reports %v: file named on stderr %v, \"DES\" in the output %v; want %v and %v\nstdout:\n%s\nstderr:\n%s",
+					run.cmd.Name(), include, gotListed, gotDES, !include, include, stdout, stderr)
+			}
+		}
+	}
+}
+
+// For the formats other than text, the notice on stderr ends with the flag
+// when a file on it was left out for how it starts, wherever that file is on
+// the list. The file --output names is left out for being that file, and
+// --include-reports does not read it, so it alone gets no such line.
+func TestSkippedNoticeNamesIncludeReports(t *testing.T) {
+	hint := "cryptoscan: " + reporter.IncludeReportsHint + "\n"
+	recognized := scanner.SkippedFile{File: "/src/legacy.py", Reason: "CryptoScan report: text"}
+	output := scanner.SkippedFile{File: "/src/report.json", Reason: "CryptoScan report: the --output file of this scan"}
+	minified := scanner.SkippedFile{File: "/src/app.min.js", Reason: "minified: the file name ends in .min.js"}
+	var eleventh []scanner.SkippedFile
+	for i := 0; i < maxSkippedNamed; i++ {
+		eleventh = append(eleventh, minified)
+	}
+	eleventh = append(eleventh, recognized)
+
+	for _, tt := range []struct {
+		name  string
+		files []scanner.SkippedFile
+		want  bool
+	}{
+		{"file that starts like a report", []scanner.SkippedFile{recognized}, true},
+		{"that file and the --output file", []scanner.SkippedFile{recognized, output}, true},
+		{"that file eleventh on the list", eleventh, true},
+		{"the --output file alone", []scanner.SkippedFile{output}, false},
+		{"minified file alone", []scanner.SkippedFile{minified}, false},
+	} {
+		for _, format := range []string{"json", "sarif", "csv", "cbom"} {
+			var buf bytes.Buffer
+			writeSkippedNotice(&buf, format, tt.files)
+			notice := buf.String()
+			if got := strings.HasSuffix(notice, hint); got != tt.want || strings.Count(notice, hint) > 1 {
+				t.Errorf("%s, %s: notice ends with %q: %v, want %v (once)\n%s", tt.name, format, hint, got, tt.want, notice)
+			}
+		}
+	}
+}
+
+// Every command that runs a scan takes --include-reports with the same help,
+// since each of them leaves out the files that start like a CryptoScan report.
+func TestIncludeReportsOnEveryCommandThatScans(t *testing.T) {
+	for _, cmd := range []*cobra.Command{scanCmd, gateCmd, cbomCmd, pqcCmd} {
+		f := cmd.Flags().Lookup("include-reports")
+		if f == nil {
+			t.Errorf("%s has no --include-reports flag", cmd.Name())
+			continue
+		}
+		if f.Usage != includeReportsUsage || f.DefValue != "false" {
+			t.Errorf("%s --include-reports: usage %q, default %s; want %q, false", cmd.Name(), f.Usage, f.DefValue, includeReportsUsage)
+		}
 	}
 }

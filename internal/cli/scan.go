@@ -41,6 +41,7 @@ var (
 	includeQuantumSafe bool
 	includeNarrative   bool
 	includeSkipped     bool
+	includeReports     bool
 	verbose            bool
 
 	// CI/CD flexibility flags
@@ -65,6 +66,11 @@ var (
 // includeSkippedUsage is the --include-skipped help of every command that
 // scans, so that the flag reads the same wherever the report suggests it.
 const includeSkippedUsage = "Scan the directories left out by default, such as .git, node_modules, vendor, dist, build, examples and testdata"
+
+// includeReportsUsage is the --include-reports help of every command that
+// scans, for the same reason. The file --output names is left out for being
+// that file, not for how it starts, so the flag does not read it.
+const includeReportsUsage = "Scan as source the files left out because they start like a CryptoScan report"
 
 // progressShown records whether the running scan prints the in-place
 // progress line, so that the line is cleared before anything else is printed
@@ -152,6 +158,7 @@ func init() {
 	scanCmd.Flags().BoolVar(&includeQuantumSafe, "include-quantum-safe", false, "Include the SHA-2 and AES findings left out by default, which the report classes as PARTIAL")
 	scanCmd.Flags().BoolVar(&includeNarrative, "include-narrative", false, "Include algorithms named in prose, log messages, documentation and config keys")
 	scanCmd.Flags().BoolVar(&includeSkipped, "include-skipped", false, includeSkippedUsage)
+	scanCmd.Flags().BoolVar(&includeReports, "include-reports", false, includeReportsUsage)
 	scanCmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Show all findings including imports, the SHA-2 and AES findings left out by default, and narrative mentions")
 
 	// CI/CD flexibility flags
@@ -361,6 +368,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		// --include-skipped can walk them.
 		DefaultExcludes: scanner.DefaultExcludeGlobs,
 		IncludeSkipped:  includeSkipped,
+		IncludeReports:  includeReports,
 	}
 
 	// The file --output names holds an earlier report, if anything, and this
@@ -621,7 +629,8 @@ const maxSkippedNamed = 10
 // writeSkippedNotice names the files the scan left out as minified or
 // generated, as dependency manifests it has no reader for, or as reports
 // CryptoScan wrote, for the same formats and reasons as writeUnanalyzedNotice.
-// The exit code does not depend on them.
+// The exit code does not depend on them. When one of them was left out for
+// how it starts, the notice ends with the flag that scans it.
 func writeSkippedNotice(w io.Writer, format string, files []scanner.SkippedFile) {
 	if format == "text" || len(files) == 0 {
 		return
@@ -633,6 +642,9 @@ func writeSkippedNotice(w io.Writer, format string, files []scanner.SkippedFile)
 			break
 		}
 		fmt.Fprintf(w, "  %s  %s\n", sk.File, sk.Reason)
+	}
+	if slices.ContainsFunc(files, scanner.SkippedFile.IsRecognizedReport) {
+		fmt.Fprintf(w, "cryptoscan: %s\n", reporter.IncludeReportsHint)
 	}
 }
 

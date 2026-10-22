@@ -41,6 +41,21 @@ All notable changes to CryptoScan are recorded here. This project follows
   part of the repository.
   [How CryptoScan works](docs/how-it-works.md#directories-left-out-by-default)
   lists every directory left out by default.
+- **`--include-reports` scans the files taken for CryptoScan reports because
+  of how they start.** A source file whose first line is the
+  `Scanning... (findings appear as discovered)` line, or whose first lines
+  are the banner, is taken for text output a scan saved: `scan` and `gate`
+  leave it out and list it with the files that were not scanned, as
+  `CryptoScan report: text`, so `gate` exited 0 on a file that creates a DES
+  cipher below that line, with or without `--include-skipped`. `scan`,
+  `gate`, `cbom` and `pqc` now take `--include-reports`, which reads such
+  files as source; with it, `gate` exits 1 on that file. The file `--output`
+  names is still left out. When a file was left out for how it starts, the
+  list of files not scanned in the text report, and the one printed on stderr
+  for the other formats, end with
+  `Pass --include-reports to scan as source the files listed as CryptoScan reports because of how they start.`
+  [CI/CD integration](docs/ci.md#exit-code-control) describes how CryptoScan
+  recognizes its reports.
 
 ### Changed
 

@@ -59,6 +59,7 @@ func init() {
 	pqcCmd.Flags().StringVar(&ignorePatterns, "ignore", "", "Pattern IDs to ignore (comma-separated, e.g., \"RSA-001,CERT-*\")")
 	pqcCmd.Flags().StringVar(&configFile, "config", "", "Config file path (default: auto-detect .cryptoscan.yaml)")
 	pqcCmd.Flags().BoolVar(&includeSkipped, "include-skipped", false, includeSkippedUsage)
+	pqcCmd.Flags().BoolVar(&includeReports, "include-reports", false, includeReportsUsage)
 	pqcCmd.Flags().BoolVar(&noColor, "no-color", false, "Disable colored output")
 }
 

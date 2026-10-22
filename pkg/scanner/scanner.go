@@ -96,6 +96,12 @@ type Config struct {
 	// .git directory of a URL scan's clone is not walked: the clone made it,
 	// and it is not part of the repository.
 	IncludeSkipped bool
+
+	// IncludeReports reads as source the files that start like a report
+	// CryptoScan wrote, which are otherwise left out and listed in
+	// Results.SkippedFiles. A source file whose first line is the stream
+	// header is one of them. The file ReportFile names is still left out.
+	IncludeReports bool
 }
 
 // Where a configuration file was found, as recorded in ConfigReport.Source.
@@ -306,6 +312,13 @@ func (sk SkippedFile) IsUnreadManifest() bool {
 // report CryptoScan wrote, or the file the scan's own report replaces.
 func (sk SkippedFile) IsCryptoScanReport() bool {
 	return strings.HasPrefix(sk.Reason, reportReasonPrefix)
+}
+
+// IsRecognizedReport reports whether the file was skipped because it starts
+// like a report CryptoScan wrote, which Config.IncludeReports reads as source,
+// rather than because it is the file the scan's own report replaces.
+func (sk SkippedFile) IsRecognizedReport() bool {
+	return sk.IsCryptoScanReport() && sk.Reason != reportFileReason
 }
 
 // MetadataScanRoot is the Results.Metadata entry holding the directory the
@@ -1235,14 +1248,17 @@ func (s *Scanner) scanFile(path string) error {
 	fileSize := fileInfo.Size()
 
 	// A report CryptoScan wrote is not source, and it is not read as a
-	// dependency manifest either.
+	// dependency manifest either. With IncludeReports, a file that starts
+	// like one is read as any other file is.
 	if s.reportFile != nil && os.SameFile(s.reportFile, fileInfo) {
 		s.skip(path, reportFileReason)
 		return nil
 	}
-	if format := reportFormat(file); format != "" {
-		s.skip(path, reportReasonPrefix+format)
-		return nil
+	if !s.config.IncludeReports {
+		if format := reportFormat(file); format != "" {
+			s.skip(path, reportReasonPrefix+format)
+			return nil
+		}
 	}
 
 	// Analyze file context

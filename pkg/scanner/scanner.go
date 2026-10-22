@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"os/exec"
 	"path"
@@ -665,8 +666,50 @@ func (s *Scanner) configReport(raw []Finding) *ConfigReport {
 	return report
 }
 
+// The environment variables that give the clone of an https repository URL a
+// user name and password, so that neither has to be written into the URL,
+// where the command line of this process and of git, and the clone's
+// .git/config, would hold it.
+const (
+	EnvGitUsername = "CRYPTOSCAN_GIT_USERNAME"
+	EnvGitPassword = "CRYPTOSCAN_GIT_PASSWORD"
+)
+
+// gitCredentialHelper is the credential helper git runs for the clone when
+// CRYPTOSCAN_GIT_PASSWORD is set. git runs it with sh and the operation as
+// its argument. For "get" it prints the password, and the user name when
+// CRYPTOSCAN_GIT_USERNAME is set, from the environment git inherits; test and
+// printf are builtins of sh, bash, dash, ksh and zsh, so the values are on the
+// command line of no process. For "store" and "erase" it does nothing, so it
+// does not save the credential.
+const gitCredentialHelper = `!f() { test "$1" = get || return 0; ` +
+	`test -z "$` + EnvGitUsername + `" || printf 'username=%s\n' "$` + EnvGitUsername + `"; ` +
+	`printf 'password=%s\n' "$` + EnvGitPassword + `"; }; f`
+
+// cloneCredentialArgs returns the git options that make the clone of target
+// take its credential from gitCredentialHelper, or nil when
+// CRYPTOSCAN_GIT_PASSWORD is not set or target is not an https URL, so that
+// the password is not sent over a connection that is not encrypted. The
+// helper is set for the target's host and port alone, after an empty value
+// that clears the helpers set before it for them: git offers the password to
+// no other host and port, not even one a redirect leads to, and the helpers
+// in the user's git configuration are not run for the clone, so they neither
+// supply a credential nor save this one. Options given to git before the
+// clone command are not written to the clone's .git/config.
+func cloneCredentialArgs(target string) []string {
+	if os.Getenv(EnvGitPassword) == "" {
+		return nil
+	}
+	u, err := url.Parse(target)
+	if err != nil || u.Scheme != "https" || u.Host == "" {
+		return nil
+	}
+	key := "credential." + u.Scheme + "://" + u.Host + ".helper"
+	return []string{"-c", key + "=", "-c", key + "=" + gitCredentialHelper}
+}
+
 // cloneRepository clones a Git repository to a temporary directory
-func (s *Scanner) cloneRepository(url string) (string, error) {
+func (s *Scanner) cloneRepository(target string) (string, error) {
 	// Create temp directory
 	tempDir, err := os.MkdirTemp("", "cryptoscan-*")
 	if err != nil {
@@ -675,7 +718,9 @@ func (s *Scanner) cloneRepository(url string) (string, error) {
 	s.tempDir = tempDir
 
 	// Clone with shallow depth for speed, quiet mode
-	cmd := exec.Command("git", "clone", "--depth", "1", "--single-branch", "--quiet", url, tempDir)
+	args := cloneCredentialArgs(target)
+	args = append(args, "clone", "--depth", "1", "--single-branch", "--quiet", target, tempDir)
+	cmd := exec.Command("git", args...)
 
 	if err := cmd.Run(); err != nil {
 		os.RemoveAll(tempDir)

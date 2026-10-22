@@ -24,7 +24,7 @@ The shell is one of `bash`, `fish`, `powershell` and `zsh`, and `--no-descriptio
 cryptoscan scan <path or URL> [flags]
 ```
 
-The path is required. It is a local directory, a file, or a Git URL to scan; use `.` for the current directory. A Git URL is cloned into a temporary directory that is removed when the scan ends, so the report gives each path relative to the repository root, as in `src/app.py`. The `.git` directory the clone creates is not scanned, even with `--include-skipped`, and is not counted among the directories the scan leaves out.
+The path is required. It is a local directory, a file, or a Git URL to scan; use `.` for the current directory. A Git URL is cloned into a temporary directory that is removed when the scan ends, so the report gives each path relative to the repository root, as in `src/app.py`. The `.git` directory the clone creates is not scanned, even with `--include-skipped`, and is not counted among the directories the scan leaves out. To give the clone a user name and password, see [Private repository URLs](#private-repository-urls).
 
 The descriptions below are the ones `cryptoscan scan --help` prints.
 
@@ -62,6 +62,25 @@ CI/CD flags:
 | `--no-config` | Do not read a config file; use only command-line options |
 
 How these flags are used in a pipeline is in [CI/CD integration](ci.md). The `.cryptoscan.yaml` keys that set the same values are in [Configuration](configuration.md).
+
+## Private repository URLs
+
+`scan`, `cbom`, `gate` and `pqc` clone a repository URL with `git`, and there are two ways to give the clone a credential that keep it off the command line.
+
+- A git credential helper set up for the host, such as one your operating system or your Git hosting service provides. The clone runs `git` with your git configuration, so git asks that helper for the credential, and the URL needs no user name or password in it.
+- The environment variables `CRYPTOSCAN_GIT_USERNAME` and `CRYPTOSCAN_GIT_PASSWORD`, set to the user name and to the password or access token, for a URL that starts with `https://`. In a CI job, set them from the job's secrets:
+
+  ```yaml
+  - name: Scan a private repository
+    run: cryptoscan scan https://git.example.com/team/app.git
+    env:
+      CRYPTOSCAN_GIT_USERNAME: ${{ secrets.GIT_USERNAME }}
+      CRYPTOSCAN_GIT_PASSWORD: ${{ secrets.GIT_PASSWORD }}
+  ```
+
+  When `CRYPTOSCAN_GIT_PASSWORD` is set, CryptoScan gives git a credential helper that reads the two values from the environment, so neither value is on the command line of `cryptoscan`, of `git` or of the helper, or in the clone's `.git/config`. git offers the password only to the host and port in the URL, so a redirect to another one does not receive it, and the credential helpers in your git configuration are not run for the clone, so they neither supply a credential nor save this one. For a URL that starts with `http://`, the variables are not used, so the password is not sent over a connection that is not encrypted.
+
+A user name and password written into the URL itself are on the command line of `cryptoscan` and of the `git clone` it runs, where other users of the machine can read them in the process list while the scan runs. git also writes the URL, with them, into the `.git/config` file of the temporary clone, which stays on disk if the scan is stopped before it removes the clone. The JSON report's `scanTarget` and the text and `pqc` reports name the repository without them.
 
 ## Exit codes
 

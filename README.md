@@ -78,6 +78,7 @@ Common jobs:
 
 - Scan a project folder: `cryptoscan scan .` ([command reference](docs/commands.md#commands))
 - Scan a remote repository: `cryptoscan scan https://github.com/your-org/your-repo.git` ([command reference](docs/commands.md#commands))
+- Scan a private repository: `cryptoscan scan https://git.example.com/team/app.git` with `CRYPTOSCAN_GIT_USERNAME` and `CRYPTOSCAN_GIT_PASSWORD` set ([private repository URLs](docs/commands.md#private-repository-urls))
 - Send findings to GitHub code scanning: `cryptoscan scan . --format sarif --output results.sarif` ([GitHub Actions with SARIF](docs/ci.md#github-actions-with-sarif))
 - Write a Cryptographic Bill of Materials: `cryptoscan scan . --format cbom --output crypto-bom.json` ([CBOM output](docs/commands.md#cbom-cryptographic-bill-of-materials))
 - Fail a CI build on serious findings: `cryptoscan scan . --fail-on high` ([exit code control](docs/ci.md#exit-code-control))

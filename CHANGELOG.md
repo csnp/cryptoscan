@@ -56,6 +56,22 @@ All notable changes to CryptoScan are recorded here. This project follows
   `Pass --include-reports to scan as source the files listed as CryptoScan reports because of how they start.`
   [CI/CD integration](docs/ci.md#exit-code-control) describes how CryptoScan
   recognizes its reports.
+- **The clone of an https repository URL takes its user name and password
+  from `CRYPTOSCAN_GIT_USERNAME` and `CRYPTOSCAN_GIT_PASSWORD`.** A user name
+  and password written into the target URL are on the command line of
+  `cryptoscan` and of `git`, where other users of the machine can read them in
+  the process list, and in the temporary clone's `.git/config`, and the
+  command reference named no way to give the clone a credential. When
+  `CRYPTOSCAN_GIT_PASSWORD` is set and the URL starts with `https://`,
+  `scan`, `cbom`, `gate` and `pqc` now give git a credential helper that
+  reads the two values from the environment, so neither is on a command line
+  or in the clone's configuration. git offers the password only to the host
+  and port in the URL, and the credential helpers in the user's git
+  configuration are not run for that clone. The variables are not used for an
+  `http://` URL.
+  [Private repository URLs](docs/commands.md#private-repository-urls) also
+  describes a git credential helper, the other way to keep a credential off
+  the command line, and what a credential written into the URL exposes.
 
 ### Changed
 

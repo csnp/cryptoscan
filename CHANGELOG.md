@@ -218,6 +218,26 @@ All notable changes to CryptoScan are recorded here. This project follows
   `Libraries detected: cryptography, jose, node-forge, pycryptodome, pynacl, tweetnacl.`,
   and the same eight scans give that one order.
 
+- **A directory whose name differs only in letter case from one a scan leaves
+  out by default is scanned like any other directory.** A directory named
+  `Dist` was entered and the files directly in it were scanned, while a
+  directory inside it was left out and counted under the default rule `dist`.
+  For a tree holding `Dist/top.py` and `Dist/sub/s.py`,
+  `cryptoscan scan . --format json` gave findings in `Dist/top.py` alone,
+  `filesScanned` 1 and
+  `"skipped":{"files":1,"directories":1,"rules":["dist"],"paths":["Dist/sub"]}`,
+  and the text report printed
+  `1 file in 1 directory was not scanned (default rules: dist).` Directories
+  named `Build`, `Out`, `Bin` and `Coverage` were split the same way. The
+  default rules now match a name only in the letter case
+  [How CryptoScan works](docs/how-it-works.md#directories-left-out-by-default)
+  shows, so the same scan gives findings in both files, `filesScanned` 2 and
+  nothing skipped. The rules for the directories below `standalone` and for
+  `target/apidocs` match the same way: `Standalone/sub` and a
+  `TARGET/APIDOCS` directory, which were left out, are scanned. A directory
+  named `dist` is left out as before, and so are the directories below one
+  named `standalone`.
+
 ### Documentation
 
 - **The terms in `LICENSE` match the Apache License 2.0 text word for word.**

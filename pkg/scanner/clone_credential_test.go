@@ -8,8 +8,10 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -225,6 +227,65 @@ func TestURLCloneOffersTheEnvironmentPasswordToNoOtherHost(t *testing.T) {
 	}
 	if n := rec.authorization.Load(); n != 0 {
 		t.Errorf("the host the redirect led to received %d requests with an Authorization header, want 0", n)
+	}
+}
+
+// The helper is set for the URL's host in the name of a git configuration
+// key, and git ends that name at the first "=" of a -c option: for the host
+// h.helper=x.example, git would read the first option as a helper setting for
+// https://h. The options are given only for a host name of ASCII letters,
+// digits, dots and dashes or an IPv6 address in brackets with no zone, with or
+// without a port number. For any other host there are none, as for an http
+// URL.
+func TestURLCloneSetsTheEnvironmentHelperOnlyForAHostNameOrIPv6Address(t *testing.T) {
+	t.Setenv(EnvGitPassword, clonePassword)
+
+	for _, host := range []string{
+		"git.example.com",
+		"Git-1.Example.COM:8443",
+		"127.0.0.1:1",
+		"[::1]",
+		"[2001:db8::1]:8443",
+		"[::ffff:192.0.2.1]",
+	} {
+		target := "https://" + host + "/team/app.git"
+		key := "credential.https://" + host + ".helper"
+		want := []string{"-c", key + "=", "-c", key + "=" + gitCredentialHelper}
+		if got := cloneCredentialArgs(target); !slices.Equal(got, want) {
+			t.Errorf("cloneCredentialArgs(%q) = %q, want %q", target, got, want)
+		}
+	}
+
+	for _, host := range []string{
+		"a=b.example",
+		"h.helper=x.example",
+		"git_server",
+		"a;b.example",
+		"a'b.example",
+		"exämple.com",
+		":443",
+		"git.example.com:",
+		"[::1%25en0]",
+		"[::1%25a=b]:1",
+		"[::1]:",
+	} {
+		target := "https://" + host + "/team/app.git"
+		if u, err := url.Parse(target); err != nil || u.Host == "" {
+			t.Errorf("url.Parse(%q) gives no host (%v), so this case does not check the host rule", target, err)
+			continue
+		}
+		if got := cloneCredentialArgs(target); got != nil {
+			t.Errorf("cloneCredentialArgs(%q) = %q, want no options", target, got)
+		}
+	}
+
+	// url.Parse in Go 1.26 refuses these bracketed hosts, which are not IPv6
+	// addresses, before the rule is reached, so the rule is checked on them
+	// directly.
+	for _, host := range []string{"[192.0.2.1]", "[1:2:3]"} {
+		if isCredentialHost(host) {
+			t.Errorf("isCredentialHost(%q) = true, want false", host)
+		}
 	}
 }
 

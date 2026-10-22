@@ -68,7 +68,11 @@ All notable changes to CryptoScan are recorded here. This project follows
   or in the clone's configuration. git offers the password only to the host
   and port in the URL, and the credential helpers in the user's git
   configuration are not run for that clone. The variables are not used for an
-  `http://` URL.
+  `http://` URL, or for a URL whose host is not a host name of ASCII letters,
+  digits, dots and dashes or an IPv6 address in brackets with no zone, with
+  or without a port number: the host is part of the name of the git setting
+  for the helper, and git ends that name at the first `=`, so a host such as
+  `h.helper=x.example` would set a helper for `https://h`.
   [Private repository URLs](docs/commands.md#private-repository-urls) also
   describes a git credential helper, the other way to keep a credential off
   the command line, and what a credential written into the URL exposes.

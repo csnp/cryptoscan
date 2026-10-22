@@ -82,6 +82,64 @@ func TestScanCountsTheDirectoriesTheDefaultRulesSkip(t *testing.T) {
 	}
 }
 
+// A directory named Dist was entered and the files directly in it were
+// scanned, while Dist/sub was left out and counted under the rule dist: the
+// walk looked the name up as written, and matched path rules such as /dist/
+// against the lowercased path. The default rules now match a name only as
+// written, so Dist is scanned with everything in it.
+func TestDirectoryNamedInOtherLetterCaseIsScannedWhole(t *testing.T) {
+	root := writeRSATree(t, "Dist/top.py", "Dist/sub/s.py")
+
+	results := scanWithConfig(t, Config{Target: root, DefaultExcludes: DefaultExcludeGlobs})
+	none := SkippedDirectories{Rules: []string{}, Paths: []string{}}
+	if !reflect.DeepEqual(results.Skipped, none) {
+		t.Errorf("Skipped = %+v, want %+v", results.Skipped, none)
+	}
+	if results.FilesScanned != 2 {
+		t.Errorf("FilesScanned = %d, want 2 (Dist/top.py and Dist/sub/s.py)", results.FilesScanned)
+	}
+	if got, want := findingFiles(t, root, results), []string{"Dist/sub/s.py", "Dist/top.py"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("findings in %q, want %q", got, want)
+	}
+}
+
+// Every directory name the default rules leave out, and every path a path
+// rule names, matches only as written: written in capitals, it is scanned
+// with everything in it, and nothing is counted as skipped.
+func TestDefaultDirectoryRulesMatchNamesAsWritten(t *testing.T) {
+	seen := map[string]bool{}
+	for name := range skipDirNames {
+		seen[name] = true
+	}
+	for _, pattern := range DefaultExcludeGlobs {
+		if name, isDir := dirPattern(pattern); isDir {
+			seen[name] = true
+		}
+	}
+	for _, pattern := range skipPathPatterns {
+		seen[strings.Trim(pattern, "/")] = true
+	}
+	names := make([]string, 0, len(seen))
+	for name := range seen {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+
+	none := SkippedDirectories{Rules: []string{}, Paths: []string{}}
+	for _, name := range names {
+		upper := strings.ToUpper(name)
+		t.Run(upper, func(t *testing.T) {
+			root := writeRSATree(t, upper+"/top.py", upper+"/sub/s.py")
+
+			results := scanWithConfig(t, Config{Target: root, DefaultExcludes: DefaultExcludeGlobs})
+			if results.FilesScanned != 2 || !reflect.DeepEqual(results.Skipped, none) {
+				t.Errorf("FilesScanned = %d, Skipped = %+v, want 2 files scanned and nothing skipped",
+					results.FilesScanned, results.Skipped)
+			}
+		})
+	}
+}
+
 // A default pattern that names files still applies with IncludeSkipped; only
 // the ones that name a directory and everything in it are lifted.
 func TestIncludeSkippedKeepsDefaultFilePatterns(t *testing.T) {

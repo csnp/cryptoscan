@@ -806,7 +806,9 @@ func (s *Scanner) analyzeFile(path string) *analyzer.FileContext {
 	return ctx
 }
 
-// skipDirNames are the directory names the walk does not enter by default.
+// skipDirNames are the directory names the walk does not enter by default. A
+// name matches only as written, as the directory names in DefaultExcludeGlobs
+// do: the walk enters a directory named Dist.
 var skipDirNames = map[string]bool{
 	// Version control
 	".git": true, ".svn": true, ".hg": true,
@@ -829,14 +831,15 @@ var skipDirNames = map[string]bool{
 	".terraform": true,
 }
 
-// skipPathPatterns are matched against the lowercased scan-relative path of a
-// directory, as relPath returns it. Any path component that is a skip
-// directory is caught, including nested cases like .next/standalone/.next/ or
-// sdk/typescript/dist/.
+// skipPathPatterns are matched against the scan-relative path of a directory,
+// as relPath returns it, in the letter case it is written in, as skipDirNames
+// are. A pattern that ends in a name from skipDirNames would keep nothing
+// more out: the walk does not enter a directory with that name, so it
+// reaches no path below one. Patterns such as "/dist/" were here, matched
+// against the lowercased path, so the walk entered a directory named Dist
+// and scanned the files directly in it, while a directory inside it, such as
+// Dist/sub, was left out under the rule dist.
 var skipPathPatterns = []string{
-	"/.next/", "/dist/", "/build/", "/out/", "/.output/",
-	"/.nuxt/", "/.cache/", "/node_modules/", "/__pycache__/",
-	"/coverage/", "/.nyc_output/", "/bin/",
 	"/standalone/",    // Next.js standalone builds
 	"/target/apidocs", // Java generated API docs
 	"/target/site/",   // Maven site docs
@@ -844,15 +847,15 @@ var skipPathPatterns = []string{
 }
 
 // builtinSkipRule returns the built-in rule that keeps a directory out of the
-// walk, given its name and its lowercased scan-relative path, or "" when no
-// built-in rule does. The rule is the directory name for skipDirNames and the
-// pattern without its slashes for skipPathPatterns.
-func builtinSkipRule(name, pathLower string) string {
+// walk, given its name and its scan-relative path, or "" when no built-in
+// rule does. The rule is the directory name for skipDirNames and the pattern
+// without its slashes for skipPathPatterns.
+func builtinSkipRule(name, rel string) string {
 	if skipDirNames[name] {
 		return name
 	}
 	for _, pattern := range skipPathPatterns {
-		if strings.Contains(pathLower, pattern) {
+		if strings.Contains(rel, pattern) {
 			return strings.Trim(pattern, "/")
 		}
 	}
@@ -875,7 +878,7 @@ func (s *Scanner) shouldSkipDir(root, path, name string) error {
 	isRoot := path == root
 
 	if !isRoot && !s.config.IncludeSkipped {
-		if rule := builtinSkipRule(name, strings.ToLower(s.relPath(path))); rule != "" {
+		if rule := builtinSkipRule(name, s.relPath(path)); rule != "" {
 			// An installed dependency tree holds the code of every package
 			// the project uses, and the report names it so that its absence
 			// is not read as an absence of cryptography.

@@ -54,7 +54,7 @@ A scan does not read these directories, or anything inside them, wherever they s
 | Build and test output | `.next`, `dist`, `build`, `out`, `.output`, `.nuxt`, `.cache`, `__pycache__`, `coverage`, `.nyc_output`, `bin`, `target` |
 | Examples and fixtures | `examples`, `example`, `samples`, `sample`, `demo`, `demos`, `mock`, `mocks`, `fixtures`, `testdata`, `test-fixtures` |
 
-The directories below one named `standalone` or `.egg-info` are left out too. The scan target itself is read whatever it is called.
+The directories below one named `standalone` or `.egg-info` are left out too. These names match only in the letter case shown: a directory named `Dist` or `Examples` is read like any other. The scan target itself is read whatever it is called.
 
 When these directories hold files, the text report and the `pqc` text view count the files, without reading them, and name the rules that matched. For a tree with one Python file in each of `src`, `examples`, `fixtures` and `testdata`, `cryptoscan scan .` reports findings from `src` alone and prints these two lines in its summary:
 

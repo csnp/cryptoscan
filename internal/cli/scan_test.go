@@ -641,6 +641,7 @@ func resetPipelineFlags(t *testing.T) {
 		outputFile = ""
 		includeGlobs = ""
 		excludeGlobs = ""
+		includeSkipped = false
 		minSeverity = "info"
 		noColor = true
 		showProgress = false
@@ -668,6 +669,7 @@ func TestResetPipelineFlagsPutsTheDefaultsBackWhenTheTestEnds(t *testing.T) {
 		excludeGlobs = "test/*"
 		configFile = "other.yaml"
 		gateFailOn = "critical"
+		includeSkipped = true
 	})
 	for _, v := range []struct{ name, got, want string }{
 		{"failOn", failOn, ""},
@@ -679,6 +681,9 @@ func TestResetPipelineFlagsPutsTheDefaultsBackWhenTheTestEnds(t *testing.T) {
 		if v.got != v.want {
 			t.Errorf("%s = %q after the earlier test ended, want the default %q", v.name, v.got, v.want)
 		}
+	}
+	if includeSkipped {
+		t.Error("includeSkipped = true after the earlier test ended, want the default false")
 	}
 }
 

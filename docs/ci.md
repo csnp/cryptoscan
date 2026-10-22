@@ -64,7 +64,8 @@ holds. To keep reports off the list, write them outside the scanned directory
 or name them in `--exclude`.
 
 Some directories inside the scan target are not scanned by default, such as
-`.git`, `node_modules`, `vendor`, `dist`, `build`, `examples` and `testdata`.
+`.git`, `node_modules`, `vendor`, `dist`, `build`, `examples` and `testdata`
+([the full list](how-it-works.md#directories-left-out-by-default)).
 When they hold files, the text summary says how many, as in
 `3 files in 3 directories were not scanned (default rules: examples, fixtures, testdata). Scan them with --include-skipped.`,
 the other formats print it on stderr, and SARIF output also carries it in

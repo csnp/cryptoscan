@@ -8,11 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"net/netip"
 	"net/url"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"sort"
 	"strings"
@@ -696,16 +698,41 @@ const gitCredentialHelper = `!f() { test "$1" = get || return 0; ` +
 // in the user's git configuration are not run for the clone, so they neither
 // supply a credential nor save this one. Options given to git before the
 // clone command are not written to the clone's .git/config.
+//
+// The host is part of the name of the configuration key, and git ends that
+// name at the first "=" of a -c option, so nil is also returned for a host
+// that isCredentialHost does not accept.
 func cloneCredentialArgs(target string) []string {
 	if os.Getenv(EnvGitPassword) == "" {
 		return nil
 	}
 	u, err := url.Parse(target)
-	if err != nil || u.Scheme != "https" || u.Host == "" {
+	if err != nil || u.Scheme != "https" || !isCredentialHost(u.Host) {
 		return nil
 	}
 	key := "credential." + u.Scheme + "://" + u.Host + ".helper"
 	return []string{"-c", key + "=", "-c", key + "=" + gitCredentialHelper}
+}
+
+// credentialHost matches a host name of ASCII letters, digits, dots and
+// dashes, or a bracketed address of hex digits, colons and dots, followed by
+// nothing or by a colon and a port number. The first group is the bracketed
+// address.
+var credentialHost = regexp.MustCompile(`^(?:[A-Za-z0-9.-]+|\[([0-9A-Fa-f:.]+)\])(?::[0-9]+)?$`)
+
+// isCredentialHost reports whether host, a URL's host and port as url.Parse
+// returns them, is a host name of ASCII letters, digits, dots and dashes or
+// an IPv6 address in brackets with no zone, with or without a port number.
+func isCredentialHost(host string) bool {
+	m := credentialHost.FindStringSubmatch(host)
+	if m == nil {
+		return false
+	}
+	if m[1] == "" {
+		return true
+	}
+	addr, err := netip.ParseAddr(m[1])
+	return err == nil && addr.Is6()
 }
 
 // cloneRepository clones a Git repository to a temporary directory

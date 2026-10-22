@@ -108,6 +108,7 @@ func TestURLScanGivesGitTheEnvironmentCredentialOffItsCommandLine(t *testing.T) 
 	}{
 		{"http URL", "http://127.0.0.1:1/repo.git", password},
 		{"no password in the environment", target, ""},
+		{"host that is not a host name", "https://a=b.example/repo.git", password},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			resetPipelineFlags(t)

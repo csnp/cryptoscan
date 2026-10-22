@@ -5,6 +5,7 @@ package scanner
 
 import (
 	"encoding/json"
+	"net/http"
 	"net/http/cgi"
 	"net/http/httptest"
 	"os"
@@ -32,6 +33,15 @@ func runGit(t *testing.T, dir string, args ...string) string {
 // it without a network. It returns the repository's URL.
 func serveGitRepository(t *testing.T, work string) string {
 	t.Helper()
+	server := httptest.NewServer(gitBackend(t, work))
+	t.Cleanup(server.Close)
+	return server.URL + "/repo.git"
+}
+
+// gitBackend commits the files in work to a new repository and returns a
+// handler that serves it over smart HTTP at /repo.git.
+func gitBackend(t *testing.T, work string) http.Handler {
+	t.Helper()
 	if _, err := exec.LookPath("git"); err != nil {
 		t.Skip("git is not installed")
 	}
@@ -53,12 +63,10 @@ func serveGitRepository(t *testing.T, work string) string {
 	served := t.TempDir()
 	runGit(t, served, "clone", "-q", "--bare", work, "repo.git")
 
-	server := httptest.NewServer(&cgi.Handler{
+	return &cgi.Handler{
 		Path: backend,
 		Env:  []string{"GIT_PROJECT_ROOT=" + served, "GIT_HTTP_EXPORT_ALL=1"},
-	})
-	t.Cleanup(server.Close)
-	return server.URL + "/repo.git"
+	}
 }
 
 // A URL scan clones the repository into a temporary directory and removes it

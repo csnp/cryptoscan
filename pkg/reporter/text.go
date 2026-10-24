@@ -433,6 +433,12 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 				f.Effort))
 		}
 
+		// A trust finding's page carries the key table, the dates and the
+		// sources the block does not have room for.
+		if ref := trustReference(f); ref != "" {
+			fmt.Fprintf(&b, "  │ %s %s\n", r.color(colorBold, "Reference:"), ref)
+		}
+
 		b.WriteString("  └────────────────────────────────────────────────────────────\n")
 
 		if i < len(results.Findings)-1 {
@@ -542,6 +548,9 @@ func (r *TextReporter) generateGroupedByFile(results *scanner.Results, b *string
 				b.WriteString(fmt.Sprintf("    %s %s\n",
 					r.color(colorBold, "Verify:"),
 					f.Verify))
+			}
+			if ref := trustReference(f); ref != "" {
+				fmt.Fprintf(b, "    %s %s\n", r.color(colorBold, "Reference:"), ref)
 			}
 
 			b.WriteString("\n")
@@ -752,9 +761,6 @@ func (r *TextReporter) writeQRAMMLevels(b *strings.Builder, score *scanner.Migra
 // two-space indent, keeping a clear space before the closing border.
 const migrationTextWidth = 61
 
-// wrapPhrases joins phrases into rows no wider than width, breaking only
-// between phrases. The first row starts with label; later rows are indented
-// to line up under the first row's text.
 // trustKeyLabels names the listed key a trust finding matched, by its use.
 var trustKeyLabels = map[string]string{
 	"tls":         "a listed TLS intermediate key",
@@ -781,6 +787,17 @@ func trustValueRows(f scanner.Finding) [][2]string {
 	return nil
 }
 
+// trustReference returns the page link a trust finding carries as its one
+// reference, or "" for any other finding. Other findings' references are left
+// to the JSON and SARIF reports, as before.
+func trustReference(f scanner.Finding) string {
+	if !f.IsTrust() || len(f.References) == 0 {
+		return ""
+	}
+	return f.References[0]
+}
+
+// pluralFindings is "finding" or "findings", for a count of n.
 func pluralFindings(n int) string {
 	if n == 1 {
 		return "finding"
@@ -788,6 +805,9 @@ func pluralFindings(n int) string {
 	return "findings"
 }
 
+// wrapPhrases joins phrases into rows no wider than width, breaking only
+// between phrases. The first row starts with label; later rows are indented
+// to line up under the first row's text.
 func wrapPhrases(label string, phrases []string, width int) []string {
 	indent := strings.Repeat(" ", len(label))
 	var rows []string

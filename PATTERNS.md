@@ -17,6 +17,7 @@ CryptoScan uses 92 detection patterns to identify cryptographic algorithms, prot
   - [Message Authentication Codes (MACs)](#message-authentication-codes-macs)
   - [Key Derivation Functions (KDFs)](#key-derivation-functions-kdfs)
   - [Certificates](#certificates) *(NEW in v1.2)*
+  - [Trust](#trust)
   - [TLS/SSL Protocols](#tlsssl-protocols)
   - [Key Material & Secrets](#key-material--secrets)
   - [Cloud KMS Services](#cloud-kms-services)
@@ -281,6 +282,19 @@ X.509 certificates, certificate chains, and PKI infrastructure. *(NEW in v1.2)*
 - Ensure SHA-256 or stronger signature algorithms
 - Never disable certificate validation in production
 - Plan for PQC certificate migration when standards finalize
+
+---
+
+### Trust
+
+Certificates whose public key, or the key their signature verifies under, is one a published advisory lists as compromised or removed from browser trust stores. The match is on the key, never on a name: the expression finds a PEM certificate header, and a finding is raised only when the certificate block that starts there decodes and one of four key rules holds. These are trust findings, not quantum findings, so the migration readiness score, the QRAMM levels and the CBOM components leave them out.
+
+| Pattern ID | Name | Quantum Risk | Severity | What It Detects |
+|------------|------|--------------|----------|-----------------|
+| TRUST-COMPROMISED-KEY-001 | Certificate with a publicly compromised CA key | UNKNOWN | **Critical** | A certificate whose key is one of the eight intermediate CA keys reported in Mozilla Bug 2083449, or one signed by such a key |
+| TRUST-DISTRUSTED-ROOT-001 | Certificate chain anchored on a root removed from browser trust stores | UNKNOWN | High | emSign ECC Root CA - G3, or a certificate whose signature verifies under its key |
+
+Each finding's page lists the keys, the dates, the Verify command and the Fix for each key use: [TRUST-COMPROMISED-KEY-001](docs/findings/trust-compromised-key.md) and [TRUST-DISTRUSTED-ROOT-001](docs/findings/trust-distrusted-root.md). The IDs are outside `CERT-*` and the category is not `Certificate`, so `--ignore "CERT-*"` and `--ignore-category Certificate` leave them in place; `--ignore TRUST-COMPROMISED-KEY-001` leaves out that kind alone.
 
 ---
 

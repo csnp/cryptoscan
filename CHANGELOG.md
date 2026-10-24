@@ -7,6 +7,23 @@ All notable changes to CryptoScan are recorded here. This project follows
 
 ### Added
 
+- **`scan` and `gate` flag certificates whose key is a publicly compromised
+  CA key, and chains anchored on a root removed from browser trust stores.**
+  Two patterns in a new `Trust` category, `TRUST-COMPROMISED-KEY-001`
+  (CRITICAL) and `TRUST-DISTRUSTED-ROOT-001` (HIGH), decode each PEM
+  certificate block and match it by key, never by name: its public key, or
+  the key its signature verifies under, is one of the eight intermediate CA
+  keys reported in Mozilla Bug 2083449, or the key of emSign ECC Root CA - G3.
+  Each finding shows the matched value and the listed key, a Fix chosen by
+  the key's use, a Verify command that recomputes the value with openssl, and
+  a link to its page under `docs/findings/`. JSON and SARIF carry `kind`,
+  `matchedValue`, `valueType`, `keyUse`, `rule` and, for the root,
+  `distrustDate`, and SARIF rules carry the page as `helpUri`. Trust findings
+  are left out of the migration readiness score, the QRAMM levels and the
+  CBOM components, and the score's method states how many it left out. The
+  IDs are outside `CERT-*` and the category is not `Certificate`, so the
+  help's certificate ignore examples leave them in place. The key table is
+  generated from the committed certificates by `go generate ./pkg/patterns`.
 - **A scan names the `node_modules` directories it did not enter.** Installed
   packages were left out of every scan without a word. The text report of
   `scan` now lists each `node_modules` directory the walk passed over,

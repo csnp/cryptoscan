@@ -70,7 +70,7 @@ It prints `flagged.pem: OK` when the root's key signed the certificate, or when 
 
 ## Check a deployed server
 
-The scan reads only the files in the scanned tree. It makes no network request, does not read the system trust store, and does not read Markdown (`.md`) or text (`.txt`) files. To check the chain a server presents, save each certificate it sends and print its SPKI hash. `SERVER` is the server's host and port, such as `example.org:443`, and `NAME` is the name the server answers to, such as `example.org`. OpenSSL takes an IPv6 address in brackets, as `[2001:db8::1]:443`, and LibreSSL without them, as `2001:db8::1:443`.
+The scan reads only the files in the scanned tree. It makes no network request, does not read the system trust store, and does not read Markdown (`.md`) or text (`.txt`) files. By default it also leaves out directories such as `testdata`, `fixtures` and `examples`; `cryptoscan scan . --include-skipped` reads them. To check the chain a server presents, save each certificate it sends and print its SPKI hash. `SERVER` is the server's host and port, such as `example.org:443`, and `NAME` is the name the server answers to, such as `example.org`. OpenSSL takes an IPv6 address in brackets, as `[2001:db8::1]:443`, and LibreSSL without them, as `2001:db8::1:443`.
 
 ```sh
 # Save the certificates the server sends and print the SPKI hash of each

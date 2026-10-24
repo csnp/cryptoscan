@@ -264,10 +264,19 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 	}
 	b.WriteString(fmt.Sprintf("      %-12s %d\n", "Total", quantumTotal))
 	if results.MigrationScore != nil && quantumTotal > 0 {
-		b.WriteString(r.color(colorCyan,
-			"    The migration readiness box above counts the same findings by\n"+
-				"    migration status, which also weighs hybrid use and algorithms that\n"+
-				"    are already broken, so its rows differ from these.\n"))
+		if n := results.MigrationScore.TrustFindings; n > 0 {
+			// The box leaves the trust findings out, so "the same findings"
+			// would not be true without naming them.
+			note := fmt.Sprintf("The migration readiness box above counts the same findings, except the %d Trust %s, by migration status, which also weighs hybrid use and algorithms that are already broken, so its rows differ from these.", n, pluralFindings(n))
+			for _, row := range wrapPhrases("    ", strings.Fields(note), 71) {
+				b.WriteString(r.color(colorCyan, row+"\n"))
+			}
+		} else {
+			b.WriteString(r.color(colorCyan,
+				"    The migration readiness box above counts the same findings by\n"+
+					"    migration status, which also weighs hybrid use and algorithms that\n"+
+					"    are already broken, so its rows differ from these.\n"))
+		}
 	}
 	b.WriteString("\n")
 
@@ -363,10 +372,19 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 				algoStr))
 		}
 
-		// Quantum risk with icon
-		b.WriteString(fmt.Sprintf("  │ %s %s\n",
-			r.color(colorBold, "Quantum:"),
-			r.quantumIcon(f.Quantum)))
+		// The matched value of a trust finding and the listed key, which
+		// stand in place of the quantum verdict: the key is compromised or
+		// distrusted already, whatever quantum computers do.
+		if f.IsTrust() {
+			for _, row := range trustValueRows(f) {
+				fmt.Fprintf(&b, "  │ %s %s\n", r.color(colorBold, row[0]), row[1])
+			}
+		} else {
+			// Quantum risk with icon
+			b.WriteString(fmt.Sprintf("  │ %s %s\n",
+				r.color(colorBold, "Quantum:"),
+				r.quantumIcon(f.Quantum)))
+		}
 
 		// Confidence
 		if f.Confidence != "" {
@@ -492,11 +510,19 @@ func (r *TextReporter) generateGroupedByFile(results *scanner.Results, b *string
 				b.WriteString(r.color(colorCyan, "    └──────────────────────────────────────────────────\n"))
 			}
 
-			// Match and quantum risk on one line
-			b.WriteString(fmt.Sprintf("    %s %s  •  %s\n",
-				r.color(colorBold, "Match:"),
-				r.color(colorMagenta, f.Match),
-				r.quantumIcon(f.Quantum)))
+			// Match and quantum risk on one line; a trust finding shows its
+			// matched value and the listed key instead of a quantum risk.
+			if f.IsTrust() {
+				fmt.Fprintf(b, "    %s %s\n", r.color(colorBold, "Match:"), r.color(colorMagenta, f.Match))
+				for _, row := range trustValueRows(f) {
+					fmt.Fprintf(b, "    %s %s\n", r.color(colorBold, row[0]), row[1])
+				}
+			} else {
+				b.WriteString(fmt.Sprintf("    %s %s  •  %s\n",
+					r.color(colorBold, "Match:"),
+					r.color(colorMagenta, f.Match),
+					r.quantumIcon(f.Quantum)))
+			}
 
 			// Fix or guidance, and verify command (compact)
 			fix := f.Fix
@@ -729,6 +755,39 @@ const migrationTextWidth = 61
 // wrapPhrases joins phrases into rows no wider than width, breaking only
 // between phrases. The first row starts with label; later rows are indented
 // to line up under the first row's text.
+// trustKeyLabels names the listed key a trust finding matched, by its use.
+var trustKeyLabels = map[string]string{
+	"tls":         "a listed TLS intermediate key",
+	"codeSigning": "a listed code-signing intermediate key",
+	"root":        "the key of a listed removed root",
+}
+
+// trustValueRows returns the label and text of each row that shows a trust
+// finding's matched value, the value's type and the listed key, read from the
+// finding's metadata: the block's SPKI hash for a key that is listed, or the
+// block's certificate hash and the listed key its signature verifies under.
+func trustValueRows(f scanner.Finding) [][2]string {
+	md := f.Metadata
+	key := trustKeyLabels[md["keyUse"]]
+	switch md["valueType"] {
+	case "spkiSha256":
+		return [][2]string{{"SPKI SHA-256:", md["matchedValue"] + ", " + key}}
+	case "certSha256":
+		return [][2]string{
+			{"Certificate SHA-256:", md["matchedValue"]},
+			{"Signed by:", md["issuerSpkiSha256"] + " (SPKI SHA-256), " + key},
+		}
+	}
+	return nil
+}
+
+func pluralFindings(n int) string {
+	if n == 1 {
+		return "finding"
+	}
+	return "findings"
+}
+
 func wrapPhrases(label string, phrases []string, width int) []string {
 	indent := strings.Repeat(" ", len(label))
 	var rows []string

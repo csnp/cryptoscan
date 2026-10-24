@@ -76,6 +76,7 @@ type sarifRule struct {
 	ShortDescription sarifMessage        `json:"shortDescription"`
 	FullDescription  sarifMessage        `json:"fullDescription,omitempty"`
 	Help             sarifMessage        `json:"help,omitempty"`
+	HelpURI          string              `json:"helpUri,omitempty"`
 	DefaultConfig    sarifDefaultConfig  `json:"defaultConfiguration"`
 	Properties       sarifRuleProperties `json:"properties,omitempty"`
 }
@@ -106,6 +107,15 @@ type sarifResultProps struct {
 	QuantumRisk string `json:"quantumRisk,omitempty"`
 	Algorithm   string `json:"algorithm,omitempty"`
 	KeySize     int    `json:"keySize,omitempty"`
+
+	// A trust finding's metadata, under the names the JSON report uses.
+	Kind             string `json:"kind,omitempty"`
+	MatchedValue     string `json:"matchedValue,omitempty"`
+	ValueType        string `json:"valueType,omitempty"`
+	IssuerSPKISHA256 string `json:"issuerSpkiSha256,omitempty"`
+	KeyUse           string `json:"keyUse,omitempty"`
+	Rule             string `json:"rule,omitempty"`
+	DistrustDate     string `json:"distrustDate,omitempty"`
 }
 
 type sarifLocation struct {
@@ -160,9 +170,15 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 	for _, f := range results.Findings {
 		if !seenRules[f.ID] {
 			seenRules[f.ID] = true
+			// A trust finding's one reference is its finding page.
+			helpURI := ""
+			if f.IsTrust() && len(f.References) > 0 {
+				helpURI = f.References[0]
+			}
 			rules = append(rules, sarifRule{
-				ID:   f.ID,
-				Name: f.Type,
+				ID:      f.ID,
+				Name:    f.Type,
+				HelpURI: helpURI,
 				ShortDescription: sarifMessage{
 					Text: f.Description,
 				},
@@ -213,6 +229,16 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 				Algorithm:   f.Algorithm,
 				KeySize:     f.KeySize,
 			},
+		}
+		if f.IsTrust() {
+			md := f.Metadata
+			result.Properties.Kind = md["kind"]
+			result.Properties.MatchedValue = md["matchedValue"]
+			result.Properties.ValueType = md["valueType"]
+			result.Properties.IssuerSPKISHA256 = md["issuerSpkiSha256"]
+			result.Properties.KeyUse = md["keyUse"]
+			result.Properties.Rule = md["rule"]
+			result.Properties.DistrustDate = md["distrustDate"]
 		}
 		sarifResults = append(sarifResults, result)
 	}

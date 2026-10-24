@@ -48,6 +48,14 @@ func CalculateMigrationScoreForRoot(findings []types.Finding, root string) *type
 	for i := range findings {
 		f := &findings[i]
 
+		// A trust finding is not a quantum finding: it gets no migration
+		// status or QRAMM mapping and enters no count, so the score is what
+		// it would be with the trust findings ignored.
+		if f.IsTrust() {
+			score.TrustFindings++
+			continue
+		}
+
 		// Classify the finding
 		status := ClassifyMigrationStatus(f)
 		f.MigrationStatus = status
@@ -153,7 +161,7 @@ func CalculateMigrationScoreForRoot(findings []types.Finding, root string) *type
 // term of the formula across lines; joined with spaces it is score.Method.
 func MethodPhrases(score *types.MigrationScore) []string {
 	if score.TotalCount == 0 {
-		return strings.Fields("No findings to score, so the score is 0.")
+		return append(strings.Fields("No findings to score, so the score is 0."), trustPhrases(score)...)
 	}
 	phrases := []string{
 		fmt.Sprintf("(safe %d", score.SafeCount),
@@ -161,7 +169,20 @@ func MethodPhrases(score *types.MigrationScore) []string {
 		fmt.Sprintf("+ %g x partial %d)", partialWeight, score.PartialCount),
 		fmt.Sprintf("/ %d findings,", score.TotalCount),
 	}
-	return append(phrases, strings.Fields("as a percentage. "+methodNote)...)
+	phrases = append(phrases, strings.Fields("as a percentage. "+methodNote)...)
+	return append(phrases, trustPhrases(score)...)
+}
+
+// trustPhrases states the trust findings the score leaves out, if any.
+func trustPhrases(score *types.MigrationScore) []string {
+	switch score.TrustFindings {
+	case 0:
+		return nil
+	case 1:
+		return strings.Fields("1 Trust finding is not counted: trust findings are not quantum findings.")
+	default:
+		return strings.Fields(fmt.Sprintf("%d Trust findings are not counted: trust findings are not quantum findings.", score.TrustFindings))
+	}
 }
 
 // inTestDirectory reports whether file sits under a directory named in

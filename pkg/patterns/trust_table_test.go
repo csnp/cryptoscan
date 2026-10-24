@@ -1,0 +1,595 @@
+// Copyright 2025-2026 CyberSecurity NonProfit (CSNP)
+// SPDX-License-Identifier: Apache-2.0
+
+package patterns
+
+import (
+	"bufio"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
+	"crypto/x509"
+	"crypto/x509/pkix"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
+	"encoding/pem"
+	"go/parser"
+	"go/token"
+	"math/big"
+	"os"
+	"path/filepath"
+	"regexp"
+	"slices"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/csnp/cryptoscan/pkg/analyzer"
+)
+
+const (
+	trustFixtureDir  = "testdata/trust"
+	trustCapturedDir = "testdata/trust-captured"
+	trustBugURL      = "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449"
+	trustBlogURL     = "https://blog.google/security/protecting-chrome-and-android-users-from-compromised-emudhra-intermediate-ca-certificates/"
+)
+
+// fixtureUse is the key use of the rows each fixture directory makes.
+var fixtureUse = map[string]string{"tls": "tls", "codesigning": "codeSigning", "root": "root"}
+
+// fixtureBlock is one certificate block of a fixture file.
+type fixtureBlock struct {
+	path  string
+	dir   string // tls, codesigning, root, leaf or control
+	index int    // index of the header line in lines
+	lines []string
+	der   []byte
+	cert  *x509.Certificate
+}
+
+// readFixtureBlocks returns every certificate block in the fixture files of
+// the given directories, reading lines as the scanner does.
+func readFixtureBlocks(t *testing.T, dirs ...string) []fixtureBlock {
+	t.Helper()
+	var blocks []fixtureBlock
+	for _, dir := range dirs {
+		files, err := filepath.Glob(filepath.Join(trustFixtureDir, dir, "*.pem"))
+		if err != nil || len(files) == 0 {
+			t.Fatalf("no fixture certificates in %s (%v)", dir, err)
+		}
+		for _, file := range files {
+			lines := readLines(t, file)
+			data, err := os.ReadFile(file)
+			if err != nil {
+				t.Fatal(err)
+			}
+			index := 0
+			for rest := data; ; {
+				var block *pem.Block
+				block, rest = pem.Decode(rest)
+				if block == nil {
+					break
+				}
+				for index < len(lines) && lines[index] != pemCertificateBegin {
+					index++
+				}
+				cert, err := x509.ParseCertificate(block.Bytes)
+				if err != nil {
+					t.Fatalf("%s: %v", file, err)
+				}
+				blocks = append(blocks, fixtureBlock{path: file, dir: dir, index: index, lines: lines, der: block.Bytes, cert: cert})
+				index++
+			}
+		}
+	}
+	return blocks
+}
+
+func readLines(t *testing.T, path string) []string {
+	t.Helper()
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+	var lines []string
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		lines = append(lines, s.Text())
+	}
+	if err := s.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return lines
+}
+
+// Every row of the embedded key table is what the fixture certificates give:
+// the certificate hashes, the SPKI hash and DER, the use of the directory the
+// certificates sit in, and the listing.
+func TestTrustKeyTableRecomputesFromFixtures(t *testing.T) {
+	type group struct {
+		dir   string
+		spki  []byte
+		certs []string
+	}
+	groups := map[string]*group{}
+	for _, b := range readFixtureBlocks(t, "tls", "codesigning", "root") {
+		spki := sha256Hex(b.cert.RawSubjectPublicKeyInfo)
+		g, ok := groups[spki]
+		if !ok {
+			g = &group{dir: b.dir, spki: b.cert.RawSubjectPublicKeyInfo}
+			groups[spki] = g
+		}
+		if g.dir != b.dir {
+			t.Errorf("key %s has certificates in %s and %s", spki, g.dir, b.dir)
+		}
+		if name := filepath.Base(b.path); name != sha256Hex(b.der)+".pem" {
+			t.Errorf("%s is not named by its SHA-256 %s", b.path, sha256Hex(b.der))
+		}
+		g.certs = append(g.certs, sha256Hex(b.der))
+	}
+
+	table := trustKeys()
+	if len(table.keys) != len(groups) {
+		t.Errorf("the key table has %d rows; the fixture certificates have %d keys", len(table.keys), len(groups))
+	}
+	for i, k := range table.keys {
+		g, ok := groups[k.SPKISHA256]
+		if !ok {
+			t.Errorf("row %d: no fixture certificate has SPKI SHA-256 %s", i, k.SPKISHA256)
+			continue
+		}
+		slices.Sort(g.certs)
+		if !slices.Equal(k.CertSHA256, g.certs) {
+			t.Errorf("row %d: certSha256 = %q, the fixture certificates hash to %q", i, k.CertSHA256, g.certs)
+		}
+		if want := base64.StdEncoding.EncodeToString(g.spki); k.SPKIDER != want {
+			t.Errorf("row %d: spkiDer is not the certificates' SubjectPublicKeyInfo", i)
+		}
+		if k.Use != fixtureUse[g.dir] {
+			t.Errorf("row %d: use = %q, the certificates are in %s", i, k.Use, g.dir)
+		}
+		wantStatus, wantDate := "compromised", ""
+		if g.dir == "root" {
+			wantStatus, wantDate = "distrusted", "2026-10-27"
+		}
+		if k.Status != wantStatus || k.DistrustDate != wantDate {
+			t.Errorf("row %d: status %q, distrustDate %q; want %q, %q", i, k.Status, k.DistrustDate, wantStatus, wantDate)
+		}
+		if !slices.Equal(k.Source, []string{trustBugURL, trustBlogURL}) || k.Reported != "2026-10-17" {
+			t.Errorf("row %d: source %q, reported %q", i, k.Source, k.Reported)
+		}
+	}
+
+	// The eight keys come first, then the removed root.
+	var uses []string
+	for _, k := range table.keys {
+		uses = append(uses, k.Use)
+	}
+	want := []string{"tls", "tls", "tls", "tls", "tls", "tls", "codeSigning", "codeSigning", "root"}
+	if !slices.Equal(uses, want) {
+		t.Errorf("row uses = %q, want %q", uses, want)
+	}
+}
+
+// readCaptured returns the first column of each line of a captured-values
+// file, keyed to the rest of the line.
+func readCaptured(t *testing.T, name string) map[string]string {
+	t.Helper()
+	values := map[string]string{}
+	for _, line := range readLines(t, filepath.Join(trustCapturedDir, name)) {
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		value, rest, _ := strings.Cut(line, " ")
+		values[value] = rest
+	}
+	return values
+}
+
+// The table's certificate hashes are the 16 values the Mozilla bug lists,
+// each emSign-issued certificate is one key with its Sectigo cross-signed
+// copy, and the six TLS keys' SPKI hashes are OneCRL's pubKeyHash values.
+func TestTrustKeyTableMatchesCapturedValues(t *testing.T) {
+	bug := readCaptured(t, "bugzilla-2083449-certificate-sha256.txt")
+	if len(bug) != 16 {
+		t.Fatalf("captured %d bug values, want 16", len(bug))
+	}
+	onecrl := readCaptured(t, "onecrl-pubkeyhash.txt")
+	if len(onecrl) != 6 {
+		t.Fatalf("captured %d OneCRL values, want 6", len(onecrl))
+	}
+
+	var tableCerts []string
+	matchedOneCRL := map[string]bool{}
+	for _, k := range trustKeys().keys {
+		if k.Status != "compromised" {
+			continue
+		}
+		tableCerts = append(tableCerts, k.CertSHA256...)
+		// The two certificates of a key carry the same name in the bug's
+		// comments, one in comment 0 and one in comment 2.
+		var names, comments []string
+		for _, c := range k.CertSHA256 {
+			comment, name, _ := strings.Cut(bug[c], " ")
+			names, comments = append(names, name), append(comments, comment)
+		}
+		slices.Sort(comments)
+		if len(k.CertSHA256) != 2 || names[0] != names[1] || !slices.Equal(comments, []string{"0", "2"}) {
+			t.Errorf("key %s: certificates %q are not one comment-0 and one comment-2 value of one name (%q, %q)", k.SPKISHA256, k.CertSHA256, names, comments)
+		}
+		spki, err := hex.DecodeString(k.SPKISHA256)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b64 := base64.StdEncoding.EncodeToString(spki)
+		if k.Use == "tls" {
+			if _, ok := onecrl[b64]; !ok {
+				t.Errorf("TLS key %s: base64 %s is not a OneCRL pubKeyHash", k.SPKISHA256, b64)
+			}
+			matchedOneCRL[b64] = true
+		}
+	}
+	captured := make([]string, 0, len(bug))
+	for v := range bug {
+		captured = append(captured, v)
+	}
+	slices.Sort(captured)
+	slices.Sort(tableCerts)
+	if !slices.Equal(tableCerts, captured) {
+		t.Errorf("the table's certificate values differ from the bug's:\n table %q\n bug   %q", tableCerts, captured)
+	}
+	if len(matchedOneCRL) != len(onecrl) {
+		t.Errorf("%d of %d OneCRL values match a TLS key", len(matchedOneCRL), len(onecrl))
+	}
+}
+
+// Every row has a fix for its use and a kind for its status.
+func TestTrustTableRowsHaveAFixAndAKind(t *testing.T) {
+	for _, k := range trustKeys().keys {
+		if trustFixes[k.Use] == "" {
+			t.Errorf("key %s: no fix for use %q", k.SPKISHA256, k.Use)
+		}
+		if trustKinds[k.Status] == "" || trustImpacts[trustKinds[k.Status]] == "" {
+			t.Errorf("key %s: no kind or impact for status %q", k.SPKISHA256, k.Status)
+		}
+	}
+}
+
+// listedIssuer returns the row whose certificates issued c, found with the
+// standard library's own chain check rather than the rule code.
+func listedIssuer(t *testing.T, c *x509.Certificate) string {
+	t.Helper()
+	for _, b := range readFixtureBlocks(t, "tls", "codesigning") {
+		if c.CheckSignatureFrom(b.cert) == nil {
+			return sha256Hex(b.cert.RawSubjectPublicKeyInfo)
+		}
+	}
+	return ""
+}
+
+// Each fixture certificate meets the rule its directory says: the eight keys'
+// certificates rule 1, the removed root rule 3, the leaf rule 2 under the key
+// that issued it, and no certificate of the control bundle any rule.
+func TestTrustRulesOnEachFixtureCertificate(t *testing.T) {
+	table := trustKeys()
+	for _, b := range readFixtureBlocks(t, "tls", "codesigning", "root", "leaf", "control") {
+		m, ok := matchTrustBlock(table, b.lines[b.index:])
+		name := filepath.Join(b.dir, filepath.Base(b.path)) + ":" + strconv.Itoa(b.index+1)
+		switch b.dir {
+		case "control":
+			if ok {
+				t.Errorf("%s: control certificate met rule %d", name, m.rule)
+			}
+			continue
+		}
+		if !ok {
+			t.Errorf("%s: met no rule", name)
+			continue
+		}
+		md := m.metadata()
+		switch b.dir {
+		case "tls", "codesigning":
+			if m.rule != 1 || m.key.Use != fixtureUse[b.dir] || md["matchedValue"] != sha256Hex(b.cert.RawSubjectPublicKeyInfo) ||
+				md["valueType"] != "spkiSha256" || md["kind"] != "compromisedCaKey" || md["issuerSpkiSha256"] != "" || md["distrustDate"] != "" {
+				t.Errorf("%s: rule %d, metadata %v; want rule 1 by its own SPKI", name, m.rule, md)
+			}
+		case "root":
+			if m.rule != 3 || m.key.Use != "root" || md["matchedValue"] != sha256Hex(b.cert.RawSubjectPublicKeyInfo) ||
+				md["valueType"] != "spkiSha256" || md["kind"] != "distrustedRoot" || md["distrustDate"] != "2026-10-27" || md["issuerSpkiSha256"] != "" {
+				t.Errorf("%s: rule %d, metadata %v; want rule 3 by its own SPKI", name, m.rule, md)
+			}
+		case "leaf":
+			issuer := listedIssuer(t, b.cert)
+			if issuer == "" {
+				t.Fatalf("%s: no fixture intermediate issued the leaf", name)
+			}
+			if m.rule != 2 || m.key.Use != "tls" || md["matchedValue"] != sha256Hex(b.der) || md["valueType"] != "certSha256" ||
+				md["issuerSpkiSha256"] != issuer || md["kind"] != "compromisedCaKey" {
+				t.Errorf("%s: rule %d, metadata %v; want rule 2 under %s", name, m.rule, md, issuer)
+			}
+		}
+	}
+}
+
+// generatedCert returns the DER of a certificate for pub signed by signer,
+// with issuer standing in as the parent.
+func generatedCert(t *testing.T, serial int64, pub any, signer *ecdsa.PrivateKey, isCA bool, issuer *x509.Certificate) ([]byte, *x509.Certificate) {
+	t.Helper()
+	tmpl := &x509.Certificate{
+		SerialNumber:          big.NewInt(serial),
+		Subject:               pkix.Name{CommonName: "generated " + strconv.FormatInt(serial, 10)},
+		NotBefore:             time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		NotAfter:              time.Date(2027, 1, 1, 0, 0, 0, 0, time.UTC),
+		IsCA:                  isCA,
+		BasicConstraintsValid: true,
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+	}
+	parent := issuer
+	if parent == nil {
+		parent = tmpl
+	}
+	der, err := x509.CreateCertificate(rand.Reader, tmpl, parent, pub, signer)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cert, err := x509.ParseCertificate(der)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return der, cert
+}
+
+func pemLines(der []byte) []string {
+	text := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
+	return strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+}
+
+func spkiOf(t *testing.T, pub any) []byte {
+	t.Helper()
+	der, err := x509.MarshalPKIXPublicKey(pub)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return der
+}
+
+// Rules 2 and 4, and the order of the rules, on a table of generated keys:
+// no certificate signed by one of the eight private keys is held here other
+// than the fixture leaf, and none signed by the removed root other than the
+// root itself.
+func TestTrustRulesWithGeneratedKeys(t *testing.T) {
+	newKey := func() *ecdsa.PrivateKey {
+		k, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return k
+	}
+	compromised, root, other := newKey(), newKey(), newKey()
+	row := func(pub any, use, status, date string) map[string]any {
+		spki := spkiOf(t, pub)
+		r := map[string]any{"spkiSha256": sha256Hex(spki), "certSha256": []string{}, "spkiDer": base64.StdEncoding.EncodeToString(spki),
+			"use": use, "source": []string{trustBugURL}, "reported": "2026-10-17", "status": status}
+		if date != "" {
+			r["distrustDate"] = date
+		}
+		return r
+	}
+	data, err := json.Marshal(map[string]any{"keys": []any{
+		row(&compromised.PublicKey, "tls", "compromised", ""),
+		row(&root.PublicKey, "root", "distrusted", "2026-10-27"),
+	}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	table, err := parseTrustTable(data)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compromisedSPKI := sha256Hex(spkiOf(t, &compromised.PublicKey))
+	rootSPKI := sha256Hex(spkiOf(t, &root.PublicKey))
+
+	_, rootCert := generatedCert(t, 1, &root.PublicKey, root, true, nil)
+	_, compromisedCert := generatedCert(t, 2, &compromised.PublicKey, compromised, true, nil)
+	_, otherCert := generatedCert(t, 3, &other.PublicKey, other, true, nil)
+
+	cases := []struct {
+		name      string
+		der       []byte
+		rule      int
+		issuer    string
+		kind      string
+		valueType string
+	}{}
+	add := func(name string, der []byte, rule int, issuer, kind, valueType string) {
+		cases = append(cases, struct {
+			name      string
+			der       []byte
+			rule      int
+			issuer    string
+			kind      string
+			valueType string
+		}{name, der, rule, issuer, kind, valueType})
+	}
+	der, _ := generatedCert(t, 10, &other.PublicKey, compromised, false, compromisedCert)
+	add("leaf signed by a compromised key", der, 2, compromisedSPKI, "compromisedCaKey", "certSha256")
+	der, _ = generatedCert(t, 11, &other.PublicKey, root, true, rootCert)
+	add("intermediate signed by a distrusted root", der, 4, rootSPKI, "distrustedRoot", "certSha256")
+	der, _ = generatedCert(t, 12, &root.PublicKey, root, true, nil)
+	add("the self-signed root meets rule 3, not 4", der, 3, "", "distrustedRoot", "spkiSha256")
+	der, _ = generatedCert(t, 13, &compromised.PublicKey, root, true, rootCert)
+	add("a compromised key signed by the root meets rule 1, not 4", der, 1, "", "compromisedCaKey", "spkiSha256")
+	der, _ = generatedCert(t, 14, &root.PublicKey, compromised, true, compromisedCert)
+	add("the root's key signed by a compromised key meets rule 2, not 3", der, 2, compromisedSPKI, "compromisedCaKey", "certSha256")
+	der, _ = generatedCert(t, 15, &other.PublicKey, other, true, otherCert)
+	add("an unlisted self-signed certificate", der, 0, "", "", "")
+
+	for _, c := range cases {
+		m, ok := matchTrustBlock(table, pemLines(c.der))
+		if c.rule == 0 {
+			if ok {
+				t.Errorf("%s: met rule %d", c.name, m.rule)
+			}
+			continue
+		}
+		if !ok {
+			t.Errorf("%s: met no rule", c.name)
+			continue
+		}
+		md := m.metadata()
+		want := sha256Hex(c.der)
+		if c.valueType == "spkiSha256" {
+			cert, _ := x509.ParseCertificate(c.der)
+			want = sha256Hex(cert.RawSubjectPublicKeyInfo)
+		}
+		if m.rule != c.rule || md["issuerSpkiSha256"] != c.issuer || md["kind"] != c.kind || md["valueType"] != c.valueType || md["matchedValue"] != want {
+			t.Errorf("%s: rule %d, metadata %v; want rule %d, issuer %q, kind %q, %s %s", c.name, m.rule, md, c.rule, c.issuer, c.kind, c.valueType, want)
+		}
+		if _, dated := md["distrustDate"]; dated != (c.kind == "distrustedRoot") {
+			t.Errorf("%s: distrustDate present = %v, want it on a distrusted-root finding only", c.name, dated)
+		}
+	}
+}
+
+// The block reader accepts what OpenSSL and LibreSSL read from the same lines
+// and nothing looser, so a finding's Verify command always recomputes its
+// value; anything else raises no finding.
+func TestCertificateBlockReadsOnlyWhatOpenSSLReads(t *testing.T) {
+	good := readFixtureBlocks(t, "root")[0]
+	lines := good.lines[good.index:]
+	end := slices.Index(lines, pemCertificateEnd)
+	if end < 0 {
+		t.Fatal("fixture root has no end line")
+	}
+	block := slices.Clone(lines[:end+1])
+	edit := func(f func([]string) []string) []string { return f(slices.Clone(block)) }
+
+	accept := map[string][]string{
+		"as written": block,
+		"CRLF line endings": edit(func(l []string) []string {
+			for i := range l {
+				l[i] += "\r"
+			}
+			return l
+		}),
+		"lines after it": append(slices.Clone(block), "trailing text", pemCertificateBegin),
+	}
+	tooLong := []string{pemCertificateBegin}
+	for len(tooLong) <= maxCertificateLines {
+		tooLong = append(tooLong, "AAAA")
+	}
+	tooLong = append(tooLong, pemCertificateEnd)
+	reject := map[string][]string{
+		"indented header":         edit(func(l []string) []string { l[0] = "  " + l[0]; return l }),
+		"text before the header":  edit(func(l []string) []string { l[0] = "cert: " + l[0]; return l }),
+		"space after the header":  edit(func(l []string) []string { l[0] += " "; return l }),
+		"space in a body line":    edit(func(l []string) []string { l[1] = " " + l[1]; return l }),
+		"empty body line":         edit(func(l []string) []string { return slices.Insert(l, 2, "") }),
+		"no end line":             edit(func(l []string) []string { return l[:len(l)-1] }),
+		"indented end line":       edit(func(l []string) []string { l[len(l)-1] = " " + l[len(l)-1]; return l }),
+		"a non-base64 character":  edit(func(l []string) []string { l[1] = "!" + l[1][1:]; return l }),
+		"another header inside":   edit(func(l []string) []string { return slices.Insert(l, 1, pemCertificateBegin) }),
+		"a private key block":     edit(func(l []string) []string { l[0] = "-----BEGIN PRIVATE KEY-----"; return l }),
+		"too many lines":          tooLong,
+		"an empty block":          {pemCertificateBegin, pemCertificateEnd},
+		"a truncated certificate": edit(func(l []string) []string { return append(l[:2], l[len(l)-1]) }),
+	}
+	for name, l := range accept {
+		if _, ok := certificateBlock(l); !ok {
+			t.Errorf("%s: block not read", name)
+		}
+		if _, ok := matchTrustBlock(trustKeys(), l); !ok {
+			t.Errorf("%s: the removed root met no rule", name)
+		}
+	}
+	for name, l := range reject {
+		if _, ok := matchTrustBlock(trustKeys(), l); ok {
+			t.Errorf("%s: a rule was met", name)
+		}
+	}
+
+	// A broken block does not borrow the end line of the block after it: the
+	// broken header raises nothing and the next header raises its own finding.
+	broken := append(edit(func(l []string) []string { return l[:len(l)-1] }), block...)
+	m := NewMatcher()
+	fileCtx := analyzer.Analyze("bundle.pem")
+	var lines2 []int
+	for i := range broken {
+		for _, f := range m.MatchInFile(broken, i, "bundle.pem", fileCtx, analyzer.AnalyzeLine(broken[i], fileCtx.Language, nil)) {
+			if strings.HasPrefix(f.ID, "TRUST-") {
+				lines2 = append(lines2, f.Line)
+			}
+		}
+	}
+	if want := []int{end + 1}; !slices.Equal(lines2, want) {
+		t.Errorf("trust findings on lines %v, want %v", lines2, want)
+	}
+}
+
+// Nothing the rules or their texts depend on reads the clock: the same tree
+// gives the same findings before and after a date in the texts.
+func TestTrustCodeReadsNoClock(t *testing.T) {
+	for _, dir := range []string{".", "../analyzer"} {
+		files, err := filepath.Glob(filepath.Join(dir, "*.go"))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, file := range files {
+			if strings.HasSuffix(file, "_test.go") {
+				continue
+			}
+			f, err := parser.ParseFile(token.NewFileSet(), file, nil, parser.ImportsOnly)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, imp := range f.Imports {
+				if imp.Path.Value == `"time"` {
+					t.Errorf("%s imports time", file)
+				}
+			}
+		}
+	}
+	src, err := os.ReadFile("trust.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// x509's Verify checks validity against the clock; the rules use
+	// CheckSignature, which does not.
+	if strings.Contains(string(src), ".Verify(") {
+		t.Error("trust.go calls Verify, which reads the clock")
+	}
+}
+
+var relativeDate = regexp.MustCompile(`(?i)\b(today|tomorrow|yesterday|tonight|now|ago|soon|recently|currently|this (week|month|year)|next (week|month|year)|last (week|month|year)|days?|weeks?|months?|years?|hours?)\b`)
+
+// The texts carry absolute dates only, no relative date or countdown, and no
+// dash the writing standard leaves out.
+func TestTrustTextsStateNoRelativeDate(t *testing.T) {
+	var texts []string
+	for _, s := range trustDescriptions {
+		texts = append(texts, s)
+	}
+	for _, s := range trustFixes {
+		texts = append(texts, s)
+	}
+	for _, s := range trustImpacts {
+		texts = append(texts, s)
+	}
+	date := regexp.MustCompile(`\b\d{4}-\d{2}-\d{2}\b`)
+	for _, s := range texts {
+		if m := relativeDate.FindString(s); m != "" {
+			t.Errorf("relative time %q in %q", m, s)
+		}
+		if strings.ContainsAny(s, "\u2014\u2013") {
+			t.Errorf("em or en dash in %q", s)
+		}
+		for _, d := range date.FindAllString(s, -1) {
+			if _, err := time.Parse("2006-01-02", d); err != nil {
+				t.Errorf("date %q in %q: %v", d, s, err)
+			}
+		}
+	}
+}

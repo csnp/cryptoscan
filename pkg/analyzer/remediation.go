@@ -7,6 +7,7 @@ package analyzer
 import (
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/csnp/cryptoscan/pkg/types"
@@ -67,6 +68,16 @@ func (r *RemediationEngine) GetRemediation(finding *types.Finding, lang Language
 // the language-specific text when the engine has it and from the pattern's
 // remediation otherwise.
 func (r *RemediationEngine) Apply(f *types.Finding) {
+	// A trust finding's check chose its Fix by the use of the listed key and
+	// sets no Guidance. Its Verify recomputes the value the finding matched
+	// rather than printing the line, and is written here, where the report's
+	// paths are final.
+	if f.IsTrust() {
+		f.Verify = TrustVerifyCommand(f)
+		f.Guidance = ""
+		return
+	}
+
 	f.Verify = VerifyCommand(f)
 	f.Fix, f.Guidance = "", ""
 
@@ -120,6 +131,27 @@ func VerifyCommand(f *types.Finding) string {
 		return ""
 	}
 	return fmt.Sprintf("sed -n '%dp' %s", f.Line, shellPath(f.File))
+}
+
+// trustVerifyCommands are the commands that print a trust finding's matched
+// value, by its value type, from the certificate block whose header is line
+// LINE of FILE. They use awk and openssl only and read no network, and they
+// print the bare lowercase hex value, which OpenSSL and LibreSSL print alike.
+var trustVerifyCommands = map[string]string{
+	"spkiSha256": `awk 'NR>=LINE' FILE | openssl x509 -noout -pubkey | openssl pkey -pubin -outform DER | openssl dgst -sha256 -binary | od -An -tx1 | tr -d ' \n'`,
+	"certSha256": `awk 'NR>=LINE' FILE | openssl x509 -outform DER | openssl dgst -sha256 -binary | od -An -tx1 | tr -d ' \n'`,
+}
+
+// TrustVerifyCommand returns the command that prints a trust finding's
+// matched value from the file the report names, or "" when the finding has no
+// file, line or known value type.
+func TrustVerifyCommand(f *types.Finding) string {
+	cmd, ok := trustVerifyCommands[f.Metadata["valueType"]]
+	if !ok || f.File == "" || f.Line < 1 {
+		return ""
+	}
+	// One pass, so a path that contains LINE or FILE is left as it is.
+	return strings.NewReplacer("LINE", strconv.Itoa(f.Line), "FILE", shellPath(f.File)).Replace(cmd)
 }
 
 // shellPath quotes a path as a command argument, and keeps a path that starts

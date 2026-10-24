@@ -27,6 +27,12 @@ type Pattern struct {
 	Tags        []string
 	KeySize     int // If pattern detects specific key size
 	Algorithm   string
+
+	// trustStatus is set on the Trust patterns: the key table status whose
+	// keys the pattern reports. A Trust pattern's match is only the header of
+	// a PEM certificate block, and it raises a finding only when that block
+	// decodes and meets a key rule (trust.go).
+	trustStatus string
 }
 
 // Matcher holds all patterns and performs matching
@@ -55,6 +61,10 @@ func (m *Matcher) Match(line, file string, lineNum int) []types.Finding {
 	var findings []types.Finding
 
 	for _, p := range m.patterns {
+		// A Trust pattern needs the lines after its match.
+		if p.trustStatus != "" {
+			continue
+		}
 		matches := p.Regex.FindAllStringIndex(line, -1)
 		for _, match := range matches {
 			findings = append(findings, types.Finding{
@@ -89,13 +99,51 @@ func truncateContext(s string, maxLen int) string {
 	return s[:maxLen-3] + "..."
 }
 
-// MatchWithContext checks a line against all patterns with file and line context
+// MatchWithContext checks a line against all patterns with file and line
+// context. The Trust patterns decode the certificate block that starts at
+// their match, which needs the lines after it, so they report nothing here;
+// MatchInFile runs them.
 func (m *Matcher) MatchWithContext(line, file string, lineNum int, fileCtx *analyzer.FileContext, lineCtx *analyzer.LineContext) []types.Finding {
+	return m.matchLine(line, nil, file, lineNum, fileCtx, lineCtx)
+}
+
+// MatchInFile checks lines[index], line index+1 of a file, against all
+// patterns. It reports what MatchWithContext reports for that line, and the
+// findings of the Trust patterns, which decode the certificate block whose
+// header is that line.
+func (m *Matcher) MatchInFile(lines []string, index int, file string, fileCtx *analyzer.FileContext, lineCtx *analyzer.LineContext) []types.Finding {
+	return m.matchLine(lines[index], lines[index:], file, index+1, fileCtx, lineCtx)
+}
+
+// matchLine checks line against all patterns. following holds line and the
+// lines after it in the file, or is nil when they are not known.
+func (m *Matcher) matchLine(line string, following []string, file string, lineNum int, fileCtx *analyzer.FileContext, lineCtx *analyzer.LineContext) []types.Finding {
 	var findings []types.Finding
+
+	// Both Trust patterns match the same header, so the block is decoded
+	// and checked once, for the first of them.
+	var block *trustMatch
+	blockChecked := false
 
 	for _, p := range m.patterns {
 		matches := p.Regex.FindAllStringIndex(line, -1)
 		for _, match := range matches {
+			if p.trustStatus != "" {
+				// The header must open its line, as openssl reads it, or
+				// the printed Verify command could not recompute the value.
+				if following == nil || match[0] != 0 {
+					continue
+				}
+				if !blockChecked {
+					block, _ = matchTrustBlock(trustKeys(), following)
+					blockChecked = true
+				}
+				if block != nil && block.key.Status == p.trustStatus {
+					findings = append(findings, newTrustFinding(p, block, line, match, file, lineNum, fileCtx))
+				}
+				continue
+			}
+
 			finding := types.Finding{
 				ID:          fmt.Sprintf("%s-%d-%d", p.ID, lineNum, match[0]),
 				Type:        p.Name,
@@ -181,6 +229,36 @@ func (m *Matcher) MatchWithContext(line, file string, lineNum int, fileCtx *anal
 	return findings
 }
 
+// newTrustFinding builds the finding a Trust pattern raises for a block that
+// meets one of the key rules. Its severity is the pattern's wherever the file
+// sits: the location and wording heuristics applied to the other patterns
+// estimate whether a match of their expression is a real use, and a decoded
+// certificate whose key is listed needs no estimate.
+func newTrustFinding(p Pattern, m *trustMatch, line string, match []int, file string, lineNum int, fileCtx *analyzer.FileContext) types.Finding {
+	f := types.Finding{
+		ID:         fmt.Sprintf("%s-%d-%d", p.ID, lineNum, match[0]),
+		Type:       p.Name,
+		Category:   p.Category,
+		File:       file,
+		Line:       lineNum,
+		Column:     match[0] + 1,
+		Match:      line[match[0]:match[1]],
+		Context:    truncateContext(line, 120),
+		Severity:   p.Severity,
+		Quantum:    p.Quantum,
+		References: p.References,
+		Tags:       p.Tags,
+	}
+	if fileCtx != nil {
+		f.Language = string(fileCtx.Language)
+		f.FileType = string(fileCtx.FileType)
+	}
+	trustFinding(&f, m)
+	f.Impact = determineImpact(f)
+	f.Effort = determineEffort(f)
+	return f
+}
+
 // determineFindingType categorizes the pattern type
 func determineFindingType(p Pattern) types.FindingType {
 	switch p.Category {
@@ -218,8 +296,18 @@ var classicalBreaks = map[string]string{
 	"Blowfish": "its 64-bit block lets an attacker recover data from long sessions (the Sweet32 attack)",
 }
 
+// trustImpacts is the impact of a trust finding by its kind. The risk is a
+// key compromised or distrusted already, which no quantum migration changes.
+var trustImpacts = map[string]string{
+	"compromisedCaKey": "The listed CA key is already compromised, without a quantum computer: independent parties recovered its private key.",
+	"distrustedRoot":   "A trust change, not a quantum risk: chains that end at this root stop validating in browsers that no longer trust it.",
+}
+
 // determineImpact returns business impact description
 func determineImpact(f types.Finding) string {
+	if f.FindingType == types.FindingTypeTrust {
+		return trustImpacts[f.Metadata[TrustMetaKind]]
+	}
 	if f.FindingType == types.FindingTypeSecret {
 		return "Critical: Exposed cryptographic secrets can lead to complete system compromise"
 	}
@@ -687,6 +775,43 @@ func (m *Matcher) loadPatterns() {
 		Description: "EC private key found in source code. Both a secret exposure and quantum-vulnerable algorithm.",
 		Remediation: "Remove from source. Plan migration to ML-DSA keys.",
 		Tags:        []string{"secret", "key", "quantum-vulnerable", "critical"},
+	})
+
+	// ============================================
+	// TRUST PATTERNS
+	// ============================================
+	// A certificate whose public key, or the key its signature verifies
+	// under, is in the trust key table (trust.go). The header is only the
+	// trigger: the block must decode and meet a key rule, and no subject or
+	// issuer name is read. They come before the certificate inventory
+	// pattern, so their findings on a header line are listed before its.
+
+	m.patterns = append(m.patterns, Pattern{
+		ID:          TrustCompromisedKeyID,
+		Name:        "Certificate with a publicly compromised CA key",
+		Category:    types.CategoryTrust,
+		Regex:       regexp.MustCompile(regexp.QuoteMeta(pemCertificateBegin)),
+		Severity:    types.SeverityCritical,
+		Quantum:     types.QuantumUnknown,
+		Description: trustDescriptions[1],
+		Remediation: "TLS key: " + trustFixes["tls"] + " Code-signing key: " + trustFixes["codeSigning"],
+		References:  []string{trustCompromisedKeyURL},
+		Tags:        []string{"trust", "certificate", "ca", "compromised-key", "revoked", "emudhra"},
+		trustStatus: trustStatusCompromised,
+	})
+
+	m.patterns = append(m.patterns, Pattern{
+		ID:          TrustDistrustedRootID,
+		Name:        "Certificate chain anchored on a root removed from browser trust stores",
+		Category:    types.CategoryTrust,
+		Regex:       regexp.MustCompile(regexp.QuoteMeta(pemCertificateBegin)),
+		Severity:    types.SeverityHigh,
+		Quantum:     types.QuantumUnknown,
+		Description: trustDescriptions[3],
+		Remediation: trustFixes["root"],
+		References:  []string{trustDistrustedRootURL},
+		Tags:        []string{"trust", "certificate", "root", "distrusted", "trust-store", "emudhra"},
+		trustStatus: trustStatusDistrusted,
 	})
 
 	// ============================================

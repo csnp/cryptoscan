@@ -1,0 +1,9 @@
+# The pubKeyHash (base64 SHA-256 of the SubjectPublicKeyInfo) of the six
+# OneCRL records that cite https://bugzilla.mozilla.org/show_bug.cgi?id=2083382,
+# read from the OneCRL collection by a script. Columns: value, name.
+4CVMf83CZeLw+KQo2rt1q0rgObSHLWL17lfwh31aikE= EM EV TLS CA - G3B
+Q7/6GdbvZRRR9oQeAZkx6W9vLq7/KKtLbxzkV23icXs= EM OV TLS CA - G3B
+6+1kdcLC2A/LGZ8/6N1uazzmC3frFdTkLD3sDG9bUQU= EM DV TLS CA - G3B
+XAZgorFkkQ2P9YnBjhRVLp4Owjfc7+LLc21BpIEfgaA= EM EV TLS CA - G3C
+Y+zv7kMdSVI7wRNsTnLQIGpHcIbK9gbNXPAlaGwQnPg= EM OV TLS CA - G3C
+Sd01PcK5GaN3BkURfQ5gwWEV59G8JZ7v5zSwDqQ0/l8= EM DV TLS CA - G3C

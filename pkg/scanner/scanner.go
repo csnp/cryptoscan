@@ -1412,8 +1412,10 @@ func (s *Scanner) scanFile(path string) error {
 			continue
 		}
 
-		// Run pattern matching with context
-		matches := s.patterns.MatchWithContext(line, path, lineNum, fileCtx, lineCtx)
+		// Run pattern matching with context. The matcher is given the whole
+		// file, so a pattern that decodes the block a match opens, such as a
+		// certificate, can read the lines after it.
+		matches := s.patterns.MatchInFile(allLines, lineNum-1, path, fileCtx, lineCtx)
 
 		for _, m := range matches {
 			// Apply confidence filter
@@ -1845,6 +1847,13 @@ func countByEvidence(scanned, reported []Finding) (byKind, withheld map[string]i
 // shouldIncludeFinding applies noise reduction filters.
 // Returns false if the finding should be suppressed based on config.
 func (s *Scanner) shouldIncludeFinding(f types.Finding) bool {
+	// A trust finding is a decoded certificate whose key is listed, not an
+	// expression match that may be noise, so no filter below applies to it:
+	// a listed key in a documentation directory is still a listed key.
+	if f.IsTrust() {
+		return true
+	}
+
 	// Skip library import findings unless explicitly included
 	// These are low-value (just import statements, not actual crypto usage)
 	if !s.config.IncludeImports && f.Category == "Library Import" {

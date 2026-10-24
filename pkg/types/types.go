@@ -160,7 +160,14 @@ const (
 	FindingTypeConfig     FindingType = "config"     // Configuration setting
 	FindingTypeSecret     FindingType = "secret"     // Exposed key/secret
 	FindingTypeProtocol   FindingType = "protocol"   // Protocol configuration (TLS, etc.)
+	FindingTypeTrust      FindingType = "trust"      // Certificate whose key, or whose issuer's key, is listed
 )
+
+// CategoryTrust is the category of the findings raised when a certificate's
+// public key, or the key its signature verifies under, is one the trust key
+// table lists. They are trust findings, not quantum findings: the migration
+// score, the QRAMM levels and the CBOM components leave them out.
+const CategoryTrust = "Trust"
 
 // SourceContext represents lines of source code around a finding
 type SourceContext struct {
@@ -249,6 +256,12 @@ func (f Finding) MarshalJSON() ([]byte, error) {
 	return json.Marshal(out)
 }
 
+// IsTrust reports whether the finding is a trust finding, one in the
+// CategoryTrust category.
+func (f *Finding) IsTrust() bool {
+	return f.Category == CategoryTrust
+}
+
 // Priority calculates a priority score for sorting (higher = more urgent)
 func (f *Finding) Priority() int {
 	score := 0
@@ -329,6 +342,10 @@ type MigrationScore struct {
 	// scanned directory; they are weighted the same as every other finding.
 	Method                string `json:"method"`
 	TestDirectoryFindings int    `json:"testDirectoryFindings"`
+
+	// TrustFindings counts the trust findings left out of every count above.
+	// Method states it, so it is not serialized on its own.
+	TrustFindings int `json:"-"`
 }
 
 // FileRiskScore represents risk score for a single file

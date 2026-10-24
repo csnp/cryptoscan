@@ -192,6 +192,12 @@ var nonAssetCategories = map[string]bool{
 // that names an algorithm always does. The other report formats list every
 // finding whatever this returns.
 func isCryptoAsset(f scanner.Finding) bool {
+	// A trust finding says whom a certificate makes a reader trust, not which
+	// cryptographic asset it is; the certificate itself is already a
+	// component through the inventory pattern that matches the same header.
+	if f.IsTrust() {
+		return false
+	}
 	return f.Algorithm != "" || !nonAssetCategories[strings.ToLower(strings.TrimSpace(f.Category))]
 }
 

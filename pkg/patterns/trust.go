@@ -266,12 +266,21 @@ func isBase64Line(line string) bool {
 		return false
 	}
 	for i := 0; i < len(line); i++ {
-		c := line[i]
-		if !('A' <= c && c <= 'Z' || 'a' <= c && c <= 'z' || '0' <= c && c <= '9' || c == '+' || c == '/' || c == '=') {
+		if !isBase64Char(line[i]) {
 			return false
 		}
 	}
 	return true
+}
+
+// isBase64Char reports whether c is in the standard base64 alphabet or is
+// its padding character.
+func isBase64Char(c byte) bool {
+	switch {
+	case 'A' <= c && c <= 'Z', 'a' <= c && c <= 'z', '0' <= c && c <= '9':
+		return true
+	}
+	return c == '+' || c == '/' || c == '='
 }
 
 // matchTrustBlock decodes the certificate block whose header is lines[0] and

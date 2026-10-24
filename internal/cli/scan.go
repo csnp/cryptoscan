@@ -458,7 +458,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	}
 
 	// Run scanner
-	startTime := time.Now()
+	startTime := clock()
 	s := scanner.New(cfg)
 	results, err := s.Scan()
 	if err != nil {
@@ -471,7 +471,7 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 		}
 		return nil, "", withHint(err, scanErrorHint(err))
 	}
-	duration := time.Since(startTime)
+	duration := clock().Sub(startTime)
 
 	// Matches are listed as they are found, before deduplication and before
 	// any baseline is applied, so the footer is printed once the report's own
@@ -1076,6 +1076,11 @@ func clearProgressLine() {
 	}
 	fmt.Print("\r\033[K")
 }
+
+// clock is where the scan reads the time it reports as its start and the
+// duration it reports. It is a variable so that a test can set the date and
+// show that nothing else in the report depends on it.
+var clock = time.Now
 
 // isTerminal reports whether f is attached to a terminal. A redirected or
 // piped stream is a character device only when it is a terminal, so this

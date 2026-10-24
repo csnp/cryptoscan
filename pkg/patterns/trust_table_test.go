@@ -93,7 +93,11 @@ func readLines(t *testing.T, path string) []string {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer f.Close()
+	defer func() {
+		if err := f.Close(); err != nil {
+			t.Error(err)
+		}
+	}()
 	var lines []string
 	s := bufio.NewScanner(f)
 	for s.Scan() {

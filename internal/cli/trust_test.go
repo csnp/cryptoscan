@@ -517,3 +517,42 @@ func TestTrustOutputDoesNotDependOnTheDate(t *testing.T) {
 		}
 	}
 }
+
+// shellWord is one word of a command as a shell splits it, for the commands
+// the finding pages cite: a double-quoted string or a run of other text.
+var shellWord = regexp.MustCompile(`"[^"]*"|[^\s"]+`)
+
+// Every cryptoscan command the two finding pages cite names a subcommand and
+// flags the tool registers, so no command on a page is a dead end.
+func TestTrustPagesCiteRegisteredCommands(t *testing.T) {
+	commands := map[string]*cobra.Command{"scan": scanCmd, "gate": gateCmd}
+	cited := regexp.MustCompile("`(cryptoscan [^`]+)`")
+	checked := 0
+	for _, page := range []string{"trust-compromised-key.md", "trust-distrusted-root.md"} {
+		data, err := os.ReadFile(filepath.Join("../../docs/findings", page))
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, m := range cited.FindAllStringSubmatch(string(data), -1) {
+			words := shellWord.FindAllString(m[1], -1)
+			cmd, ok := commands[words[1]]
+			if !ok {
+				t.Errorf("%s cites %q, whose subcommand %q is not scan or gate", page, m[1], words[1])
+				continue
+			}
+			args := make([]string, 0, len(words)-2)
+			for _, w := range words[2:] {
+				args = append(args, strings.Trim(w, `"`))
+			}
+			resetScanFlags(t)
+			resetGateFlags(t)
+			if err := cmd.ParseFlags(args); err != nil {
+				t.Errorf("%s cites %q: %v", page, m[1], err)
+			}
+			checked++
+		}
+	}
+	if checked == 0 {
+		t.Fatal("the pages cite no cryptoscan command, so this test checks nothing")
+	}
+}

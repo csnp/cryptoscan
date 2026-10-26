@@ -12,7 +12,8 @@ import (
 	"github.com/csnp/cryptoscan/pkg/types"
 )
 
-// wantTrustPatterns are the two Trust patterns as the product ruling sets them.
+// wantTrustPatterns are the two Trust patterns: ID, name, severity, finding
+// page and tags.
 var wantTrustPatterns = []struct {
 	id, name  string
 	severity  types.Severity

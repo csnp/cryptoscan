@@ -30,8 +30,8 @@ const (
 	distrustedRootID = "TRUST-DISTRUSTED-ROOT-001"
 )
 
-// trustFixes are the three Fix strings, by key use, as the product ruling
-// words them.
+// trustFixes are the three Fix strings, by key use, as the finding pages
+// word them.
 var trustFixes = map[string]string{
 	"tls":         "Replace the chain with one issued by a CA none of whose keys is listed, and remove this certificate from any bundle or pin set you ship.",
 	"codeSigning": "Re-sign the artifacts with a certificate from a CA none of whose keys is listed and republish; a verifier that checks revocation rejects signatures under this key.",
@@ -431,8 +431,8 @@ func TestTrustIgnoreRemovesOnlyTheNamedKind(t *testing.T) {
 	}
 }
 
-// The fixture holds what the product ruling lists: the sixteen intermediate
-// certificates, the removed root, one leaf, and three control roots.
+// The fixture holds the sixteen intermediate certificates, the removed root,
+// one leaf, and three control roots.
 func TestTrustFixtureInventory(t *testing.T) {
 	want := map[string]int{"tls": 12, "codesigning": 4, "root": 1, "leaf": 1, "control": 3}
 	for dir, n := range want {

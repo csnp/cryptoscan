@@ -42,8 +42,8 @@ var trustPages = map[string]string{
 	distrustedRootID: "https://github.com/csnp/cryptoscan/blob/main/docs/findings/trust-distrusted-root.md",
 }
 
-// trustFixStrings are the three Fix strings, by key use, as the product
-// ruling words them.
+// trustFixStrings are the three Fix strings, by key use, as the finding pages
+// word them.
 var trustFixStrings = map[string]string{
 	"tls":         "Replace the chain with one issued by a CA none of whose keys is listed, and remove this certificate from any bundle or pin set you ship.",
 	"codeSigning": "Re-sign the artifacts with a certificate from a CA none of whose keys is listed and republish; a verifier that checks revocation rejects signatures under this key.",

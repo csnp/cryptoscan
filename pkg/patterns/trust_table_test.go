@@ -55,7 +55,7 @@ func readFixtureBlocks(t *testing.T, dirs ...string) []fixtureBlock {
 	t.Helper()
 	var blocks []fixtureBlock
 	for _, dir := range dirs {
-		files, err := filepath.Glob(filepath.Join(trustFixtureDir, dir, "*.pem"))
+		files, err := filepath.Glob(filepath.Join(trustFixtureDir, dir, "*.crt"))
 		if err != nil || len(files) == 0 {
 			t.Fatalf("no fixture certificates in %s (%v)", dir, err)
 		}
@@ -129,7 +129,7 @@ func TestTrustKeyTableRecomputesFromFixtures(t *testing.T) {
 		if g.dir != b.dir {
 			t.Errorf("key %s has certificates in %s and %s", spki, g.dir, b.dir)
 		}
-		if name := filepath.Base(b.path); name != sha256Hex(b.der)+".pem" {
+		if name := filepath.Base(b.path); name != sha256Hex(b.der)+".crt" {
 			t.Errorf("%s is not named by its SHA-256 %s", b.path, sha256Hex(b.der))
 		}
 		g.certs = append(g.certs, sha256Hex(b.der))

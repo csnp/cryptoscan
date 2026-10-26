@@ -100,7 +100,7 @@ func TestTrustFixtureGivesOneFindingPerCertificate(t *testing.T) {
 	}
 	expected := 0
 	for dir, w := range want {
-		files, _ := filepath.Glob(filepath.Join(trustFixture, dir, "*.pem"))
+		files, _ := filepath.Glob(filepath.Join(trustFixture, dir, "*.crt"))
 		if len(files) == 0 {
 			t.Fatalf("no fixture certificates in %s", dir)
 		}
@@ -254,10 +254,10 @@ func TestTrustVerifyPrintsTheMatchedValue(t *testing.T) {
 	bins := opensslBinaries(t)
 
 	dir := t.TempDir()
-	root, _ := filepath.Glob(filepath.Join(trustFixture, "root", "*.pem"))
-	tls, _ := filepath.Glob(filepath.Join(trustFixture, "tls", "*.pem"))
-	leaf, _ := filepath.Glob(filepath.Join(trustFixture, "leaf", "*.pem"))
-	control, _ := filepath.Glob(filepath.Join(trustFixture, "control", "*.pem"))
+	root, _ := filepath.Glob(filepath.Join(trustFixture, "root", "*.crt"))
+	tls, _ := filepath.Glob(filepath.Join(trustFixture, "tls", "*.crt"))
+	leaf, _ := filepath.Glob(filepath.Join(trustFixture, "leaf", "*.crt"))
+	control, _ := filepath.Glob(filepath.Join(trustFixture, "control", "*.crt"))
 	if len(root) == 0 || len(tls) == 0 || len(leaf) == 0 || len(control) == 0 {
 		t.Fatal("fixture certificates missing")
 	}
@@ -330,8 +330,8 @@ func TestTrustFindingsAreNotInTheReadinessScore(t *testing.T) {
 
 // A file holding a certificate of each kind gives two findings, one per block.
 func TestTrustFileHoldingBothKindsGivesTwoFindings(t *testing.T) {
-	root, _ := filepath.Glob(filepath.Join(trustFixture, "root", "*.pem"))
-	tls, _ := filepath.Glob(filepath.Join(trustFixture, "tls", "*.pem"))
+	root, _ := filepath.Glob(filepath.Join(trustFixture, "root", "*.crt"))
+	tls, _ := filepath.Glob(filepath.Join(trustFixture, "tls", "*.crt"))
 	if len(root) == 0 || len(tls) == 0 {
 		t.Fatal("fixture certificates missing")
 	}
@@ -362,7 +362,7 @@ func TestTrustFileHoldingBothKindsGivesTwoFindings(t *testing.T) {
 // which a scan reads when documentation is included, it keeps the ruled
 // severity.
 func TestTrustFindingKeepsItsSeverityInTestsAndDocs(t *testing.T) {
-	leaf, _ := filepath.Glob(filepath.Join(trustFixture, "leaf", "*.pem"))
+	leaf, _ := filepath.Glob(filepath.Join(trustFixture, "leaf", "*.crt"))
 	if len(leaf) == 0 {
 		t.Fatal("no leaf fixture")
 	}
@@ -436,7 +436,7 @@ func TestTrustIgnoreRemovesOnlyTheNamedKind(t *testing.T) {
 func TestTrustFixtureInventory(t *testing.T) {
 	want := map[string]int{"tls": 12, "codesigning": 4, "root": 1, "leaf": 1, "control": 3}
 	for dir, n := range want {
-		files, _ := filepath.Glob(filepath.Join(trustFixture, dir, "*.pem"))
+		files, _ := filepath.Glob(filepath.Join(trustFixture, dir, "*.crt"))
 		count := 0
 		for _, f := range files {
 			data, err := os.ReadFile(f)

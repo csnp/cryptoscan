@@ -64,17 +64,17 @@ var trustKinds = map[string]string{
 
 // trustDescriptions is the description of a finding by the rule that raised it.
 var trustDescriptions = map[int]string{
-	1: "The certificate's public key is one of the eight eMudhra intermediate CA keys whose private keys were recovered by independent parties (Mozilla Bug 2083449, reported 2026-10-17). eMudhra revoked these certificates on 2026-10-18 and the browser root programs block the keys: a bundle that still trusts this key accepts certificates anyone can mint, and a chain through it no longer validates.",
-	2: "The certificate is signed by one of the eight eMudhra intermediate CA keys whose private keys were recovered by independent parties (Mozilla Bug 2083449, reported 2026-10-17). Its issuer is revoked, so this chain no longer validates.",
-	3: "This certificate is emSign ECC Root CA - G3. After the eMudhra intermediate key compromise (Mozilla Bug 2083449), Mozilla removed this root in an emergency change and Chrome removes it for all devices on 2026-10-27, so chains that end here stop validating in browsers.",
-	4: "This certificate chains to emSign ECC Root CA - G3: its signature verifies under that root's key. Mozilla removed the root in an emergency change and Chrome removes it for all devices on 2026-10-27, so this chain stops validating in browsers.",
+	1: "The certificate's public key is one of the eight eMudhra intermediate CA keys whose private keys were recovered by independent parties (Mozilla Bug 2083449). eMudhra revoked its certificates for these keys on 2026-10-18. Software that checks revocation rejects chains through this key; software that does not, and still trusts the key, accepts any certificate signed with it, including ones the CA never issued.",
+	2: "The certificate is signed by one of the eight eMudhra intermediate CA keys whose private keys were recovered by independent parties (Mozilla Bug 2083449). Its issuer is revoked, so software that checks revocation rejects this chain.",
+	3: "This certificate is emSign ECC Root CA - G3. After the eMudhra intermediate key compromise (Mozilla Bug 2083449), Mozilla removed this root from its root store on 2026-10-20, and Chrome's removal date for all devices is 2026-10-27. A client stops trusting chains that end here once its copy of Mozilla's or Chrome's root store drops the root.",
+	4: "This certificate chains to emSign ECC Root CA - G3: its signature verifies under that root's key. Mozilla removed the root from its root store on 2026-10-20, and Chrome's removal date for all devices is 2026-10-27. A client stops trusting this chain once its copy of Mozilla's or Chrome's root store drops the root.",
 }
 
 // trustFixes is the fix of a finding by the use of the listed key it matched.
 var trustFixes = map[string]string{
 	"tls":         "Replace the chain with one issued by a CA none of whose keys is listed, and remove this certificate from any bundle or pin set you ship.",
-	"codeSigning": "Re-sign the artifacts with a certificate from a CA none of whose keys is listed and republish; a verifier that checks revocation rejects signatures under this key.",
-	"root":        "Move the chain to a CA whose root stays trusted, and remove emSign ECC Root CA - G3 from any bundle you ship; Chrome removes it for all devices on 2026-10-27.",
+	"codeSigning": "Re-sign the artifacts with a certificate from a CA none of whose keys is listed and republish; a verifier that checks revocation can reject signatures under this key.",
+	"root":        "Move the chain to a CA whose root stays trusted, and remove emSign ECC Root CA - G3 from any bundle you ship; Chrome's removal date for all devices is 2026-10-27.",
 }
 
 // The PEM lines of a certificate block, and how far past its header a block

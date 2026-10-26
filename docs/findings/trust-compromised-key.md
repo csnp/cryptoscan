@@ -5,7 +5,7 @@ CryptoScan reports this finding, at CRITICAL, for a PEM certificate in the scann
 1. the certificate's public key is one of the eight eMudhra intermediate CA keys listed below (rule 1), or
 2. the certificate's signature verifies under one of those keys (rule 2): an intermediate with a listed key issued it, whether or not that intermediate's certificate is in the file.
 
-The private keys of the eight intermediates were recovered by independent parties and reported in Mozilla Bug 2083449 on 2026-10-17. eMudhra revoked the eight on 2026-10-18 and the browser root programs block the keys. A bundle that still trusts one of these keys accepts certificates anyone can mint, and a chain through one of them no longer validates.
+The private keys of the eight intermediates were recovered independently by several parties, Mozilla among them, after a report to the root programs and to eMudhra on 2026-10-17 (Mozilla Bug 2083449, comments 0 and 18). eMudhra revoked its eight certificates on 2026-10-18, the cross-signed copies were revoked on 2026-10-19, and Chrome and Firefox block the six TLS keys. Software that checks revocation rejects chains through these keys. Software that does not, and still trusts a key, accepts any certificate signed with it, including ones the CA never issued.
 
 The match is made on the key, never on a name. CryptoScan decodes each certificate block and compares the SHA-256 of its DER SubjectPublicKeyInfo (its SPKI hash) with the listed keys, then checks its signature against each listed key. The key is compromised already, without a quantum computer, so the finding does not count toward the quantum migration readiness score, the QRAMM levels or the CBOM components.
 
@@ -61,9 +61,11 @@ Each key is listed by its SPKI hash and by the SHA-256 of each certificate known
 
 ## Dates
 
-- 2026-10-17: the key compromise is reported in Mozilla Bug 2083449.
-- 2026-10-18: eMudhra revokes the eight intermediates.
-- 2026-10-27: Chrome's removal of emSign ECC Root CA - G3 for all devices, reported as [TRUST-DISTRUSTED-ROOT-001](trust-distrusted-root.md).
+- 2026-10-17: the compromise is reported to the root programs and to eMudhra, and Mozilla recovers the keys independently (Mozilla Bug 2083449, comment 0).
+- 2026-10-18: Mozilla Bug 2083449 is opened, and eMudhra revokes its eight certificates (comment 1).
+- 2026-10-19: the cross-signed copies are revoked (comment 13).
+- 2026-10-20: Mozilla removes emSign ECC Root CA - G3 from its root store (comment 18 and Mozilla Bug 2084101); CryptoScan reports the root as [TRUST-DISTRUSTED-ROOT-001](trust-distrusted-root.md).
+- 2026-10-27: Chrome's removal date for the root on all devices, as given in Google's post of 2026-10-20.
 
 ## Verify
 
@@ -110,9 +112,10 @@ An SPKI hash from the table means the server sends a listed intermediate. A serv
 ## Fix
 
 - TLS key (`keyUse` `tls`): Replace the chain with one issued by a CA none of whose keys is listed, and remove this certificate from any bundle or pin set you ship.
-- Code-signing key (`keyUse` `codeSigning`): Re-sign the artifacts with a certificate from a CA none of whose keys is listed and republish; a verifier that checks revocation rejects signatures under this key.
+- Code-signing key (`keyUse` `codeSigning`): Re-sign the artifacts with a certificate from a CA none of whose keys is listed and republish; a verifier that checks revocation can reject signatures under this key.
 
 ## Sources
 
-- Mozilla Bug 2083449: <https://bugzilla.mozilla.org/show_bug.cgi?id=2083449>
-- Google's post on Chrome and Android: <https://blog.google/security/protecting-chrome-and-android-users-from-compromised-emudhra-intermediate-ca-certificates/>
+- Mozilla Bug 2083449, "eMudhra: Private key compromise of Intermediate Certificates", opened 2026-10-18: <https://bugzilla.mozilla.org/show_bug.cgi?id=2083449>. Comment 0 lists the eight certificates, comment 2 the cross-signed copies, and comment 18 records Mozilla's decision to remove trust in the root.
+- Mozilla Bug 2084101, the removal of emSign ECC Root CA - G3 from Mozilla's root store: <https://bugzilla.mozilla.org/show_bug.cgi?id=2084101>
+- Google's post of 2026-10-20 on Chrome and Android: <https://blog.google/security/protecting-chrome-and-android-users-from-compromised-emudhra-intermediate-ca-certificates/>

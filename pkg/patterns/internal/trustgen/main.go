@@ -117,7 +117,7 @@ func main() {
 func buildKeys(fixtures string) ([]*Key, error) {
 	var keys []*Key
 	for _, d := range useDirs {
-		files, err := filepath.Glob(filepath.Join(fixtures, d.dir, "*.pem"))
+		files, err := filepath.Glob(filepath.Join(fixtures, d.dir, "*.crt"))
 		if err != nil {
 			return nil, err
 		}
@@ -131,8 +131,8 @@ func buildKeys(fixtures string) ([]*Key, error) {
 				return nil, fmt.Errorf("%s: %w", file, err)
 			}
 			certHash := hexSHA256(der)
-			if filepath.Base(file) != certHash+".pem" {
-				return nil, fmt.Errorf("%s: name the file %s.pem, its SHA-256", file, certHash)
+			if filepath.Base(file) != certHash+".crt" {
+				return nil, fmt.Errorf("%s: name the file %s.crt, its SHA-256", file, certHash)
 			}
 			spki := hexSHA256(cert.RawSubjectPublicKeyInfo)
 			k, ok := bySPKI[spki]

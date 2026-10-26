@@ -3,7 +3,7 @@
 CryptoScan reports this finding, at CRITICAL, for a PEM certificate in the scanned files when:
 
 1. the certificate's public key is one of the eight eMudhra intermediate CA keys listed below (rule 1), or
-2. the certificate's signature verifies under one of those keys (rule 2): an intermediate with a listed key issued it, and that intermediate's certificate is not in the file.
+2. the certificate's signature verifies under one of those keys (rule 2): an intermediate with a listed key issued it, whether or not that intermediate's certificate is in the file.
 
 The private keys of the eight intermediates were recovered by independent parties and reported in Mozilla Bug 2083449 on 2026-10-17. eMudhra revoked the eight on 2026-10-18 and the browser root programs block the keys. A bundle that still trusts one of these keys accepts certificates anyone can mint, and a chain through one of them no longer validates.
 

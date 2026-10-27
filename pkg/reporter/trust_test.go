@@ -82,8 +82,10 @@ func TestTrustFindingsAreNotCBOMComponents(t *testing.T) {
 }
 
 // In SARIF, each trust rule's helpUri is its finding page and each trust
-// result carries the trust fields under the JSON report's names. No other
-// rule gets a helpUri and no other result gets the trust fields.
+// result carries the trust fields under the JSON report's names, the rule
+// number (trustRule) as an integer from 1 to 4. No other rule gets a helpUri,
+// no other result gets the trust fields, and no result carries a property
+// named rule.
 func TestTrustSARIFRulesAndResults(t *testing.T) {
 	out, err := NewSARIFReporter().Generate(scanTrustFixture(t))
 	if err != nil {
@@ -124,7 +126,7 @@ func TestTrustSARIFRulesAndResults(t *testing.T) {
 	if trustRules == 0 {
 		t.Error("no trust rule in the SARIF report")
 	}
-	fields := []string{"kind", "matchedValue", "valueType", "keyUse", "rule"}
+	fields := []string{"kind", "matchedValue", "valueType", "keyUse", "trustRule"}
 	for _, r := range log.Runs[0].Results {
 		pattern := trustPatternOf(r.RuleID)
 		want := fields
@@ -139,6 +141,12 @@ func TestTrustSARIFRulesAndResults(t *testing.T) {
 			case pattern != "" && !has && slices.Contains(want, field):
 				t.Errorf("result %s has no property %s: %v", r.RuleID, field, r.Properties)
 			}
+		}
+		if rule, isNumber := r.Properties["trustRule"].(float64); pattern != "" && (!isNumber || !slices.Contains([]float64{1, 2, 3, 4}, rule)) {
+			t.Errorf("result %s: trustRule %v (%T), want an integer from 1 to 4", r.RuleID, r.Properties["trustRule"], r.Properties["trustRule"])
+		}
+		if _, has := r.Properties["rule"]; has {
+			t.Errorf("result %s carries a property named rule; the rule number's key is trustRule", r.RuleID)
 		}
 	}
 }

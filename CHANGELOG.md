@@ -17,7 +17,7 @@ All notable changes to CryptoScan are recorded here. This project follows
   Each finding shows the matched value and the listed key, a Fix chosen by
   the key's use, a Verify command that recomputes the value with openssl, and
   a link to its page under `docs/findings/`. JSON and SARIF carry `kind`,
-  `matchedValue`, `valueType`, `keyUse`, `rule` and, for the root,
+  `matchedValue`, `valueType`, `keyUse`, `trustRule` and, for the root,
   `distrustDate`, and SARIF rules carry the page as `helpUri`. Trust findings
   are left out of the migration readiness score, the QRAMM levels and the
   CBOM components, and the score's method states how many it left out. The

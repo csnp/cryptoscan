@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/csnp/cryptoscan/pkg/scanner"
@@ -109,12 +110,14 @@ type sarifResultProps struct {
 	KeySize     int    `json:"keySize,omitempty"`
 
 	// A trust finding's metadata, under the names the JSON report uses.
+	// TrustRule is the rule number the JSON report carries as a decimal
+	// string.
 	Kind             string `json:"kind,omitempty"`
 	MatchedValue     string `json:"matchedValue,omitempty"`
 	ValueType        string `json:"valueType,omitempty"`
 	IssuerSPKISHA256 string `json:"issuerSpkiSha256,omitempty"`
 	KeyUse           string `json:"keyUse,omitempty"`
-	Rule             string `json:"rule,omitempty"`
+	TrustRule        int    `json:"trustRule,omitempty"`
 	DistrustDate     string `json:"distrustDate,omitempty"`
 }
 
@@ -237,7 +240,7 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 			result.Properties.ValueType = md["valueType"]
 			result.Properties.IssuerSPKISHA256 = md["issuerSpkiSha256"]
 			result.Properties.KeyUse = md["keyUse"]
-			result.Properties.Rule = md["rule"]
+			result.Properties.TrustRule, _ = strconv.Atoi(md["trustRule"])
 			result.Properties.DistrustDate = md["distrustDate"]
 		}
 		sarifResults = append(sarifResults, result)

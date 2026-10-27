@@ -10,6 +10,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -39,14 +40,15 @@ const (
 )
 
 // Metadata keys and values of a trust finding. The values are lowercase hex
-// without colons.
+// without colons. trustRule is the number of the rule met, as a decimal
+// string; SARIF carries it as an integer.
 const (
 	TrustMetaKind         = "kind"
 	TrustMetaMatchedValue = "matchedValue"
 	TrustMetaValueType    = "valueType"
 	TrustMetaIssuerSPKI   = "issuerSpkiSha256"
 	TrustMetaKeyUse       = "keyUse"
-	TrustMetaRule         = "rule"
+	TrustMetaRule         = "trustRule"
 	TrustMetaDistrustDate = "distrustDate"
 
 	TrustValueSPKI = "spkiSha256"
@@ -87,12 +89,17 @@ const (
 //go:embed trust_keys.json
 var trustKeysJSON []byte
 
+// trustSchemaVersion is the version of the key table file format this reader
+// knows.
+const trustSchemaVersion = 1
+
 // trustKey is one row of the key table: a public key a published advisory
 // lists, the certificates known for it and the listing. The table is
 // generated from the certificates in testdata/trust by internal/trustgen, and
 // a test recomputes every row from them.
 type trustKey struct {
 	SPKISHA256   string   `json:"spkiSha256"`             // SHA-256 of the DER SubjectPublicKeyInfo
+	Name         string   `json:"name"`                   // the subject common name of the key's certificates
 	CertSHA256   []string `json:"certSha256"`             // SHA-256 of the DER of each known certificate
 	SPKIDER      string   `json:"spkiDer"`                // the DER SubjectPublicKeyInfo, base64
 	Use          string   `json:"use"`                    // tls, codeSigning or root
@@ -130,16 +137,39 @@ func trustKeys() *trustTable {
 }
 
 // parseTrustTable reads a key table and checks that each row's SPKI hash is
-// the hash of its SPKI DER.
+// the hash of its SPKI DER. It refuses with an error a table whose format
+// version it does not know or that has no rows, and a row whose use or status
+// is outside the format's sets or that carries distrustDate other than
+// exactly when its status is distrusted, so a table it cannot read whole is
+// never read as fewer keys or none.
 func parseTrustTable(data []byte) (*trustTable, error) {
 	var file struct {
-		Keys []*trustKey `json:"keys"`
+		SchemaVersion int         `json:"schemaVersion"`
+		Keys          []*trustKey `json:"keys"`
 	}
 	if err := json.Unmarshal(data, &file); err != nil {
 		return nil, err
 	}
+	if file.SchemaVersion != trustSchemaVersion {
+		return nil, fmt.Errorf("schemaVersion %d; this reader knows %d", file.SchemaVersion, trustSchemaVersion)
+	}
+	if len(file.Keys) == 0 {
+		return nil, errors.New("the table has no rows")
+	}
 	t := &trustTable{bySPKI: make(map[string]*trustKey, len(file.Keys))}
 	for i, k := range file.Keys {
+		if k == nil {
+			return nil, fmt.Errorf("row %d is null", i)
+		}
+		if _, ok := trustFixes[k.Use]; !ok {
+			return nil, fmt.Errorf("row %d: unknown use %q", i, k.Use)
+		}
+		if _, ok := trustKinds[k.Status]; !ok {
+			return nil, fmt.Errorf("row %d: unknown status %q", i, k.Status)
+		}
+		if (k.DistrustDate != "") != (k.Status == trustStatusDistrusted) {
+			return nil, fmt.Errorf("row %d: status %q with distrustDate %q; the date is there exactly when the status is %s", i, k.Status, k.DistrustDate, trustStatusDistrusted)
+		}
 		der, err := base64.StdEncoding.DecodeString(k.SPKIDER)
 		if err != nil {
 			return nil, fmt.Errorf("row %d: spkiDer: %w", i, err)
@@ -150,9 +180,6 @@ func parseTrustTable(data []byte) (*trustTable, error) {
 		pub, err := x509.ParsePKIXPublicKey(der)
 		if err != nil {
 			return nil, fmt.Errorf("row %d: spkiDer: %w", i, err)
-		}
-		if _, ok := trustKinds[k.Status]; !ok {
-			return nil, fmt.Errorf("row %d: unknown status %q", i, k.Status)
 		}
 		k.publicKey = pub
 		t.keys = append(t.keys, k)

@@ -300,7 +300,7 @@ var classicalBreaks = map[string]string{
 // key compromised or distrusted already, which no quantum migration changes.
 var trustImpacts = map[string]string{
 	"compromisedCaKey": "The listed CA key is already compromised, without a quantum computer: independent parties recovered its private key.",
-	"distrustedRoot":   "A trust change, not a quantum risk: chains that end at this root stop validating in browsers that no longer trust it.",
+	"distrustedRoot":   "A trust change, not a quantum risk: a client stops trusting chains that end at this root once its root store drops the root.",
 }
 
 // determineImpact returns business impact description

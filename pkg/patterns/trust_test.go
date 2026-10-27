@@ -154,3 +154,22 @@ func TestTrustDescriptionsByRule(t *testing.T) {
 		}
 	}
 }
+
+// wantTrustImpacts are the two Impact strings, by the kind of the finding.
+var wantTrustImpacts = map[string]string{
+	"compromisedCaKey": "The listed CA key is already compromised, without a quantum computer: independent parties recovered its private key.",
+	"distrustedRoot":   "A trust change, not a quantum risk: a client stops trusting chains that end at this root once its root store drops the root.",
+}
+
+// Each kind gives its finding its Impact word for word.
+func TestTrustImpactsByKind(t *testing.T) {
+	if len(trustImpacts) != len(wantTrustImpacts) {
+		t.Errorf("%d impacts, want %d", len(trustImpacts), len(wantTrustImpacts))
+	}
+	for kind, want := range wantTrustImpacts {
+		f := types.Finding{FindingType: types.FindingTypeTrust, Metadata: map[string]string{TrustMetaKind: kind}}
+		if got := determineImpact(f); got != want {
+			t.Errorf("%s impact\n %q\nwant\n %q", kind, got, want)
+		}
+	}
+}

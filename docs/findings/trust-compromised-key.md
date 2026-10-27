@@ -1,13 +1,13 @@
 # TRUST-COMPROMISED-KEY-001: Certificate with a publicly compromised CA key
 
-CryptoScan reports this finding, at CRITICAL, for a PEM certificate in the scanned files when:
+A certificate in the scanned files uses, or was signed under, a CA key whose private key is known outside the CA. A client that still trusts the key accepts any certificate signed with it, including ones the CA never issued, so the certificate and every chain through the key need replacing. CryptoScan reports this finding, at CRITICAL, for a PEM certificate in the scanned files when:
 
 1. the certificate's public key is one of the eight eMudhra intermediate CA keys listed below (rule 1), or
-2. the certificate's signature verifies under one of those keys (rule 2): an intermediate with a listed key issued it, whether or not that intermediate's certificate is in the file.
+2. the certificate's signature verifies under one of those keys (rule 2): it was signed under a listed intermediate's key, whether or not that intermediate's certificate is in the file. The signature identifies the key, not who held it.
 
 The private keys of the eight intermediates were recovered independently by several parties, Mozilla among them, after a report to the root programs and to eMudhra on 2026-10-17 (Mozilla Bug 2083449, comments 0 and 18). eMudhra revoked its eight certificates on 2026-10-18, the cross-signed copies were revoked on 2026-10-19, and Chrome and Firefox block the six TLS keys. Software that checks revocation rejects chains through these keys. Software that does not, and still trusts a key, accepts any certificate signed with it, including ones the CA never issued.
 
-The match is made on the key, never on a name. CryptoScan decodes each certificate block and compares the SHA-256 of its DER SubjectPublicKeyInfo (its SPKI hash) with the listed keys, then checks its signature against each listed key. The key is compromised already, without a quantum computer, so the finding does not count toward the quantum migration readiness score, the QRAMM levels or the CBOM components.
+The match is made on the key, never on a name. CryptoScan decodes each certificate block and compares the SHA-256 of its DER SubjectPublicKeyInfo (its SPKI hash) with the listed keys, then checks its signature against each listed key. The key is already compromised, without a quantum computer, so the finding does not count toward the quantum migration readiness score, the QRAMM levels or the CBOM components.
 
 `cryptoscan scan .` and `cryptoscan gate .` both exit 1 on this finding. `cryptoscan scan . --ignore TRUST-COMPROMISED-KEY-001` leaves it out; the certificate ignore examples in the help, `cryptoscan scan . --ignore "CERT-*" --ignore-category Certificate`, do not.
 
@@ -22,11 +22,11 @@ The match is made on the key, never on a name. CryptoScan decodes each certifica
 | `trustRule` | `1` or `2` |
 | `kind` | `compromisedCaKey` |
 
-Values are lowercase hex without colons. The JSON report carries them in the finding's `metadata`, SARIF in the result's `properties`, and the text report on its `SPKI SHA-256:`, `Certificate SHA-256:` and `Signed by:` rows.
+Hash values are 64 lowercase hex characters without colons. The JSON report carries these fields in the finding's `metadata`, SARIF in the result's `properties`, and the text report shows the hashes on its `SPKI SHA-256:`, `Certificate SHA-256:` and `Signed by:` rows.
 
 ## Listed keys
 
-Each key is listed by its SPKI hash and by the SHA-256 of each certificate known for it, in hex and in base64. For the six TLS keys, the base64 SPKI hash is the `pubKeyHash` Mozilla's OneCRL publishes. Each key has two certificates, one issued under an emSign root and one cross-signed copy; both carry the same key, so rule 1 matches both. The certificates are in [`pkg/patterns/testdata/trust`](../../pkg/patterns/testdata/trust), each file named by its SHA-256.
+Each key is listed by its SPKI hash and by the SHA-256 of each certificate known for it, in hex and in base64. For the six TLS keys, the base64 SPKI hash is the `pubKeyHash` in Mozilla's OneCRL. Each key has two certificates, one issued under an emSign root and one cross-signed copy under another root; both carry the same key, so rule 1 matches both. The listed certificates are in [`pkg/patterns/testdata/trust`](../../pkg/patterns/testdata/trust), under `tls`, `codesigning` and `root`, each file named by its SHA-256.
 
 <!-- trust-key-table:start (written by go generate ./pkg/patterns) -->
 
@@ -69,7 +69,7 @@ Each key is listed by its SPKI hash and by the SHA-256 of each certificate known
 
 ## Verify
 
-The finding's `Verify:` line recomputes its matched value from the scanned file with openssl and POSIX tools only, and makes no network request. It prints the bare lowercase hex value, the same under OpenSSL and LibreSSL. In the commands below, `FILE` is the file the finding names and `LINE` is the line of its `-----BEGIN CERTIFICATE-----` header.
+The finding's `Verify:` line recomputes its matched value from the scanned file with openssl and POSIX tools only, and makes no network request. It prints the bare lowercase hex value. The commands use only openssl and POSIX tools and read nothing from the network. Checked under OpenSSL 4.0.3 and LibreSSL 3.3.6, they print the same bytes. In the commands below, `FILE` is the file the finding names and `LINE` is the line of its `-----BEGIN CERTIFICATE-----` header.
 
 ```sh
 # Rule 1: print the certificate's SPKI hash
@@ -93,7 +93,7 @@ It prints `flagged.pem: OK` when the listed key signed the certificate.
 
 ## Check a deployed server
 
-The scan reads only the files in the scanned tree. It makes no network request, does not read the system trust store, and does not read Markdown (`.md`) or text (`.txt`) files. By default it also leaves out directories such as `testdata`, `fixtures` and `examples`; `cryptoscan scan . --include-skipped` reads them. To check the chain a server presents, save each certificate it sends and print its SPKI hash. `SERVER` is the server's host and port, such as `example.org:443`, and `NAME` is the name the server answers to, such as `example.org`. OpenSSL takes an IPv6 address in brackets, as `[2001:db8::1]:443`, and LibreSSL without them, as `2001:db8::1:443`.
+The scan reads only the files in the scanned tree. It makes no network request, does not read the system trust store, and does not read Markdown (`.md`) or text (`.txt`) files. By default it also leaves out directories such as `testdata`, `fixtures` and `examples`; `cryptoscan scan . --include-skipped` reads them. A scan with no finding is not an all-clear: it compared only the certificates in those files with the listed keys, and it did not check the chain behind any certificate's issuer. To check the chain a server presents, save each certificate it sends and print its SPKI hash. `SERVER` is the server's host and port, such as `example.org:443`, and `NAME` is the name the server answers to, such as `example.org`. OpenSSL takes an IPv6 address in brackets, as `[2001:db8::1]:443`, and LibreSSL without them, as `2001:db8::1:443`.
 
 ```sh
 # Save the certificates the server sends and print the SPKI hash of each
@@ -107,7 +107,7 @@ for f in served-*.pem; do
 done
 ```
 
-An SPKI hash from the table means the server sends a listed intermediate. A server that sends only its own certificate may still have been issued by one: check `served-1.pem` as for rule 2, in place of `flagged.pem`.
+An SPKI hash from the table means the server sends a listed intermediate. A server that sends only its own certificate may still have been signed under a listed key: check `served-1.pem` as for rule 2, in place of `flagged.pem`.
 
 ## Fix
 

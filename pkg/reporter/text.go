@@ -765,7 +765,7 @@ const migrationTextWidth = 61
 var trustKeyLabels = map[string]string{
 	"tls":         "a listed TLS intermediate key",
 	"codeSigning": "a listed code-signing intermediate key",
-	"root":        "the key of a listed removed root",
+	"root":        "the removed root's key",
 }
 
 // trustValueRows returns the label and text of each row that shows a trust

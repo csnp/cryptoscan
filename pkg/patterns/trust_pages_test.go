@@ -66,7 +66,8 @@ func TestTrustPagesNameTheFindingAndCarryItsText(t *testing.T) {
 			}
 		}
 		texts = append(texts, trustBugURL, trustBlogURL, "2026-10-17", "2026-10-18", "2026-10-27",
-			"The scan reads only the files in the scanned tree.")
+			"The scan reads only the files in the scanned tree.",
+			"A scan with no finding is not an all-clear: it compared only the certificates in those files with the listed keys, and it did not check the chain behind any certificate's issuer.")
 		for _, s := range texts {
 			if !strings.Contains(page, s) {
 				t.Errorf("%s does not carry %q", p.file, s)

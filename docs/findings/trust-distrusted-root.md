@@ -1,9 +1,9 @@
 # TRUST-DISTRUSTED-ROOT-001: Certificate chain anchored on a root removed from browser trust stores
 
-CryptoScan reports this finding, at HIGH, for a PEM certificate in the scanned files when:
+A certificate in the scanned files is emSign ECC Root CA - G3, or chains to it. A client whose root store has dropped that root (the dates below) no longer trusts chains that end there, so the chain needs a new anchor. CryptoScan reports this finding, at HIGH, for a PEM certificate in the scanned files when:
 
 1. the certificate is emSign ECC Root CA - G3: its public key is the root's key listed below (rule 3), or
-2. the certificate's signature verifies under that root's key (rule 4): the certificate chains to the root, whether or not the root is in the file.
+2. the certificate's signature verifies under that root's key (rule 4): the root's key signed it directly, whether or not the root is in the file.
 
 After the eMudhra intermediate key compromise (Mozilla Bug 2083449), Mozilla removed this root from its root store on 2026-10-20, and Chrome's removal date for all devices is 2026-10-27. A client stops trusting chains that end at this root once its copy of Mozilla's or Chrome's root store drops the root. This is a trust change, not a quantum risk, so the finding does not count toward the quantum migration readiness score, the QRAMM levels or the CBOM components.
 
@@ -21,9 +21,9 @@ The match is made on the key, never on a name. CryptoScan decodes each certifica
 | `keyUse` | `root` |
 | `trustRule` | `3` or `4` |
 | `kind` | `distrustedRoot` |
-| `distrustDate` | `2026-10-27` |
+| `distrustDate` | `2026-10-27`, Chrome's removal date for all devices |
 
-Values are lowercase hex without colons. The JSON report carries them in the finding's `metadata`, SARIF in the result's `properties`, and the text report on its `SPKI SHA-256:`, `Certificate SHA-256:` and `Signed by:` rows.
+Hash values are 64 lowercase hex characters without colons. The JSON report carries these fields in the finding's `metadata`, SARIF in the result's `properties`, and the text report shows the hashes on its `SPKI SHA-256:`, `Certificate SHA-256:` and `Signed by:` rows.
 
 ## Listed root
 
@@ -47,7 +47,7 @@ The root is listed by its SPKI hash and by the SHA-256 of its certificate, in he
 
 ## Verify
 
-The finding's `Verify:` line recomputes its matched value from the scanned file with openssl and POSIX tools only, and makes no network request. It prints the bare lowercase hex value, the same under OpenSSL and LibreSSL. In the commands below, `FILE` is the file the finding names and `LINE` is the line of its `-----BEGIN CERTIFICATE-----` header.
+The finding's `Verify:` line recomputes its matched value from the scanned file with openssl and POSIX tools only, and makes no network request. It prints the bare lowercase hex value. The commands use only openssl and POSIX tools and read nothing from the network. Checked under OpenSSL 4.0.3 and LibreSSL 3.3.6, they print the same bytes. In the commands below, `FILE` is the file the finding names and `LINE` is the line of its `-----BEGIN CERTIFICATE-----` header.
 
 ```sh
 # Rule 3: print the certificate's SPKI hash
@@ -71,7 +71,7 @@ It prints `flagged.pem: OK` when the root's key signed the certificate, or when 
 
 ## Check a deployed server
 
-The scan reads only the files in the scanned tree. It makes no network request, does not read the system trust store, and does not read Markdown (`.md`) or text (`.txt`) files. By default it also leaves out directories such as `testdata`, `fixtures` and `examples`; `cryptoscan scan . --include-skipped` reads them. To check the chain a server presents, save each certificate it sends and print its SPKI hash. `SERVER` is the server's host and port, such as `example.org:443`, and `NAME` is the name the server answers to, such as `example.org`. OpenSSL takes an IPv6 address in brackets, as `[2001:db8::1]:443`, and LibreSSL without them, as `2001:db8::1:443`.
+The scan reads only the files in the scanned tree. It makes no network request, does not read the system trust store, and does not read Markdown (`.md`) or text (`.txt`) files. By default it also leaves out directories such as `testdata`, `fixtures` and `examples`; `cryptoscan scan . --include-skipped` reads them. A scan with no finding is not an all-clear: it compared only the certificates in those files with the listed keys, and it did not check the chain behind any certificate's issuer. To check the chain a server presents, save each certificate it sends and print its SPKI hash. `SERVER` is the server's host and port, such as `example.org:443`, and `NAME` is the name the server answers to, such as `example.org`. OpenSSL takes an IPv6 address in brackets, as `[2001:db8::1]:443`, and LibreSSL without them, as `2001:db8::1:443`.
 
 ```sh
 # Save the certificates the server sends and print the SPKI hash of each
@@ -98,6 +98,7 @@ It prints `served-N.pem: OK`, with the number of that certificate, when the chai
 ## Fix
 
 - Removed root (`keyUse` `root`): Move the chain to a CA whose root stays trusted, and remove emSign ECC Root CA - G3 from any bundle you ship; Chrome's removal date for all devices is 2026-10-27.
+- Trust store or CA bundle (rule 3): remove emSign ECC Root CA - G3 from it, and keep revocation checking on, or block the six listed TLS keys by SPKI hash, because the cross-signed copies of the listed intermediates chain to a different root that some trust stores keep. A file that lists distrusted certificates on purpose needs no change.
 
 ## Sources
 

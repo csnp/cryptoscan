@@ -229,3 +229,45 @@ func TestTrustTextGroupedByFile(t *testing.T) {
 		}
 	}
 }
+
+// wantTrustKeyLabels name the listed key on a trust finding's value row, by
+// the use of the key.
+var wantTrustKeyLabels = map[string]string{
+	"tls":         "a listed TLS intermediate key",
+	"codeSigning": "a listed code-signing intermediate key",
+	"root":        "the removed root's key",
+}
+
+// The value row of each trust finding ends with the label of the listed key's
+// use, and the fixture raises a trust finding of each use.
+func TestTrustTextLabelsTheListedKeyByItsUse(t *testing.T) {
+	if len(trustKeyLabels) != len(wantTrustKeyLabels) {
+		t.Errorf("%d key labels, want %d", len(trustKeyLabels), len(wantTrustKeyLabels))
+	}
+	seen := map[string]bool{}
+	for _, f := range scanTrustFixture(t).Findings {
+		if !f.IsTrust() {
+			continue
+		}
+		use := f.Metadata["keyUse"]
+		want, ok := wantTrustKeyLabels[use]
+		if !ok {
+			t.Errorf("%s: key use %q has no label", f.ID, use)
+			continue
+		}
+		rows := trustValueRows(f)
+		if len(rows) == 0 {
+			t.Errorf("%s: no value row", f.ID)
+			continue
+		}
+		if row := rows[len(rows)-1]; !strings.HasSuffix(row[1], ", "+want) {
+			t.Errorf("%s: %s %q does not end with %q", f.ID, row[0], row[1], want)
+		}
+		seen[use] = true
+	}
+	for use := range wantTrustKeyLabels {
+		if !seen[use] {
+			t.Errorf("the fixture raises no trust finding whose key use is %s", use)
+		}
+	}
+}

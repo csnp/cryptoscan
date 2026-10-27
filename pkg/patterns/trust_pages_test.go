@@ -102,7 +102,8 @@ func pageTableRows(t *testing.T, page, name string) [][]string {
 }
 
 // The table on each page is the key table: for every row of the page's
-// status, in the table's order, the SPKI hash and then each certificate hash,
+// status, grouped by use (TLS, then code signing, then root) and in the
+// table's order within a use, the SPKI hash and then each certificate hash,
 // in hex and in base64, labelled with the subject of the key's certificates.
 // A table edited by hand, or a key table changed without go generate, fails.
 func TestTrustPageTablesEqualTheKeyTable(t *testing.T) {
@@ -116,13 +117,15 @@ func TestTrustPageTablesEqualTheKeyTable(t *testing.T) {
 	}
 	for _, p := range trustPages {
 		var want [][]string
-		for _, k := range trustKeys().keys {
-			if k.Status != p.status {
-				continue
-			}
-			want = append(want, []string{"", k.Use, "SPKI", k.SPKISHA256, hexBase64(t, k.SPKISHA256)})
-			for _, c := range k.CertSHA256 {
-				want = append(want, []string{"", k.Use, "Certificate", c, hexBase64(t, c)})
+		for _, use := range []string{"tls", "codeSigning", "root"} {
+			for _, k := range trustKeys().keys {
+				if k.Status != p.status || k.Use != use {
+					continue
+				}
+				want = append(want, []string{"", k.Use, "SPKI", k.SPKISHA256, hexBase64(t, k.SPKISHA256)})
+				for _, c := range k.CertSHA256 {
+					want = append(want, []string{"", k.Use, "Certificate", c, hexBase64(t, c)})
+				}
 			}
 		}
 		got := pageTableRows(t, readPage(t, p.file), p.file)

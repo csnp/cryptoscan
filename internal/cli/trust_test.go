@@ -215,7 +215,8 @@ func runShell(t *testing.T, bin, command string) []byte {
 
 // The JSON report carries both pattern IDs on the fixture and neither on the
 // control bundle. Each trust finding carries its kind, matched value, value
-// type, key use and rule as fields, the removed root its date too; its fix is
+// type, key use and rule number (trustRule, a decimal string) as fields and
+// no field named rule, the removed root its date too; its fix is
 // one of the three ruled strings, its guidance is empty, its one reference is
 // its page, and its verify, run as printed from where the scan was run,
 // prints its matched value byte for byte under every openssl given.
@@ -231,10 +232,20 @@ func TestTrustJSONFindings(t *testing.T) {
 		id := trustPatternID(f.ID)
 		ids[id]++
 		md := f.Metadata
-		for _, field := range []string{"kind", "matchedValue", "valueType", "keyUse", "rule"} {
+		for _, field := range []string{"kind", "matchedValue", "valueType", "keyUse", "trustRule"} {
 			if md[field] == "" {
 				t.Errorf("%s: metadata has no %s: %v", f.ID, field, md)
 			}
+		}
+		wantRules := []string{"1", "2"}
+		if id == distrustedRootID {
+			wantRules = []string{"3", "4"}
+		}
+		if !slices.Contains(wantRules, md["trustRule"]) {
+			t.Errorf("%s: trustRule %q, want one of %q", f.ID, md["trustRule"], wantRules)
+		}
+		if _, has := md["rule"]; has {
+			t.Errorf("%s: metadata carries rule; the rule number's key is trustRule", f.ID)
 		}
 		if id == distrustedRootID && md["distrustDate"] != "2026-10-27" {
 			t.Errorf("%s: distrustDate %q, want 2026-10-27", f.ID, md["distrustDate"])
@@ -301,7 +312,7 @@ type trustSARIF struct {
 
 // gate's SARIF report carries both patterns, each rule with its page as
 // helpUri, and each result with the trust fields under the names the JSON
-// report uses.
+// report uses, the rule number (trustRule) as an integer.
 func TestTrustSARIF(t *testing.T) {
 	out := runTrust(t, gateCmd, trustFixture, "--format", "sarif")
 	if out.err != "" || out.code != 1 {
@@ -335,7 +346,7 @@ func TestTrustSARIF(t *testing.T) {
 			continue
 		}
 		results++
-		fields := []string{"kind", "matchedValue", "valueType", "keyUse", "rule"}
+		fields := []string{"kind", "matchedValue", "valueType", "keyUse"}
 		if id == distrustedRootID {
 			fields = append(fields, "distrustDate")
 		}
@@ -343,6 +354,18 @@ func TestTrustSARIF(t *testing.T) {
 			if v, _ := r.Properties[field].(string); v == "" {
 				t.Errorf("result %s: no %s property: %v", r.RuleID, field, r.Properties)
 			}
+		}
+		// The rule number is a JSON number under trustRule: 1 or 2 for a
+		// compromised key, 3 or 4 for the removed root.
+		wantRules := []float64{1, 2}
+		if id == distrustedRootID {
+			wantRules = []float64{3, 4}
+		}
+		if rule, isNumber := r.Properties["trustRule"].(float64); !isNumber || !slices.Contains(wantRules, rule) {
+			t.Errorf("result %s: trustRule %v (%T), want the number %v", r.RuleID, r.Properties["trustRule"], r.Properties["trustRule"], wantRules)
+		}
+		if _, has := r.Properties["rule"]; has {
+			t.Errorf("result %s: carries rule; the rule number's key is trustRule", r.RuleID)
 		}
 	}
 	if results != trustFixtureFindings {

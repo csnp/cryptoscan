@@ -8,14 +8,22 @@
 //	go generate ./pkg/patterns
 //
 // after adding or changing a certificate there. No value in the table is
-// typed: every hash and key is computed from a certificate file.
+// typed: every hash, key and name is read from a certificate file.
 //
 // A certificate's key use is the directory it sits in: tls, codesigning or
 // root. The command refuses a TLS certificate without the serverAuth extended
 // key usage, a code-signing certificate without codeSigning, and a root that
 // is not a self-signed CA, so a certificate filed in the wrong directory is
-// caught. Certificates with the same SubjectPublicKeyInfo are one key. Each
-// file holds one certificate and is named by its SHA-256.
+// caught. Certificates with the same SubjectPublicKeyInfo are one key, named
+// by the subject common name they carry; a certificate with no common name,
+// and a key whose certificates carry two names, are refused. Each file holds
+// one certificate and is named by its SHA-256.
+//
+// The table is written in the key table file format: schemaVersion 1, then
+// the rows sorted by SPKI hash, each row's certificate hashes and sources
+// sorted, in the bytes a json.Encoder writes with SetEscapeHTML(false) and
+// SetIndent("", "  "). The same certificates and sources always give the same
+// bytes.
 package main
 
 import (
@@ -44,8 +52,11 @@ var sources = []string{
 
 const reported = "2026-10-17"
 
+// schemaVersion is the version of the key table file format written.
+const schemaVersion = 1
+
 // useDirs maps each fixture directory to the key use, status and date of the
-// rows its certificates make, in the order the rows are written.
+// rows its certificates make, in the order a finding page lists them.
 var useDirs = []struct {
 	dir, use, status, distrustDate string
 }{
@@ -54,9 +65,10 @@ var useDirs = []struct {
 	{"root", "root", "distrusted", "2026-10-27"},
 }
 
-// Key is one row of trust_keys.json.
+// Key is one row of trust_keys.json, its fields in the file format's order.
 type Key struct {
 	SPKISHA256   string   `json:"spkiSha256"`
+	Name         string   `json:"name"`
 	CertSHA256   []string `json:"certSha256"`
 	SPKIDER      string   `json:"spkiDer"`
 	Use          string   `json:"use"`
@@ -64,8 +76,6 @@ type Key struct {
 	Reported     string   `json:"reported"`
 	Status       string   `json:"status"`
 	DistrustDate string   `json:"distrustDate,omitempty"`
-
-	label string // the subject common name, shown on the page only
 }
 
 // The markers between which a finding page holds its key table.
@@ -91,14 +101,12 @@ func main() {
 		fmt.Fprintln(os.Stderr, "trustgen:", err)
 		os.Exit(1)
 	}
-	data, err := json.MarshalIndent(struct {
-		Keys []*Key `json:"keys"`
-	}{keys}, "", "  ")
+	data, err := encodeTable(keys)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, "trustgen:", err)
 		os.Exit(1)
 	}
-	if err := os.WriteFile(*keysPath, append(data, '\n'), 0o644); err != nil {
+	if err := os.WriteFile(*keysPath, data, 0o644); err != nil {
 		fmt.Fprintln(os.Stderr, "trustgen:", err)
 		os.Exit(1)
 	}
@@ -112,9 +120,27 @@ func main() {
 	}
 }
 
+// encodeTable returns the bytes of the key table file. They are written by a
+// json.Encoder with HTML escaping off and a two-space indent, which ends them
+// with a newline; json.MarshalIndent and the encoder's default escape &, <
+// and >, which the format's other writers do not.
+func encodeTable(keys []*Key) ([]byte, error) {
+	var b bytes.Buffer
+	enc := json.NewEncoder(&b)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	err := enc.Encode(struct {
+		SchemaVersion int    `json:"schemaVersion"`
+		Keys          []*Key `json:"keys"`
+	}{schemaVersion, keys})
+	return b.Bytes(), err
+}
+
 // buildKeys reads every certificate under fixtures and returns one row per
-// SubjectPublicKeyInfo.
+// SubjectPublicKeyInfo, sorted by SPKI hash.
 func buildKeys(fixtures string) ([]*Key, error) {
+	source := slices.Clone(sources)
+	slices.Sort(source)
 	var keys []*Key
 	for _, d := range useDirs {
 		files, err := filepath.Glob(filepath.Join(fixtures, d.dir, "*.crt"))
@@ -134,30 +160,33 @@ func buildKeys(fixtures string) ([]*Key, error) {
 			if filepath.Base(file) != certHash+".crt" {
 				return nil, fmt.Errorf("%s: name the file %s.crt, its SHA-256", file, certHash)
 			}
+			if cert.Subject.CommonName == "" {
+				return nil, fmt.Errorf("%s: its subject has no common name to name the key by", file)
+			}
 			spki := hexSHA256(cert.RawSubjectPublicKeyInfo)
 			k, ok := bySPKI[spki]
 			if !ok {
 				k = &Key{
 					SPKISHA256:   spki,
+					Name:         cert.Subject.CommonName,
 					SPKIDER:      base64.StdEncoding.EncodeToString(cert.RawSubjectPublicKeyInfo),
 					Use:          d.use,
-					Source:       sources,
+					Source:       source,
 					Reported:     reported,
 					Status:       d.status,
 					DistrustDate: d.distrustDate,
-					label:        cert.Subject.CommonName,
 				}
 				bySPKI[spki] = k
 			}
+			if cert.Subject.CommonName != k.Name {
+				return nil, fmt.Errorf("%s: names key %s %q; another of its certificates names it %q", file, spki, cert.Subject.CommonName, k.Name)
+			}
 			k.CertSHA256 = append(k.CertSHA256, certHash)
 		}
-		var rows []*Key
 		for _, k := range bySPKI {
 			slices.Sort(k.CertSHA256)
-			rows = append(rows, k)
+			keys = append(keys, k)
 		}
-		slices.SortFunc(rows, func(a, b *Key) int { return strings.Compare(a.SPKISHA256, b.SPKISHA256) })
-		keys = append(keys, rows...)
 	}
 	for _, k := range keys {
 		for _, other := range keys {
@@ -166,6 +195,7 @@ func buildKeys(fixtures string) ([]*Key, error) {
 			}
 		}
 	}
+	slices.SortFunc(keys, func(a, b *Key) int { return strings.Compare(a.SPKISHA256, b.SPKISHA256) })
 	return keys, nil
 }
 
@@ -210,8 +240,9 @@ func checkUse(cert *x509.Certificate, use string) error {
 }
 
 // writeTable replaces the table between the markers of a finding page with
-// the rows of one status: for each key its SPKI hash, then the hash of each
-// certificate known for it, in hex and in base64.
+// the rows of one status, grouped by use in the order of useDirs and in the
+// key table's order within a use: for each key its SPKI hash, then the hash
+// of each certificate known for it, in hex and in base64.
 func writeTable(page string, keys []*Key, status string) error {
 	data, err := os.ReadFile(page)
 	if err != nil {
@@ -227,13 +258,15 @@ func writeTable(page string, keys []*Key, status string) error {
 	b.WriteString(tableStart + "\n\n")
 	b.WriteString("| Key | Use | Value | SHA-256 (hex) | SHA-256 (base64) |\n")
 	b.WriteString("|-----|-----|-------|---------------|------------------|\n")
-	for _, k := range keys {
-		if k.Status != status {
-			continue
-		}
-		fmt.Fprintf(&b, "| %s | %s | SPKI | `%s` | `%s` |\n", k.label, k.Use, k.SPKISHA256, hexToBase64(k.SPKISHA256))
-		for _, c := range k.CertSHA256 {
-			fmt.Fprintf(&b, "| %s | %s | Certificate | `%s` | `%s` |\n", k.label, k.Use, c, hexToBase64(c))
+	for _, d := range useDirs {
+		for _, k := range keys {
+			if k.Status != status || k.Use != d.use {
+				continue
+			}
+			fmt.Fprintf(&b, "| %s | %s | SPKI | `%s` | `%s` |\n", k.Name, k.Use, k.SPKISHA256, hexToBase64(k.SPKISHA256))
+			for _, c := range k.CertSHA256 {
+				fmt.Fprintf(&b, "| %s | %s | Certificate | `%s` | `%s` |\n", k.Name, k.Use, c, hexToBase64(c))
+			}
 		}
 	}
 	b.WriteString("\n" + tableEnd)

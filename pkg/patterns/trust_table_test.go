@@ -5,6 +5,7 @@ package patterns
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -14,8 +15,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"go/parser"
 	"go/token"
+	"maps"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -110,12 +113,13 @@ func readLines(t *testing.T, path string) []string {
 }
 
 // Every row of the embedded key table is what the fixture certificates give:
-// the certificate hashes, the SPKI hash and DER, the use of the directory the
-// certificates sit in, and the listing.
+// the certificate hashes, the SPKI hash and DER, the subject common name the
+// certificates share, the use of the directory they sit in, and the listing.
 func TestTrustKeyTableRecomputesFromFixtures(t *testing.T) {
 	type group struct {
 		dir   string
 		spki  []byte
+		name  string
 		certs []string
 	}
 	groups := map[string]*group{}
@@ -123,11 +127,14 @@ func TestTrustKeyTableRecomputesFromFixtures(t *testing.T) {
 		spki := sha256Hex(b.cert.RawSubjectPublicKeyInfo)
 		g, ok := groups[spki]
 		if !ok {
-			g = &group{dir: b.dir, spki: b.cert.RawSubjectPublicKeyInfo}
+			g = &group{dir: b.dir, spki: b.cert.RawSubjectPublicKeyInfo, name: b.cert.Subject.CommonName}
 			groups[spki] = g
 		}
 		if g.dir != b.dir {
 			t.Errorf("key %s has certificates in %s and %s", spki, g.dir, b.dir)
+		}
+		if g.name != b.cert.Subject.CommonName {
+			t.Errorf("key %s has certificates named %q and %q", spki, g.name, b.cert.Subject.CommonName)
 		}
 		if name := filepath.Base(b.path); name != sha256Hex(b.der)+".crt" {
 			t.Errorf("%s is not named by its SHA-256 %s", b.path, sha256Hex(b.der))
@@ -152,6 +159,9 @@ func TestTrustKeyTableRecomputesFromFixtures(t *testing.T) {
 		if want := base64.StdEncoding.EncodeToString(g.spki); k.SPKIDER != want {
 			t.Errorf("row %d: spkiDer is not the certificates' SubjectPublicKeyInfo", i)
 		}
+		if k.Name != g.name || k.Name == "" {
+			t.Errorf("row %d: name %q, the certificates' subject common name is %q", i, k.Name, g.name)
+		}
 		if k.Use != fixtureUse[g.dir] {
 			t.Errorf("row %d: use = %q, the certificates are in %s", i, k.Use, g.dir)
 		}
@@ -162,19 +172,181 @@ func TestTrustKeyTableRecomputesFromFixtures(t *testing.T) {
 		if k.Status != wantStatus || k.DistrustDate != wantDate {
 			t.Errorf("row %d: status %q, distrustDate %q; want %q, %q", i, k.Status, k.DistrustDate, wantStatus, wantDate)
 		}
-		if !slices.Equal(k.Source, []string{trustBugURL, trustBlogURL}) || k.Reported != "2026-10-17" {
+		// The listing's two pages, sorted.
+		if !slices.Equal(k.Source, []string{trustBlogURL, trustBugURL}) || k.Reported != "2026-10-17" {
 			t.Errorf("row %d: source %q, reported %q", i, k.Source, k.Reported)
 		}
 	}
 
-	// The eight keys come first, then the removed root.
-	var uses []string
-	for _, k := range table.keys {
-		uses = append(uses, k.Use)
+	// The rows are sorted by SPKI hash, and they are the eight keys, six TLS
+	// and two code signing, and the removed root.
+	uses := map[string]int{}
+	for i, k := range table.keys {
+		uses[k.Use]++
+		if i > 0 && table.keys[i-1].SPKISHA256 >= k.SPKISHA256 {
+			t.Errorf("row %d: spkiSha256 %s does not sort after row %d's %s", i, k.SPKISHA256, i-1, table.keys[i-1].SPKISHA256)
+		}
 	}
-	want := []string{"tls", "tls", "tls", "tls", "tls", "tls", "codeSigning", "codeSigning", "root"}
-	if !slices.Equal(uses, want) {
-		t.Errorf("row uses = %q, want %q", uses, want)
+	if want := map[string]int{"tls": 6, "codeSigning": 2, "root": 1}; !maps.Equal(uses, want) {
+		t.Errorf("rows by use = %v, want %v", uses, want)
+	}
+}
+
+// keyTableFile and keyTableRow spell the key table file format field by
+// field, in the format's order, apart from the reader's types, so that a
+// field moved or dropped in the reader or in internal/trustgen does not move
+// the format with it.
+type keyTableFile struct {
+	SchemaVersion int            `json:"schemaVersion"`
+	Keys          []*keyTableRow `json:"keys"`
+}
+
+type keyTableRow struct {
+	SPKISHA256   string   `json:"spkiSha256"`
+	Name         string   `json:"name"`
+	CertSHA256   []string `json:"certSha256"`
+	SPKIDER      string   `json:"spkiDer"`
+	Use          string   `json:"use"`
+	Source       []string `json:"source"`
+	Reported     string   `json:"reported"`
+	Status       string   `json:"status"`
+	DistrustDate string   `json:"distrustDate,omitempty"`
+}
+
+// The embedded key table is in the key table file format. Parsed, sorted
+// (rows by spkiSha256, each row's certSha256 and source ascending) and
+// written again in the format's field order by a json.Encoder with HTML
+// escaping off and a two-space indent, it is the same bytes. Its
+// schemaVersion is 1, and a row carries distrustDate exactly when its status
+// is distrusted. A table edited by hand, written by another encoder or
+// carrying a field the format does not have fails.
+func TestTrustKeyTableIsInTheFileFormat(t *testing.T) {
+	var file keyTableFile
+	if err := json.Unmarshal(trustKeysJSON, &file); err != nil {
+		t.Fatal(err)
+	}
+	if file.SchemaVersion != 1 {
+		t.Errorf("schemaVersion %d, want 1", file.SchemaVersion)
+	}
+	for _, k := range file.Keys {
+		if (k.DistrustDate != "") != (k.Status == trustStatusDistrusted) {
+			t.Errorf("key %s: status %q with distrustDate %q; the date is there exactly when the status is distrusted", k.SPKISHA256, k.Status, k.DistrustDate)
+		}
+		slices.Sort(k.CertSHA256)
+		slices.Sort(k.Source)
+	}
+	slices.SortFunc(file.Keys, func(a, b *keyTableRow) int { return strings.Compare(a.SPKISHA256, b.SPKISHA256) })
+
+	var want bytes.Buffer
+	enc := json.NewEncoder(&want)
+	enc.SetEscapeHTML(false)
+	enc.SetIndent("", "  ")
+	if err := enc.Encode(file); err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(trustKeysJSON, want.Bytes()) {
+		t.Errorf("trust_keys.json is not in the key table file format; regenerate it with go generate ./pkg/patterns. %s", firstDifference(trustKeysJSON, want.Bytes()))
+	}
+}
+
+// firstDifference names the first line on which a file and the bytes the
+// format writes differ.
+func firstDifference(file, format []byte) string {
+	f, w := strings.Split(string(file), "\n"), strings.Split(string(format), "\n")
+	for i := 0; i < len(f) && i < len(w); i++ {
+		if f[i] != w[i] {
+			return fmt.Sprintf("Line %d is %q; the format writes %q.", i+1, f[i], w[i])
+		}
+	}
+	return fmt.Sprintf("The file has %d lines; the format writes %d.", len(f), len(w))
+}
+
+// The reader refuses a key table it does not know, with an error, rather
+// than reading it as fewer rows or none, which would read as nothing found:
+// a schemaVersion other than 1, or none; a table with no rows; a row that is
+// null, or whose use or status is outside the format's sets; a row that
+// carries distrustDate when its status is not distrusted, or lacks it when it
+// is; and a row whose spkiSha256 is not the hash of its spkiDer.
+func TestTrustKeyTableReaderRefusesATableItDoesNotKnow(t *testing.T) {
+	// edited returns the embedded table with one edit made to it.
+	edited := func(edit func(file map[string]any, rows []map[string]any)) []byte {
+		t.Helper()
+		var file map[string]any
+		if err := json.Unmarshal(trustKeysJSON, &file); err != nil {
+			t.Fatal(err)
+		}
+		var rows []map[string]any
+		for _, r := range file["keys"].([]any) {
+			rows = append(rows, r.(map[string]any))
+		}
+		edit(file, rows)
+		data, err := json.Marshal(file)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return data
+	}
+	// rowOf returns the first row of a status.
+	rowOf := func(rows []map[string]any, status string) map[string]any {
+		t.Helper()
+		for _, r := range rows {
+			if r["status"] == status {
+				return r
+			}
+		}
+		t.Fatalf("the key table has no %s row", status)
+		return nil
+	}
+	// parse reads a table and fails the test on a panic, so that a table the
+	// reader cannot read is reported as one rather than ending the run.
+	parse := func(t *testing.T, data []byte) (table *trustTable, err error) {
+		t.Helper()
+		defer func() {
+			if p := recover(); p != nil {
+				t.Errorf("the reader panicked (%v); want an error", p)
+				table, err = nil, fmt.Errorf("panic: %v", p)
+			}
+		}()
+		return parseTrustTable(data)
+	}
+
+	// The table as embedded is read whole, so each refusal below is its
+	// edit's doing.
+	if table, err := parse(t, edited(func(map[string]any, []map[string]any) {})); err != nil || len(table.keys) != len(trustKeys().keys) {
+		t.Fatalf("the embedded table, decoded and encoded again, is not read whole: %v", err)
+	}
+	cases := []struct {
+		name string
+		edit func(file map[string]any, rows []map[string]any)
+	}{
+		{"schemaVersion 2", func(file map[string]any, _ []map[string]any) { file["schemaVersion"] = 2 }},
+		{"no schemaVersion", func(file map[string]any, _ []map[string]any) { delete(file, "schemaVersion") }},
+		{"no rows", func(file map[string]any, _ []map[string]any) { file["keys"] = []any{} }},
+		{"no keys list", func(file map[string]any, _ []map[string]any) { delete(file, "keys") }},
+		{"a null row", func(file map[string]any, _ []map[string]any) { file["keys"] = append(file["keys"].([]any), nil) }},
+		{"a row whose use is outside the set", func(_ map[string]any, rows []map[string]any) { rows[0]["use"] = "codesigning" }},
+		{"a row whose status is outside the set", func(_ map[string]any, rows []map[string]any) { rows[0]["status"] = "revoked" }},
+		{"a compromised row with a distrustDate", func(_ map[string]any, rows []map[string]any) {
+			rowOf(rows, trustStatusCompromised)["distrustDate"] = "2026-10-27"
+		}},
+		{"a distrusted row without a distrustDate", func(_ map[string]any, rows []map[string]any) {
+			delete(rowOf(rows, trustStatusDistrusted), "distrustDate")
+		}},
+		{"a row whose spkiSha256 is another row's", func(_ map[string]any, rows []map[string]any) { rows[0]["spkiSha256"] = rows[1]["spkiSha256"] }},
+	}
+	for _, c := range cases {
+		data := edited(c.edit)
+		t.Run(c.name, func(t *testing.T) {
+			table, err := parse(t, data)
+			switch {
+			case err == nil:
+				t.Errorf("read as a table of %d rows, want it refused", len(table.keys))
+			case table != nil:
+				t.Errorf("refused (%v) and still returned a table", err)
+			default:
+				t.Logf("refused: %v", err)
+			}
+		})
 	}
 }
 
@@ -373,18 +545,20 @@ func TestTrustRulesWithGeneratedKeys(t *testing.T) {
 		return k
 	}
 	compromised, root, other := newKey(), newKey(), newKey()
-	row := func(pub any, use, status, date string) map[string]any {
+	row := func(pub any, name, use, status, date string) map[string]any {
 		spki := spkiOf(t, pub)
-		r := map[string]any{"spkiSha256": sha256Hex(spki), "certSha256": []string{}, "spkiDer": base64.StdEncoding.EncodeToString(spki),
+		r := map[string]any{"spkiSha256": sha256Hex(spki), "name": name, "certSha256": []string{}, "spkiDer": base64.StdEncoding.EncodeToString(spki),
 			"use": use, "source": []string{trustBugURL}, "reported": "2026-10-17", "status": status}
 		if date != "" {
 			r["distrustDate"] = date
 		}
 		return r
 	}
-	data, err := json.Marshal(map[string]any{"keys": []any{
-		row(&compromised.PublicKey, "tls", "compromised", ""),
-		row(&root.PublicKey, "root", "distrusted", "2026-10-27"),
+	// The names are the subjects of the certificates generated below for the
+	// two keys, serials 2 and 1.
+	data, err := json.Marshal(map[string]any{"schemaVersion": 1, "keys": []any{
+		row(&compromised.PublicKey, "generated 2", "tls", "compromised", ""),
+		row(&root.PublicKey, "generated 1", "root", "distrusted", "2026-10-27"),
 	}})
 	if err != nil {
 		t.Fatal(err)
@@ -454,6 +628,12 @@ func TestTrustRulesWithGeneratedKeys(t *testing.T) {
 		}
 		if _, dated := md["distrustDate"]; dated != (c.kind == "distrustedRoot") {
 			t.Errorf("%s: distrustDate present = %v, want it on a distrusted-root finding only", c.name, dated)
+		}
+		if md["trustRule"] != strconv.Itoa(c.rule) {
+			t.Errorf("%s: trustRule %q, want %q", c.name, md["trustRule"], strconv.Itoa(c.rule))
+		}
+		if _, has := md["rule"]; has {
+			t.Errorf("%s: metadata carries rule; the rule number's key is trustRule", c.name)
 		}
 	}
 }

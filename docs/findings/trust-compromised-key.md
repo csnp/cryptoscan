@@ -19,7 +19,7 @@ The match is made on the key, never on a name. CryptoScan decodes each certifica
 | `valueType` | `spkiSha256` (rule 1) or `certSha256` (rule 2) |
 | `issuerSpkiSha256` | Rule 2 only: the SPKI hash of the listed key the signature verifies under |
 | `keyUse` | `tls` or `codeSigning`: the use of the listed key, which chooses the Fix |
-| `rule` | `1` or `2` |
+| `trustRule` | `1` or `2` |
 | `kind` | `compromisedCaKey` |
 
 Values are lowercase hex without colons. The JSON report carries them in the finding's `metadata`, SARIF in the result's `properties`, and the text report on its `SPKI SHA-256:`, `Certificate SHA-256:` and `Signed by:` rows.

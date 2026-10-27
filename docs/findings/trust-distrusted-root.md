@@ -19,7 +19,7 @@ The match is made on the key, never on a name. CryptoScan decodes each certifica
 | `valueType` | `spkiSha256` (rule 3) or `certSha256` (rule 4) |
 | `issuerSpkiSha256` | Rule 4 only: the SPKI hash of the root's key, which the signature verifies under |
 | `keyUse` | `root` |
-| `rule` | `3` or `4` |
+| `trustRule` | `3` or `4` |
 | `kind` | `distrustedRoot` |
 | `distrustDate` | `2026-10-27` |
 

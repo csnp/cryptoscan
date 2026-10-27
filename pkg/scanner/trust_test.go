@@ -114,8 +114,8 @@ func TestTrustFixtureGivesOneFindingPerCertificate(t *testing.T) {
 					continue
 				}
 				f := got[0]
-				if !strings.HasPrefix(f.ID, w.id+"-") || f.Metadata["rule"] != w.rule || f.Metadata["keyUse"] != w.use {
-					t.Errorf("%s: %s rule %q key use %q, want %s rule %s key use %s", key, f.ID, f.Metadata["rule"], f.Metadata["keyUse"], w.id, w.rule, w.use)
+				if !strings.HasPrefix(f.ID, w.id+"-") || f.Metadata["trustRule"] != w.rule || f.Metadata["keyUse"] != w.use {
+					t.Errorf("%s: %s trustRule %q key use %q, want %s trustRule %s key use %s", key, f.ID, f.Metadata["trustRule"], f.Metadata["keyUse"], w.id, w.rule, w.use)
 				}
 			}
 		}
@@ -176,7 +176,10 @@ func TestTrustFindingSlots(t *testing.T) {
 		if !lowerHex64.MatchString(md["matchedValue"]) {
 			t.Errorf("%s: matchedValue %q is not lowercase hex", f.ID, md["matchedValue"])
 		}
-		rule := md["rule"]
+		if _, has := md["rule"]; has {
+			t.Errorf("%s: metadata carries rule; the rule number's key is trustRule", f.ID)
+		}
+		rule := md["trustRule"]
 		wantType := map[string]string{"1": "spkiSha256", "2": "certSha256", "3": "spkiSha256", "4": "certSha256"}[rule]
 		if wantType == "" || md["valueType"] != wantType {
 			t.Errorf("%s: rule %q, value type %q", f.ID, rule, md["valueType"])

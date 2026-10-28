@@ -11,10 +11,10 @@
       "spkiDer": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEc4l6oOs8/cqLEkAv+vCrxOEhK6+N7neKye4tbbg/rCgMXgVjiueirNccMiqONhzeufacQwK53Y1z0cxsqrLMCu5OIWzped1Rikr0tiblaEzdZYA37QyFTkzBL0z4ZG0N",
       "use": "tls",
       "source": [
-        "https://blog.google/security/protecting-chrome-and-android-users-from-compromised-emudhra-intermediate-ca-certificates/",
-        "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449"
+        "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449",
+        "https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/onecrl/records/3f07ab6b-0d52-41a3-9a7b-de945502a3b8"
       ],
-      "reported": "2026-10-17",
+      "reported": "2026-10-18",
       "status": "compromised"
     },
     {
@@ -27,10 +27,10 @@
       "spkiDer": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEOnp4YsjETTJN3WkDOmeCwO/u/kBV5ooSP6A3G6O9kZRRTuFypDPjYw8CvRiAN9nlFJ+bd9uUooHfmHsv6oiLdL3+j9pMEJnubKGVZv4+8OX2sJpVbMyLpQVh3xsqRB0B",
       "use": "tls",
       "source": [
-        "https://blog.google/security/protecting-chrome-and-android-users-from-compromised-emudhra-intermediate-ca-certificates/",
-        "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449"
+        "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449",
+        "https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/onecrl/records/fb4be101-8280-4d4e-866e-fd0213bc3a02"
       ],
-      "reported": "2026-10-17",
+      "reported": "2026-10-18",
       "status": "compromised"
     },
     {
@@ -43,10 +43,10 @@
       "spkiDer": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAELVboKab7gsZKRpfZYK+VHpBnrpH5JtNDBtpIqKrreGm2pn5tJ0JuBEKqA7NuGYjf9jZRTuHPB/W6Sz/yoGZFrn0x1YZq0xqj0kbrCzF37pnLdWbFFs50gIpmj5HwxH/K",
       "use": "tls",
       "source": [
-        "https://blog.google/security/protecting-chrome-and-android-users-from-compromised-emudhra-intermediate-ca-certificates/",
-        "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449"
+        "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449",
+        "https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/onecrl/records/adaa1e8d-57cb-4cfb-b647-305aa20f1b04"
       ],
-      "reported": "2026-10-17",
+      "reported": "2026-10-18",
       "status": "compromised"
     },
     {
@@ -59,10 +59,10 @@
       "spkiDer": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEE4JRzVKskpjByKrZdzId65fnCb0LTKCspV3IrVHc/J0ViaFZfjpRIOHv1jHGPhg1ysrimGmmLhYx6KKBgatWYW3EXZGKvAnzqw5jz3kqpNztc4e+N7ulaVSfHAKycO1n",
       "use": "tls",
       "source": [
-        "https://blog.google/security/protecting-chrome-and-android-users-from-compromised-emudhra-intermediate-ca-certificates/",
-        "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449"
+        "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449",
+        "https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/onecrl/records/f67aff65-7a13-42ef-b818-74bb69053273"
       ],
-      "reported": "2026-10-17",
+      "reported": "2026-10-18",
       "status": "compromised"
     },
     {
@@ -75,9 +75,9 @@
       "use": "root",
       "source": [
         "https://blog.google/security/protecting-chrome-and-android-users-from-compromised-emudhra-intermediate-ca-certificates/",
-        "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449"
+        "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449#c18"
       ],
-      "reported": "2026-10-17",
+      "reported": "2026-10-20",
       "status": "distrusted",
       "distrustDate": "2026-10-27"
     },
@@ -91,10 +91,9 @@
       "spkiDer": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEufDgY0cCppymqt1EPP1ixBubpLIJJGl9eXTnaRoSb7lq+z40wv07xfSDBh8mXcKlhDY0cyNRBDayjwTzhiNjBnmA4lA+AlMtZUYjWnFlolmh70lvdBtf3ud4cgjkuPrv",
       "use": "codeSigning",
       "source": [
-        "https://blog.google/security/protecting-chrome-and-android-users-from-compromised-emudhra-intermediate-ca-certificates/",
         "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449"
       ],
-      "reported": "2026-10-17",
+      "reported": "2026-10-18",
       "status": "compromised"
     },
     {
@@ -107,10 +106,10 @@
       "spkiDer": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEJduoWmTTl9oLEFLp6lRuSHvv6pydnWigxerc/u91ppu11vwB9Cv7ym60C81kwHZ+Nv/QXZeoE8WqDGyVMOec9fCGZGjxOAZCCqXIUYQLHiUlQOeQ5LZUw4Uu1krx6GV9",
       "use": "tls",
       "source": [
-        "https://blog.google/security/protecting-chrome-and-android-users-from-compromised-emudhra-intermediate-ca-certificates/",
-        "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449"
+        "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449",
+        "https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/onecrl/records/5856b9af-5c14-46e7-b660-04d1cc3f2819"
       ],
-      "reported": "2026-10-17",
+      "reported": "2026-10-18",
       "status": "compromised"
     },
     {
@@ -123,10 +122,10 @@
       "spkiDer": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAE557ZwEqXc8RzXlERHahawr1eZKs3S4DhLLwgOOweTw47gS/JhZ4eZ6+wTi+LyX90hbplqpEe6KTkW2LVzAPVa+Z4s8OMtNyTfKJGDiOEU8iSk10p1E+R4VYGtjzO2rRo",
       "use": "tls",
       "source": [
-        "https://blog.google/security/protecting-chrome-and-android-users-from-compromised-emudhra-intermediate-ca-certificates/",
-        "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449"
+        "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449",
+        "https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/onecrl/records/5ed2b441-a5bf-4f8e-89af-d01fa292a9b8"
       ],
-      "reported": "2026-10-17",
+      "reported": "2026-10-18",
       "status": "compromised"
     },
     {
@@ -139,10 +138,9 @@
       "spkiDer": "MHYwEAYHKoZIzj0CAQYFK4EEACIDYgAEqrsPsGZqz88B+tUr/P1MK/LLPDSX3nOVDlgZth/mlQmHQcjEkUObNKBDHK/+W/m0wcjorgAB+fTcitgsWfNjnpbNbD1NsM7+wmw9YlF7N3YTcnQ/jordd7EAZPKr5eBQ",
       "use": "codeSigning",
       "source": [
-        "https://blog.google/security/protecting-chrome-and-android-users-from-compromised-emudhra-intermediate-ca-certificates/",
         "https://bugzilla.mozilla.org/show_bug.cgi?id=2083449"
       ],
-      "reported": "2026-10-17",
+      "reported": "2026-10-18",
       "status": "compromised"
     }
   ]

@@ -114,7 +114,8 @@ func readLines(t *testing.T, path string) []string {
 
 // Every row of the embedded key table is what the fixture certificates give:
 // the certificate hashes, the SPKI hash and DER, the subject common name the
-// certificates share, the use of the directory they sit in, and the listing.
+// certificates share and the use of the directory they sit in. Its source and
+// reported are what the committed records capture gives it.
 func TestTrustKeyTableRecomputesFromFixtures(t *testing.T) {
 	type group struct {
 		dir   string
@@ -146,6 +147,7 @@ func TestTrustKeyTableRecomputesFromFixtures(t *testing.T) {
 	if len(table.keys) != len(groups) {
 		t.Errorf("the key table has %d rows; the fixture certificates have %d keys", len(table.keys), len(groups))
 	}
+	records := readSourceRecords(t)
 	for i, k := range table.keys {
 		g, ok := groups[k.SPKISHA256]
 		if !ok {
@@ -172,9 +174,16 @@ func TestTrustKeyTableRecomputesFromFixtures(t *testing.T) {
 		if k.Status != wantStatus || k.DistrustDate != wantDate {
 			t.Errorf("row %d: status %q, distrustDate %q; want %q, %q", i, k.Status, k.DistrustDate, wantStatus, wantDate)
 		}
-		// The listing's two pages, sorted.
-		if !slices.Equal(k.Source, []string{trustBlogURL, trustBugURL}) || k.Reported != "2026-10-17" {
-			t.Errorf("row %d: source %q, reported %q", i, k.Source, k.Reported)
+		// The sorted URLs of the captured records that list the key, and the
+		// date of the earliest of them that reports its status.
+		for _, f := range sourceAndReportedFaults(t, []*trustKey{k}, records) {
+			t.Errorf("row %d: %s", i, f)
+		}
+		// The root is cited by the bug's comment 18 and the post, which name
+		// it, and not by the bug's opening comment, which does not.
+		if k.Use == "root" && (!slices.Contains(k.Source, trustBugURL+"#c18") || !slices.Contains(k.Source, trustBlogURL) ||
+			slices.ContainsFunc(k.Source, func(u string) bool { return strings.HasSuffix(u, "id=2083449") })) {
+			t.Errorf("row %d: the root's source %q is not comment 18 of the bug and the post", i, k.Source)
 		}
 	}
 
@@ -422,6 +431,205 @@ func TestTrustKeyTableMatchesCapturedValues(t *testing.T) {
 	}
 }
 
+// sourceRecord is one line of the records capture: a public record the key
+// table cites, the UTC time it states for itself, its role (status when it
+// reports the key's status, lists when it only lists the key) and the keys
+// it lists.
+type sourceRecord struct {
+	url, published, role, lists string
+}
+
+// readSourceRecords returns the records of the committed records capture in
+// file order. Its columns are separated by single spaces; the last, lists,
+// may hold spaces.
+func readSourceRecords(t *testing.T) []sourceRecord {
+	t.Helper()
+	var records []sourceRecord
+	for _, line := range readLines(t, filepath.Join(trustCapturedDir, "source-records.txt")) {
+		if strings.HasPrefix(line, "#") {
+			continue
+		}
+		f := strings.SplitN(line, " ", 4)
+		if len(f) != 4 {
+			t.Fatalf("source-records.txt: %q is not url, published, role and lists", line)
+		}
+		records = append(records, sourceRecord{url: f[0], published: f[1], role: f[2], lists: f[3]})
+	}
+	if len(records) == 0 {
+		t.Fatal("source-records.txt holds no record")
+	}
+	return records
+}
+
+// date returns the UTC date of the time the record states for itself.
+func (r sourceRecord) date(t *testing.T) string {
+	t.Helper()
+	at, err := time.Parse(time.RFC3339, r.published)
+	if err != nil || !strings.HasSuffix(r.published, "Z") {
+		t.Fatalf("%s: published %q is not a UTC time (%v)", r.url, r.published, err)
+	}
+	return at.Format("2006-01-02")
+}
+
+// selects reports whether the record lists row k: certs:<file> lists every
+// row with a certificate in that captured file, pkh:<value> the row whose
+// SPKI digest that is, and root:<name> the root row of that subject name.
+func (r sourceRecord) selects(t *testing.T, k *trustKey) bool {
+	t.Helper()
+	kind, value, _ := strings.Cut(r.lists, ":")
+	switch kind {
+	case "certs":
+		listed := readCaptured(t, value)
+		return slices.ContainsFunc(k.CertSHA256, func(c string) bool { _, ok := listed[c]; return ok })
+	case "pkh":
+		digest, err := base64.StdEncoding.DecodeString(value)
+		if err != nil {
+			t.Fatalf("%s: pkh %q: %v", r.url, value, err)
+		}
+		return hex.EncodeToString(digest) == k.SPKISHA256
+	case "root":
+		return k.Use == "root" && k.Name == value
+	}
+	t.Fatalf("%s: lists %q is not certs:, pkh: or root:", r.url, r.lists)
+	return false
+}
+
+// recordsGive returns the source and reported the records give row k: the
+// sorted URLs of the records that list it, and the UTC date of the earliest
+// of those whose role is status, or "" when none is.
+func recordsGive(t *testing.T, k *trustKey, records []sourceRecord) (source []string, reported string) {
+	t.Helper()
+	for _, r := range records {
+		if !r.selects(t, k) {
+			continue
+		}
+		source = append(source, r.url)
+		if d := r.date(t); r.role == "status" && (reported == "" || d < reported) {
+			reported = d
+		}
+	}
+	slices.Sort(source)
+	return source, reported
+}
+
+// sourceAndReportedFaults returns each way the rows' source and reported
+// differ from what the records give them: a source other than the sorted
+// URLs of the records that list the row, a reported other than the date of
+// the earliest of those that reports its status, an entry that is no
+// captured record, and a reported other than the earliest date of the
+// records its source names.
+func sourceAndReportedFaults(t *testing.T, keys []*trustKey, records []sourceRecord) []string {
+	t.Helper()
+	dates := map[string]string{}
+	for _, r := range records {
+		dates[r.url] = r.date(t)
+	}
+	var faults []string
+	for _, k := range keys {
+		source, reported := recordsGive(t, k, records)
+		if !slices.Equal(k.Source, source) {
+			faults = append(faults, fmt.Sprintf("key %s: source %q; the records that list it are %q", k.SPKISHA256, k.Source, source))
+		}
+		if reported == "" || k.Reported != reported {
+			faults = append(faults, fmt.Sprintf("key %s: reported %q; the earliest record that reports its status is of %q", k.SPKISHA256, k.Reported, reported))
+		}
+		earliest := ""
+		for _, u := range k.Source {
+			d, ok := dates[u]
+			if !ok {
+				faults = append(faults, fmt.Sprintf("key %s: source entry %s is no captured record", k.SPKISHA256, u))
+				continue
+			}
+			if earliest == "" || d < earliest {
+				earliest = d
+			}
+		}
+		if k.Reported != earliest {
+			faults = append(faults, fmt.Sprintf("key %s: reported %q; the earliest of its source records is of %q", k.SPKISHA256, k.Reported, earliest))
+		}
+	}
+	return faults
+}
+
+// The check of source and reported refuses a table the records do not give.
+// A copy of the table whose rows carry what the records give them has no
+// fault. The same copy is refused, by a fault that names only the edited
+// row, when one row's reported is a day before its earliest record, or when
+// a row's source holds a captured record that does not list it.
+func TestTrustSourceAndReportedCheckRefusesWhatTheRecordsDoNotGive(t *testing.T) {
+	records := readSourceRecords(t)
+	recorded := func() []*trustKey {
+		t.Helper()
+		var keys []*trustKey
+		for _, k := range trustKeys().keys {
+			c := *k
+			c.CertSHA256 = slices.Clone(k.CertSHA256)
+			c.Source, c.Reported = recordsGive(t, k, records)
+			keys = append(keys, &c)
+		}
+		return keys
+	}
+	if faults := sourceAndReportedFaults(t, recorded(), records); len(faults) != 0 {
+		t.Fatalf("the table as the records give it has faults, so a refusal below would not be its edit's doing: %q", faults)
+	}
+	refused := func(t *testing.T, keys []*trustKey, k *trustKey) {
+		t.Helper()
+		faults := sourceAndReportedFaults(t, keys, records)
+		if len(faults) == 0 {
+			t.Fatalf("read with no fault; want key %s refused", k.SPKISHA256)
+		}
+		for _, f := range faults {
+			if !strings.Contains(f, k.SPKISHA256) {
+				t.Errorf("fault %q names another key; want only key %s", f, k.SPKISHA256)
+			}
+		}
+		t.Logf("refused: %s", strings.Join(faults, "; "))
+	}
+	// citing returns a captured record that does not list row k.
+	citing := func(t *testing.T, k *trustKey) string {
+		t.Helper()
+		for _, r := range records {
+			if !r.selects(t, k) {
+				return r.url
+			}
+		}
+		t.Fatalf("every captured record lists key %s", k.SPKISHA256)
+		return ""
+	}
+
+	for i := range recorded() {
+		keys := recorded()
+		k := keys[i]
+		t.Run(fmt.Sprintf("row %d, %s, reported a day before its earliest record", i, k.Use), func(t *testing.T) {
+			earliest, err := time.Parse("2006-01-02", k.Reported)
+			if err != nil {
+				t.Fatal(err)
+			}
+			k.Reported = earliest.AddDate(0, 0, -1).Format("2006-01-02")
+			refused(t, keys, k)
+		})
+	}
+	for _, c := range []struct {
+		name string
+		row  func(k *trustKey) bool
+	}{
+		{"the root row citing a record that does not list it", func(k *trustKey) bool { return k.Use == "root" }},
+		{"a compromised row citing a record that does not list it", func(k *trustKey) bool { return k.Status == trustStatusCompromised }},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			keys := recorded()
+			i := slices.IndexFunc(keys, c.row)
+			if i < 0 {
+				t.Fatalf("the key table has no row for %q", c.name)
+			}
+			k := keys[i]
+			k.Source = append(k.Source, citing(t, k))
+			slices.Sort(k.Source)
+			refused(t, keys, k)
+		})
+	}
+}
+
 // Every row has a fix for its use and a kind for its status.
 func TestTrustTableRowsHaveAFixAndAKind(t *testing.T) {
 	for _, k := range trustKeys().keys {
@@ -545,10 +753,13 @@ func TestTrustRulesWithGeneratedKeys(t *testing.T) {
 		return k
 	}
 	compromised, root, other := newKey(), newKey(), newKey()
+	// The generated rows cite the first captured record, with the date it
+	// states for itself.
+	cited := readSourceRecords(t)[0]
 	row := func(pub any, name, use, status, date string) map[string]any {
 		spki := spkiOf(t, pub)
 		r := map[string]any{"spkiSha256": sha256Hex(spki), "name": name, "certSha256": []string{}, "spkiDer": base64.StdEncoding.EncodeToString(spki),
-			"use": use, "source": []string{trustBugURL}, "reported": "2026-10-17", "status": status}
+			"use": use, "source": []string{cited.url}, "reported": cited.date(t), "status": status}
 		if date != "" {
 			r["distrustDate"] = date
 		}

@@ -94,17 +94,18 @@ var trustKeysJSON []byte
 const trustSchemaVersion = 1
 
 // trustKey is one row of the key table: a public key a published advisory
-// lists, the certificates known for it and the listing. The table is
-// generated from the certificates in testdata/trust by internal/trustgen, and
-// a test recomputes every row from them.
+// lists, the certificates known for it and the public records that report its
+// status. The table is generated from the certificates in testdata/trust and
+// the records in testdata/trust-captured by internal/trustgen, and a test
+// recomputes every row from them.
 type trustKey struct {
 	SPKISHA256   string   `json:"spkiSha256"`             // SHA-256 of the DER SubjectPublicKeyInfo
 	Name         string   `json:"name"`                   // the subject common name of the key's certificates
 	CertSHA256   []string `json:"certSha256"`             // SHA-256 of the DER of each known certificate
 	SPKIDER      string   `json:"spkiDer"`                // the DER SubjectPublicKeyInfo, base64
 	Use          string   `json:"use"`                    // tls, codeSigning or root
-	Source       []string `json:"source"`                 // public pages that list the key
-	Reported     string   `json:"reported"`               // date the listing was reported
+	Source       []string `json:"source"`                 // https URL of each public record that reports the key's status (for the root, its removal from a trust store)
+	Reported     string   `json:"reported"`               // earliest UTC date the source records state for themselves
 	Status       string   `json:"status"`                 // compromised or distrusted
 	DistrustDate string   `json:"distrustDate,omitempty"` // for a distrusted root, the date browsers remove it
 

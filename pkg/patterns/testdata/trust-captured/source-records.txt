@@ -1,0 +1,23 @@
+# The public records the key table cites, one line per record. Columns:
+# url, published, role, lists. published is the UTC time the record was
+# published, read from the record itself: a bug's creation_time, a comment's
+# creation_time, a post's datePublished, a OneCRL record's last_modified.
+# role is status when the record reports the key's status (a compromised
+# key or a removed root), and lists when it only lists the key. lists names
+# the keys the record lists: certs:<capture file> for every row with a
+# certificate in that file, pkh:<pubKeyHash> for the row whose SPKI digest
+# it is, root:<subject common name> for the root row of that name.
+# A row's source is the sorted urls of the records that list it; its
+# reported is the UTC date of the earliest of those whose role is status.
+# The root's two records name it by subject alone: no record captured on
+# 2026-10-26 lists its certificate SHA-256, so its binding to the committed
+# certificate is by name until a root-store record that lists it is captured.
+https://bugzilla.mozilla.org/show_bug.cgi?id=2083449 2026-10-18T12:06:03Z status certs:bugzilla-2083449-certificate-sha256.txt
+https://bugzilla.mozilla.org/show_bug.cgi?id=2083449#c18 2026-10-20T13:06:02Z status root:emSign ECC Root CA - G3
+https://blog.google/security/protecting-chrome-and-android-users-from-compromised-emudhra-intermediate-ca-certificates/ 2026-10-20T19:49:00Z status root:emSign ECC Root CA - G3
+https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/onecrl/records/5856b9af-5c14-46e7-b660-04d1cc3f2819 2026-10-21T22:34:01Z lists pkh:4CVMf83CZeLw+KQo2rt1q0rgObSHLWL17lfwh31aikE=
+https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/onecrl/records/3f07ab6b-0d52-41a3-9a7b-de945502a3b8 2026-10-21T22:34:01Z lists pkh:Q7/6GdbvZRRR9oQeAZkx6W9vLq7/KKtLbxzkV23icXs=
+https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/onecrl/records/5ed2b441-a5bf-4f8e-89af-d01fa292a9b8 2026-10-21T22:34:01Z lists pkh:6+1kdcLC2A/LGZ8/6N1uazzmC3frFdTkLD3sDG9bUQU=
+https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/onecrl/records/adaa1e8d-57cb-4cfb-b647-305aa20f1b04 2026-10-21T22:34:01Z lists pkh:XAZgorFkkQ2P9YnBjhRVLp4Owjfc7+LLc21BpIEfgaA=
+https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/onecrl/records/f67aff65-7a13-42ef-b818-74bb69053273 2026-10-21T22:34:01Z lists pkh:Y+zv7kMdSVI7wRNsTnLQIGpHcIbK9gbNXPAlaGwQnPg=
+https://firefox.settings.services.mozilla.com/v1/buckets/security-state/collections/onecrl/records/fb4be101-8280-4d4e-866e-fd0213bc3a02 2026-10-21T22:34:01Z lists pkh:Sd01PcK5GaN3BkURfQ5gwWEV59G8JZ7v5zSwDqQ0/l8=

@@ -279,3 +279,31 @@ func TestDetectCryptoContext(t *testing.T) {
 		})
 	}
 }
+
+func TestUnicodeContextOffsets(t *testing.T) {
+	for _, prefix := range []string{"ȺȺȺȺ", "ȾȾȾȾ", "İİİİ"} {
+		for _, tt := range []struct {
+			name, suffix             string
+			wantPath, wantIdentifier bool
+		}{
+			{"standalone", "rsa", false, false},
+			{"path before", "/rsa", true, false},
+			{"path after", "rsa/", true, false},
+			{"extension", "rsa.PEM", true, false},
+			{"method", "rsa.GenerateKey()", false, false},
+			{"identifier before", "getRSA", false, true},
+			{"identifier after", "rsaInfo", false, true},
+			{"crypto suffix", "rsaKey", false, false},
+		} {
+			t.Run(prefix+"/"+tt.name, func(t *testing.T) {
+				line := prefix + " " + tt.suffix
+				if got := IsURLOrPath(line, "RSA"); got != tt.wantPath {
+					t.Errorf("IsURLOrPath(%q, RSA) = %v, want %v", line, got, tt.wantPath)
+				}
+				if got := IsVariableOrFunctionName(line, "RSA"); got != tt.wantIdentifier {
+					t.Errorf("IsVariableOrFunctionName(%q, RSA) = %v, want %v", line, got, tt.wantIdentifier)
+				}
+			})
+		}
+	}
+}

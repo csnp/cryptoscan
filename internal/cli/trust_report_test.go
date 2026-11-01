@@ -24,7 +24,7 @@ import (
 // trust finding.
 const (
 	trustBundle     = "../../pkg/patterns/testdata/trust-bundle"
-	trustBundleFile = "ca-bundle.pem"
+	trustBundleFile = "ca-bundle.crt"
 	trustRootFile   = "../../pkg/patterns/testdata/trust/root/86a1ecba089c4a8d3bbe2734c612ba341d813e043cf9e8a862cd5c57a36bbe6b.crt"
 )
 

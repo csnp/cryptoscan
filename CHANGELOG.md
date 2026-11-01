@@ -96,6 +96,17 @@ All notable changes to CryptoScan are recorded here. This project follows
 
 ### Changed
 
+- **A trust finding on the removed root's own certificate gives one action
+  for each kind of file, and the text report lists trust findings first.** A
+  rule-3 match of `TRUST-DISTRUSTED-ROOT-001` leads with "File holds emSign
+  ECC Root CA - G3", and its Fix covers a file that software loads as a trust
+  store or CA bundle, which needs the root removed, and a file that holds the
+  certificate on purpose, which needs no change; a certificate the root
+  signed keeps the chain Fix. The text report of `scan` and `gate` numbers
+  trust findings from Finding #1, and the line after the scan-complete line
+  gives their count and the first one's file and line. The finding page gives
+  the command that keeps a bundle's trust finding in view by category, and
+  the commands that record a file held on purpose as reviewed.
 - **A JSON finding names its severity.** `--format json` wrote each finding's
   severity as a number from 0 to 4, as in `"severity": 3`, while
   `summary.bySeverity` is keyed by name. Each finding now carries the name, as

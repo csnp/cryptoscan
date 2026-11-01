@@ -77,6 +77,18 @@ var trustFixes = map[string]string{
 	"root":        "Move the chain to a CA whose root stays trusted, and remove emSign ECC Root CA - G3 from any bundle you ship; Chrome's removal date for all devices is 2026-10-27.",
 }
 
+// A rule-3 match is the removed root's own certificate in a scanned file. The
+// match cannot tell a file that software loads as a trust store from a file
+// that holds the root on purpose, such as a list of distrusted certificates,
+// so its fix gives the action for each kind of file, the trust store first,
+// and each action opens with the kind of file it is for. Its type says what
+// the file holds, in place of the pattern's name, which describes a chain and
+// stays the type of a rule-4 match.
+const (
+	trustRootFileFix  = "For a file that software loads as a trust store or CA bundle: remove emSign ECC Root CA - G3 from it, because software that loads this file still accepts chains that end at this root. For a file that holds the certificate on purpose without trusting it, such as a list of distrusted certificates or a test fixture: no change."
+	trustRootFileType = "File holds emSign ECC Root CA - G3"
+)
+
 // The PEM lines of a certificate block, and how far past its header a block
 // is read for its end line. A certificate of 64 KB is about 1,100 lines of
 // base64.
@@ -329,6 +341,10 @@ func matchTrustBlock(table *trustTable, lines []string) (*trustMatch, bool) {
 // what the rule decided.
 func trustFinding(f *types.Finding, m *trustMatch) {
 	fix := trustFixes[m.key.Use]
+	if m.rule == 3 {
+		fix = trustRootFileFix
+		f.Type = trustRootFileType
+	}
 	f.FindingType = types.FindingTypeTrust
 	f.Confidence = types.ConfidenceHigh
 	f.Description = trustDescriptions[m.rule]

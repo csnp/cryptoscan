@@ -38,6 +38,11 @@ var trustFixes = map[string]string{
 	"root":        "Move the chain to a CA whose root stays trusted, and remove emSign ECC Root CA - G3 from any bundle you ship; Chrome's removal date for all devices is 2026-10-27.",
 }
 
+// rootFileFix is the Fix of a rule-3 match, the root's own certificate in a
+// scanned file: it gives the action for each kind of file, trust store first,
+// in place of the "root" string above, which a rule-4 match keeps.
+const rootFileFix = "For a file that software loads as a trust store or CA bundle: remove emSign ECC Root CA - G3 from it, because software that loads this file still accepts chains that end at this root. For a file that holds the certificate on purpose without trusting it, such as a list of distrusted certificates or a test fixture: no change."
+
 // trustVerify are the two Verify commands, by value type, with LINE and FILE
 // to fill in.
 var trustVerify = map[string]string{
@@ -134,7 +139,8 @@ var lowerHex64 = regexp.MustCompile(`^[0-9a-f]{64}$`)
 
 // The slots of each trust finding are the ruled ones: the ID suffix the
 // matcher gives, the header as the match, the ruled severity, a Fix by key
-// use, an empty Guidance, one reference, the Verify form by value type, and
+// use (by kind of file for a rule-3 match), an empty Guidance, one reference,
+// the Verify form by value type, and
 // metadata that carries the matched value and its type.
 func TestTrustFindingSlots(t *testing.T) {
 	results := scanTrust(t, Config{Target: trustFixture})
@@ -164,8 +170,12 @@ func TestTrustFindingSlots(t *testing.T) {
 		if f.Severity != severity || f.Quantum != types.QuantumUnknown || f.Confidence != types.ConfidenceHigh {
 			t.Errorf("%s: severity %s, quantum %s, confidence %s", f.ID, f.Severity, f.Quantum, f.Confidence)
 		}
-		if f.Fix != trustFixes[md["keyUse"]] || f.Fix == "" {
-			t.Errorf("%s: fix %q is not the %q string", f.ID, f.Fix, md["keyUse"])
+		wantFix := trustFixes[md["keyUse"]]
+		if md["trustRule"] == "3" {
+			wantFix = rootFileFix
+		}
+		if f.Fix != wantFix || f.Fix == "" {
+			t.Errorf("%s: fix %q is not the %q string for rule %s", f.ID, f.Fix, md["keyUse"], md["trustRule"])
 		}
 		if f.Guidance != "" {
 			t.Errorf("%s: guidance %q, want empty", f.ID, f.Guidance)

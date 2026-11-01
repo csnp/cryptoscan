@@ -312,7 +312,8 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 		return r.generateGroupedByFile(results, &b)
 	}
 
-	for i, f := range results.Findings {
+	findings := trustFirst(results.Findings)
+	for i, f := range findings {
 		// Finding number and severity badge
 		sevColor := r.severityColor(f.Severity)
 		b.WriteString(fmt.Sprintf("  %s Finding #%d %s\n",
@@ -441,7 +442,7 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 
 		b.WriteString("  └────────────────────────────────────────────────────────────\n")
 
-		if i < len(results.Findings)-1 {
+		if i < len(findings)-1 {
 			b.WriteString("\n")
 		}
 	}
@@ -450,6 +451,30 @@ func (r *TextReporter) Generate(results *scanner.Results) (string, error) {
 	r.writeFooter(&b)
 
 	return b.String(), nil
+}
+
+// trustFirst returns findings with the trust findings first, numbered from #1
+// in the report, and each part in the order it had. The report's order is by
+// priority, which adds weight for a quantum risk that a trust finding does not
+// carry, so in a CA bundle the quantum-vulnerable findings of the other
+// certificates came first. The JSON, CSV and SARIF reports keep the order as
+// it is.
+func trustFirst(findings []scanner.Finding) []scanner.Finding {
+	ordered := make([]scanner.Finding, 0, len(findings))
+	for _, f := range findings {
+		if f.IsTrust() {
+			ordered = append(ordered, f)
+		}
+	}
+	if len(ordered) == 0 {
+		return findings
+	}
+	for _, f := range findings {
+		if !f.IsTrust() {
+			ordered = append(ordered, f)
+		}
+	}
+	return ordered
 }
 
 // generateGroupedByFile generates output grouped by file
@@ -476,9 +501,28 @@ func (r *TextReporter) generateGroupedByFile(results *scanner.Results, b *string
 		}
 	}
 
+	// The files that hold a trust finding come first, in the order of their
+	// first trust finding, and in each file its trust findings, so that the
+	// first entry is the first trust finding and, when one file holds them
+	// all, every trust finding prints before the others.
+	var trustFiles, otherFiles []string
+	holdsTrust := make(map[string]bool)
+	for _, f := range results.Findings {
+		if f.IsTrust() && !holdsTrust[f.File] {
+			holdsTrust[f.File] = true
+			trustFiles = append(trustFiles, f.File)
+		}
+	}
+	for _, file := range files {
+		if !holdsTrust[file] {
+			otherFiles = append(otherFiles, file)
+		}
+	}
+	files = append(trustFiles, otherFiles...)
+
 	findingNum := 0
 	for _, file := range files {
-		findings := byFile[file]
+		findings := trustFirst(byFile[file])
 
 		// File header
 		b.WriteString(r.color(colorBold+colorCyan, fmt.Sprintf("  ━━━ %s ", file)))

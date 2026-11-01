@@ -36,6 +36,16 @@ const (
 	distrustedRootName = "Certificate chain anchored on a root removed from browser trust stores"
 )
 
+// rootFileType and rootFileFix are the type and the Fix of a rule-3 match,
+// the root's own certificate in a scanned file. The match cannot tell a file
+// that software loads as a trust store from one that holds the root on
+// purpose, so the Fix gives the action for each, trust store first. A rule-4
+// match keeps distrustedRootName and the "root" Fix below.
+const (
+	rootFileType = "File holds emSign ECC Root CA - G3"
+	rootFileFix  = "For a file that software loads as a trust store or CA bundle: remove emSign ECC Root CA - G3 from it, because software that loads this file still accepts chains that end at this root. For a file that holds the certificate on purpose without trusting it, such as a list of distrusted certificates or a test fixture: no change."
+)
+
 // trustPages is the one reference of each Trust pattern, its finding page.
 var trustPages = map[string]string{
 	compromisedKeyID: "https://github.com/csnp/cryptoscan/blob/main/docs/findings/trust-compromised-key.md",
@@ -151,8 +161,10 @@ func TestTrustExitCodes(t *testing.T) {
 type trustJSONReport struct {
 	Findings []struct {
 		ID          string            `json:"id"`
+		Type        string            `json:"type"`
 		Category    string            `json:"category"`
 		Description string            `json:"description"`
+		Remediation string            `json:"remediation"`
 		Fix         string            `json:"fix"`
 		Guidance    string            `json:"guidance"`
 		Verify      string            `json:"verify"`
@@ -217,9 +229,11 @@ func runShell(t *testing.T, bin, command string) []byte {
 // control bundle. Each trust finding carries its kind, matched value, value
 // type, key use and rule number (trustRule, a decimal string) as fields and
 // no field named rule, the removed root its date too; its fix is
-// one of the three ruled strings, its guidance is empty, its one reference is
-// its page, and its verify, run as printed from where the scan was run,
-// prints its matched value byte for byte under every openssl given.
+// the string for its key use, or for a rule-3 match the Fix that gives the
+// action for each kind of file, with the type that names what the file holds;
+// its guidance is empty, its one reference is its page, and its verify, run
+// as printed from where the scan was run, prints its matched value byte for
+// byte under every openssl given.
 func TestTrustJSONFindings(t *testing.T) {
 	bins := opensslBinaries(t)
 	report := scanTrustJSON(t, trustFixture)
@@ -250,8 +264,18 @@ func TestTrustJSONFindings(t *testing.T) {
 		if id == distrustedRootID && md["distrustDate"] != "2026-10-27" {
 			t.Errorf("%s: distrustDate %q, want 2026-10-27", f.ID, md["distrustDate"])
 		}
-		if f.Fix != trustFixStrings[md["keyUse"]] {
-			t.Errorf("%s: fix %q is not the ruled string for key use %q", f.ID, f.Fix, md["keyUse"])
+		wantFix := trustFixStrings[md["keyUse"]]
+		if md["trustRule"] == "3" {
+			wantFix = rootFileFix
+			if f.Type != rootFileType {
+				t.Errorf("%s: type %q, want %q", f.ID, f.Type, rootFileType)
+			}
+			if f.Remediation != rootFileFix || strings.Contains(f.Fix+f.Remediation, "Move the chain") {
+				t.Errorf("%s: remediation %q, want the rule-3 Fix and no \"Move the chain\"", f.ID, f.Remediation)
+			}
+		}
+		if f.Fix != wantFix {
+			t.Errorf("%s: fix %q is not the string for key use %q, rule %s", f.ID, f.Fix, md["keyUse"], md["trustRule"])
 		}
 		if f.Guidance != "" {
 			t.Errorf("%s: guidance %q, want none", f.ID, f.Guidance)
@@ -280,7 +304,7 @@ func TestTrustJSONFindings(t *testing.T) {
 func TestTrustControlOutputSaysNothing(t *testing.T) {
 	control := filepath.Join(trustFixture, "control")
 	listing := regexp.MustCompile(`(?i)emudhra|emsign|` + compromisedKeyID + `|` + distrustedRootID + `|` +
-		regexp.QuoteMeta(compromisedKeyName) + `|` + regexp.QuoteMeta(distrustedRootName) + `|trust findings?|─ Trust\b|"Trust"|compromised|distrusted`)
+		regexp.QuoteMeta(compromisedKeyName) + `|` + regexp.QuoteMeta(distrustedRootName) + `|` + regexp.QuoteMeta(rootFileType) + `|trust findings?|─ Trust\b|"Trust"|compromised|distrusted`)
 	for _, args := range [][]string{{"--no-color"}, {"--format", "json"}, {"--format", "sarif"}} {
 		out := runTrust(t, scanCmd, control, args...)
 		if out.err != "" || out.code != 0 {
@@ -431,23 +455,26 @@ var trustTextRows = []string{"  │   ", "  │ Fix: ", "  │ Impact: ", "  │
 // In the text report on the fixture, every trust block shows its matched
 // value and the listed key, a Fix, a Verify and its page, and no quantum
 // verdict, no Guidance and no relative date; and every trust block prints
-// before the first certificate inventory block.
+// before every other finding block, numbered from #1.
 func TestTrustTextBlocks(t *testing.T) {
 	out := runTrust(t, scanCmd, trustFixture, "--no-color")
 	firstInventory, lastTrust, trust := -1, -1, 0
+	rootFile, removedRoot := 0, 0
 	for i, b := range reportBlocks(out.stdout) {
 		var id string
 		switch {
 		case strings.Contains(b, "│ Type: "+compromisedKeyName+"\n"):
 			id = compromisedKeyID
+		case strings.Contains(b, "│ Type: "+rootFileType+"\n"):
+			id = distrustedRootID
+			rootFile++
 		case strings.Contains(b, "│ Type: "+distrustedRootName+"\n"):
 			id = distrustedRootID
-		case strings.Contains(b, "│ Type: X.509 Certificate\n"):
+			removedRoot++
+		default:
 			if firstInventory < 0 {
 				firstInventory = i
 			}
-			continue
-		default:
 			continue
 		}
 		trust++
@@ -480,8 +507,12 @@ func TestTrustTextBlocks(t *testing.T) {
 	if trust != trustFixtureFindings {
 		t.Errorf("%d trust blocks, want %d", trust, trustFixtureFindings)
 	}
-	if firstInventory < 0 || lastTrust > firstInventory {
-		t.Errorf("last trust block is #%d, first certificate inventory block #%d: trust blocks print first", lastTrust+1, firstInventory+1)
+	if rootFile != 1 || removedRoot != 0 {
+		t.Errorf("%d blocks lead with %q and %d with %q; the fixture holds the root, a rule-3 match, and no certificate the root signed",
+			rootFile, rootFileType, removedRoot, distrustedRootName)
+	}
+	if firstInventory < 0 || lastTrust > firstInventory || lastTrust != trust-1 {
+		t.Errorf("last trust block is #%d of %d, first other block #%d: trust blocks print first, from #1", lastTrust+1, trust, firstInventory+1)
 	}
 }
 
@@ -535,7 +566,7 @@ func TestTrustOutputDoesNotDependOnTheDate(t *testing.T) {
 		if before != after {
 			t.Errorf("%s %s: output before and after 2026-10-27 differs at %s", r.cmd.Name(), strings.Join(r.args, " "), firstDifference(before, after))
 		}
-		if !strings.Contains(outs[0].stdout, compromisedKeyName) || !strings.Contains(outs[0].stdout, distrustedRootName) {
+		if !strings.Contains(outs[0].stdout, compromisedKeyName) || !strings.Contains(outs[0].stdout, rootFileType) {
 			t.Errorf("%s %s: the report does not carry both kinds", r.cmd.Name(), strings.Join(r.args, " "))
 		}
 	}

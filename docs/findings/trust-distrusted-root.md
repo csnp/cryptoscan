@@ -100,6 +100,10 @@ It prints `served-N.pem: OK`, with the number of that certificate, when the chai
 - Removed root (`keyUse` `root`): Move the chain to a CA whose root stays trusted, and remove emSign ECC Root CA - G3 from any bundle you ship; Chrome's removal date for all devices is 2026-10-27.
 - Trust store or CA bundle (rule 3): remove emSign ECC Root CA - G3 from it, and keep revocation checking on, or block the six listed TLS keys by SPKI hash, because the cross-signed copies of the listed intermediates chain to a different root that some trust stores keep. A file that lists distrusted certificates on purpose needs no change.
 
+For a trust store or CA bundle, `cryptoscan gate . --ignore-category "Certificate,Deprecated Hash,Asymmetric Encryption"` leaves out the bundle's other findings by category and keeps the trust finding: it exits 1 with the trust finding alone. Excluding the file's path hides this finding too.
+
+For a file that holds the certificate on purpose without trusting it, such as a list of distrusted certificates or a test fixture, record the file's match as reviewed. In the folder that holds the file, `cryptoscan scan FILE --format json --output reviewed.json` writes the record from that file alone, where `FILE` is the file's name. Run in the same folder, `cryptoscan gate . --baseline reviewed.json` then passes on that file and still fails on a rule-3 match in any other file. Run in a folder above it, the gate reports the file's findings again.
+
 ## Sources
 
 - Mozilla Bug 2083449, "eMudhra: Private key compromise of Intermediate Certificates", opened 2026-10-18: <https://bugzilla.mozilla.org/show_bug.cgi?id=2083449>. Comment 0 lists the eight certificates, comment 2 the cross-signed copies, and comment 18 records Mozilla's decision to remove trust in the root.

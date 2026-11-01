@@ -502,14 +502,16 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 
 	// Print streaming footer with summary
 	if streamFindings && textReport {
-		printScanningFooter(streamTally{
+		tally := streamTally{
 			listed:   listedCount,
 			hidden:   max(listedCount-maxStreamedMatches, 0),
 			unique:   uniqueCount,
 			reported: len(results.Findings),
 			files:    results.FilesScanned,
 			target:   shownTarget,
-		}, duration, !noColor)
+		}
+		tally.trust, tally.firstTrust = trustTally(results.Findings)
+		printScanningFooter(tally, duration, !noColor)
 	}
 
 	// Create reporter
@@ -797,6 +799,24 @@ type streamTally struct {
 	reported int    // findings the report counts as Total Findings
 	files    int    // files scanned
 	target   string // the scan target as given, named when no file was scanned
+
+	trust      int    // trust findings the report counts
+	firstTrust string // file and line of the first, which the report prints as Finding #1
+}
+
+// trustTally returns how many trust findings the report holds and the file
+// and line of the first of them, in the form its block's File line gives.
+func trustTally(findings []scanner.Finding) (int, string) {
+	n, first := 0, ""
+	for i := range findings {
+		if findings[i].IsTrust() {
+			if n == 0 {
+				first = fmt.Sprintf("%s:%d", findings[i].File, findings[i].Line)
+			}
+			n++
+		}
+	}
+	return n, first
 }
 
 func printScanningFooter(tally streamTally, duration time.Duration, useColor bool) {
@@ -827,6 +847,21 @@ func printScanningFooter(tally streamTally, duration time.Duration, useColor boo
 		fmt.Printf("%s%s  \u2713 Scan complete%s: %s\n", colorGreen, colorBold, colorReset, counts)
 	default:
 		fmt.Printf("  Scan complete: %s\n", counts)
+	}
+
+	// The text report prints trust findings first, below the summary, and
+	// the streamed list above can end before the first of them, so the line
+	// after the scan-complete line names them.
+	if tally.trust > 0 {
+		line := fmt.Sprintf("%d Trust finding, at %s", tally.trust, tally.firstTrust)
+		if tally.trust > 1 {
+			line = fmt.Sprintf("%d Trust findings, the first at %s", tally.trust, tally.firstTrust)
+		}
+		if useColor {
+			fmt.Printf("%s%s  %s%s\n", colorYellow, colorBold, line, colorReset)
+		} else {
+			fmt.Printf("  %s\n", line)
+		}
 	}
 
 	// The listed matches are numbered, so when their count differs from the

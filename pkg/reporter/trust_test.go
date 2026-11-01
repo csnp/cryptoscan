@@ -6,6 +6,7 @@ package reporter
 import (
 	"encoding/json"
 	"reflect"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -269,5 +270,120 @@ func TestTrustTextLabelsTheListedKeyByItsUse(t *testing.T) {
 		if !seen[use] {
 			t.Errorf("the fixture raises no trust finding whose key use is %s", use)
 		}
+	}
+}
+
+// trustBundleFixture is a committed CA bundle laid out as the OpenBSD
+// cert.pem is: generated Ed25519 test CA certificates, each after a text
+// header computed from it, and the removed root after the first fifty-five.
+// The report's order puts the quantum-vulnerable findings of those headers
+// before the root's trust finding.
+const trustBundleFixture = "../patterns/testdata/trust-bundle"
+
+// groupedEntry matches the first line of a finding in the report grouped by
+// file.
+var groupedEntry = regexp.MustCompile(`^    \[[A-Z]+\] #[0-9]+ `)
+
+// In the text report, the trust findings print before every other finding,
+// numbered from #1, in the order the report has them. Grouped by file, the
+// files that hold a trust finding come first, and in each file its trust
+// findings, so that the trust finding of a bundle is the first entry even
+// when another file holds more findings. The JSON report keeps the report's
+// order. The bundle holds at least 200 findings before the root's line.
+func TestTrustTextListsTrustFindingsFirst(t *testing.T) {
+	results, err := scanner.New(scanner.Config{Target: trustBundleFixture, MinSeverity: types.SeverityInfo}).Scan()
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstTrust, trust := -1, 0
+	for i, f := range results.Findings {
+		if f.IsTrust() {
+			trust++
+			if firstTrust < 0 {
+				firstTrust = i
+			}
+		}
+	}
+	if trust != 1 || firstTrust < 1 {
+		t.Fatalf("the bundle gave %d trust findings, the first at %d in the report's order; the test needs one, after other findings", trust, firstTrust)
+	}
+	root := results.Findings[firstTrust]
+	before := 0
+	for _, f := range results.Findings {
+		if f.File == root.File && f.Line < root.Line {
+			before++
+		}
+	}
+	if before < 200 {
+		t.Errorf("%d findings come before the root's line, want at least 200", before)
+	}
+
+	data, err := NewJSONReporter(false).Generate(results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report struct {
+		Findings []struct {
+			ID string `json:"id"`
+		} `json:"findings"`
+	}
+	if err := json.Unmarshal([]byte(data), &report); err != nil {
+		t.Fatal(err)
+	}
+	if len(report.Findings) != len(results.Findings) || report.Findings[firstTrust].ID != root.ID {
+		t.Errorf("the JSON report does not keep the report's order: the trust finding is not at index %d", firstTrust)
+	}
+
+	out, err := NewTextReporter(false).Generate(results)
+	if err != nil {
+		t.Fatal(err)
+	}
+	blocks := strings.Split(out, "\n  ┌── Finding #")[1:]
+	if len(blocks) != len(results.Findings) {
+		t.Fatalf("%d finding blocks, want %d", len(blocks), len(results.Findings))
+	}
+	if want := "1 [HIGH]\n  │ Type: " + root.Type + "\n  │ File: " + root.File + ":" + strconv.Itoa(root.Line) + "\n"; !strings.HasPrefix(blocks[0], want) {
+		t.Errorf("Finding #1 is not the trust finding:\n%s", blocks[0][:min(len(blocks[0]), 300)])
+	}
+	for i, b := range blocks[1:] {
+		if strings.Contains(b, "│ Reference: "+trustPages["TRUST-DISTRUSTED-ROOT-001"]) {
+			t.Errorf("Finding #%d is a trust block after another finding", i+2)
+		}
+	}
+
+	// Another file with more findings, none of them a trust finding, sorts
+	// before the bundle by count.
+	grouped := *results
+	grouped.Findings = slices.Clone(results.Findings)
+	other := root.File[:strings.LastIndex(root.File, "/")+1] + "a-other.pem"
+	for i := 0; i < 2; i++ {
+		for _, f := range results.Findings {
+			if !f.IsTrust() {
+				f.File = other
+				f.Line += i * 10000
+				grouped.Findings = append(grouped.Findings, f)
+			}
+		}
+	}
+	rep := NewTextReporter(false)
+	rep.SetGroupBy("file")
+	out, err = rep.Generate(&grouped)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var headers, entries []string
+	for _, line := range strings.Split(out, "\n") {
+		switch {
+		case strings.HasPrefix(line, "  ━━━ "):
+			headers = append(headers, line)
+		case groupedEntry.MatchString(line) && len(entries) < 2:
+			entries = append(entries, line)
+		}
+	}
+	if len(headers) != 2 || !strings.HasPrefix(headers[0], "  ━━━ "+root.File+" ") {
+		t.Errorf("grouped by file, the file headers are %q; want the bundle first", headers)
+	}
+	if want := "    [HIGH] #1 " + root.Type + " Line " + strconv.Itoa(root.Line); len(entries) == 0 || entries[0] != want {
+		t.Errorf("grouped by file, the first entry is %q, want %q", entries, want)
 	}
 }

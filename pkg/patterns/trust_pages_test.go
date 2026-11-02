@@ -79,6 +79,40 @@ func TestTrustPagesNameTheFindingAndCarryItsText(t *testing.T) {
 	}
 }
 
+// pageDate matches a date as the pages write it.
+var pageDate = regexp.MustCompile(`\b\d{4}-\d{2}-\d{2}\b`)
+
+// A line that puts a date earlier than the day Mozilla Bug 2083449 was opened
+// beside the bug also gives the day it was opened, so that a reader who
+// follows the link to a bug opened later does not read the earlier date as
+// the bug's own. The opening day is the bug's creation_time in the committed
+// records capture.
+func TestTrustPagesDateTheBugByTheDayItWasOpened(t *testing.T) {
+	var opened string
+	for _, r := range readSourceRecords(t) {
+		if r.url == trustBugURL {
+			opened = r.date(t)
+		}
+	}
+	if opened == "" {
+		t.Fatalf("source-records.txt holds no record for %s", trustBugURL)
+	}
+	want := "Bug 2083449 (opened " + opened
+	for _, p := range trustPages {
+		for i, line := range strings.Split(readPage(t, p.file), "\n") {
+			if !strings.Contains(line, "Bug 2083449") {
+				continue
+			}
+			for _, d := range pageDate.FindAllString(line, -1) {
+				if d < opened && !strings.Contains(line, want) {
+					t.Errorf("%s:%d dates the bug %s, before it was opened on %s, and does not say %q", p.file, i+1, d, opened, want)
+					break
+				}
+			}
+		}
+	}
+}
+
 // pageTableRows returns the rows of the key table between a page's markers,
 // each split into its cells.
 func pageTableRows(t *testing.T, page, name string) [][]string {
@@ -275,13 +309,14 @@ func TestTrustStoreFixStatesWhatRemovingTheRootStops(t *testing.T) {
 // The compromised-key page's incident paragraph gives 2026-10-17 to the report
 // alone: the report itself included proof of control of the keys, so the page
 // never places every recovery after it. The paragraph stands once, as a whole
-// line, and its last sentence is the replacement that the certificate and
-// every chain through the key need, whichever kind of software validates
-// them.
+// line, gives the day Mozilla Bug 2083449 was opened beside the earlier date
+// (TestTrustPagesDateTheBugByTheDayItWasOpened), and its last sentence is the
+// replacement that the certificate and every chain through the key need,
+// whichever kind of software validates them.
 func TestTrustIncidentParagraphStatesProofOfControlAndTheReplacement(t *testing.T) {
 	const (
 		name      = "trust-compromised-key.md"
-		paragraph = "A report to the root programs and to eMudhra on 2026-10-17 included proof of control of the private keys of the eight intermediates, and several parties, Mozilla among them, have recovered the keys independently (Mozilla Bug 2083449, comments 0 and 18). eMudhra revoked its eight certificates on 2026-10-18, the cross-signed copies were revoked on 2026-10-19, and Chrome and Firefox block the six TLS keys. Software that checks revocation rejects chains through these keys. Software that does not, and still trusts a key, accepts any certificate signed with it, including ones the CA never issued. Either way, the certificate and every chain through the key need replacing."
+		paragraph = "A report to the root programs and to eMudhra on 2026-10-17 included proof of control of the private keys of the eight intermediates, and several parties, Mozilla among them, have recovered the keys independently, as recorded in Mozilla Bug 2083449 (opened 2026-10-18; comments 0 and 18). eMudhra revoked its eight certificates on 2026-10-18, the cross-signed copies were revoked on 2026-10-19, and Chrome and Firefox block the six TLS keys. Software that checks revocation rejects chains through these keys. Software that does not, and still trusts a key, accepts any certificate signed with it, including ones the CA never issued. Either way, the certificate and every chain through the key need replacing."
 		anchor    = "the cross-signed copies were revoked on 2026-10-19"
 		closing   = "Either way, the certificate and every chain through the key need replacing."
 	)

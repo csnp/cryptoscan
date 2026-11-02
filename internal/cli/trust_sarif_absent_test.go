@@ -11,6 +11,9 @@ import (
 	"testing"
 
 	"github.com/csnp/cryptoscan/pkg/patterns"
+	"github.com/csnp/cryptoscan/pkg/reporter"
+	"github.com/csnp/cryptoscan/pkg/scanner"
+	"github.com/csnp/cryptoscan/pkg/types"
 )
 
 // noCertificateInput holds no certificate. It hashes with MD5 and SHA-1,
@@ -29,12 +32,71 @@ signer = ec.generate_private_key(ec.SECP256R1())
 context.verify_mode = ssl.CERT_NONE
 `
 
-// trustResultKeys are the result properties a trust finding adds to a SARIF
-// report: the seven trust data under their names, and patterns.TrustMetaRule,
-// the metadata key the trust code writes the rule number under.
+// trustResultKeys are the seven result properties a trust finding adds to a
+// SARIF report, each under the metadata key the trust code writes it under.
 var trustResultKeys = []string{
-	"kind", "matchedValue", "valueType", "issuerSpkiSha256", "keyUse", "trustRule", "distrustDate",
+	patterns.TrustMetaKind,
+	patterns.TrustMetaMatchedValue,
+	patterns.TrustMetaValueType,
+	patterns.TrustMetaIssuerSPKI,
+	patterns.TrustMetaKeyUse,
 	patterns.TrustMetaRule,
+	patterns.TrustMetaDistrustDate,
+}
+
+// trustResultKeys holds each property the SARIF reporter adds to a trust
+// result, once: the reporter is given a trust finding with every
+// patterns.TrustMeta* key set and the same finding outside the trust
+// category, and the properties only the first one carries are the list.
+// Without this, a name the reporter never writes stays in the list and its
+// absence check in TestTrustSARIFKeysAbsentWithoutCertificate cannot fail.
+func TestTrustResultKeysAreTheSARIFTrustProperties(t *testing.T) {
+	md := map[string]string{
+		patterns.TrustMetaKind:         "placeholder",
+		patterns.TrustMetaMatchedValue: "placeholder",
+		patterns.TrustMetaValueType:    "placeholder",
+		patterns.TrustMetaIssuerSPKI:   "placeholder",
+		patterns.TrustMetaKeyUse:       "placeholder",
+		patterns.TrustMetaRule:         "1",
+		patterns.TrustMetaDistrustDate: "placeholder",
+	}
+	finding := func(id, category string) scanner.Finding {
+		return scanner.Finding{
+			ID: id, Type: id, Category: category, File: "a.pem", Line: 1,
+			Severity: types.SeverityHigh, Algorithm: "RSA", KeySize: 2048,
+			Quantum: types.QuantumVulnerable, Metadata: md,
+		}
+	}
+	out, err := reporter.NewSARIFReporter().Generate(&scanner.Results{
+		ScanTarget: "placeholder",
+		Findings:   []scanner.Finding{finding("TRUST-X", types.CategoryTrust), finding("OTHER-X", "Asymmetric")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var log sarifKeyLog
+	if err := json.Unmarshal([]byte(out), &log); err != nil {
+		t.Fatalf("SARIF is not JSON: %v", err)
+	}
+	if len(log.Runs) != 1 || len(log.Runs[0].Results) != 2 {
+		t.Fatalf("SARIF holds %d runs, want 1 run with 2 results", len(log.Runs))
+	}
+	trust, other := log.Runs[0].Results[0].Properties, log.Runs[0].Results[1].Properties
+	var written []string
+	for key := range trust {
+		if _, both := other[key]; !both {
+			written = append(written, key)
+		}
+	}
+	slices.Sort(written)
+	listed := slices.Clone(trustResultKeys)
+	slices.Sort(listed)
+	if !slices.Equal(listed, written) {
+		t.Errorf("trustResultKeys sorted is %v; the reporter adds %v to a trust result", listed, written)
+	}
+	if len(written) != len(md) {
+		t.Errorf("the reporter adds %d properties to a trust result, want one per trust metadata key (%d): %v", len(written), len(md), written)
+	}
 }
 
 // sarifKeyLog is the part of a SARIF log the trust key reads use: each rule

@@ -40,7 +40,7 @@ The root is listed by its SPKI hash and by the SHA-256 of its certificate, in he
 
 ## Dates
 
-- 2026-10-17: the eMudhra intermediate key compromise is reported to the root programs and to eMudhra (Mozilla Bug 2083449, comment 0); CryptoScan reports the eight keys as [TRUST-COMPROMISED-KEY-001](trust-compromised-key.md).
+- 2026-10-17: the eMudhra intermediate key compromise is reported to the root programs and to eMudhra, as recorded in Mozilla Bug 2083449 (opened 2026-10-18; comment 0); CryptoScan reports the eight keys as [TRUST-COMPROMISED-KEY-001](trust-compromised-key.md).
 - 2026-10-18: Mozilla Bug 2083449 is opened, and eMudhra revokes the eight intermediates (comment 1).
 - 2026-10-20: Mozilla removes emSign ECC Root CA - G3 from its root store (comment 18 and Mozilla Bug 2084101).
 - 2026-10-27: Chrome's removal date for the root on all devices, as given in Google's post of 2026-10-20.

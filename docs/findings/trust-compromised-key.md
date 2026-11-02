@@ -5,7 +5,7 @@ A certificate in the scanned files uses, or was signed under, a CA key whose pri
 1. the certificate's public key is one of the eight eMudhra intermediate CA keys listed below (rule 1), or
 2. the certificate's signature verifies under one of those keys (rule 2): it was signed under a listed intermediate's key, whether or not that intermediate's certificate is in the file. The signature identifies the key, not who held it.
 
-A report to the root programs and to eMudhra on 2026-10-17 included proof of control of the private keys of the eight intermediates, and several parties, Mozilla among them, have recovered the keys independently (Mozilla Bug 2083449, comments 0 and 18). eMudhra revoked its eight certificates on 2026-10-18, the cross-signed copies were revoked on 2026-10-19, and Chrome and Firefox block the six TLS keys. Software that checks revocation rejects chains through these keys. Software that does not, and still trusts a key, accepts any certificate signed with it, including ones the CA never issued. Either way, the certificate and every chain through the key need replacing.
+A report to the root programs and to eMudhra on 2026-10-17 included proof of control of the private keys of the eight intermediates, and several parties, Mozilla among them, have recovered the keys independently, as recorded in Mozilla Bug 2083449 (opened 2026-10-18; comments 0 and 18). eMudhra revoked its eight certificates on 2026-10-18, the cross-signed copies were revoked on 2026-10-19, and Chrome and Firefox block the six TLS keys. Software that checks revocation rejects chains through these keys. Software that does not, and still trusts a key, accepts any certificate signed with it, including ones the CA never issued. Either way, the certificate and every chain through the key need replacing.
 
 The match is made on the key, never on a name. CryptoScan decodes each certificate block and compares the SHA-256 of its DER SubjectPublicKeyInfo (its SPKI hash) with the listed keys, then checks its signature against each listed key. The key is already compromised, without a quantum computer, so the finding does not count toward the quantum migration readiness score, the QRAMM levels or the CBOM components.
 
@@ -61,7 +61,7 @@ Each key is listed by its SPKI hash and by the SHA-256 of each certificate known
 
 ## Dates
 
-- 2026-10-17: the compromise is reported to the root programs and to eMudhra, and Mozilla recovers the keys independently (Mozilla Bug 2083449, comment 0).
+- 2026-10-17: the compromise is reported to the root programs and to eMudhra, and Mozilla recovers the keys independently, as recorded in Mozilla Bug 2083449 (opened 2026-10-18; comment 0).
 - 2026-10-18: Mozilla Bug 2083449 is opened, and eMudhra revokes its eight certificates (comment 1).
 - 2026-10-19: the cross-signed copies are revoked (comment 13).
 - 2026-10-20: Mozilla removes emSign ECC Root CA - G3 from its root store (comment 18 and Mozilla Bug 2084101); CryptoScan reports the root as [TRUST-DISTRUSTED-ROOT-001](trust-distrusted-root.md).

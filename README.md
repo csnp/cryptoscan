@@ -203,8 +203,8 @@ go test -race ./...
 # Build
 go build -o cryptoscan ./cmd/cryptoscan
 
-# Run linter
-golangci-lint run
+# Run the linter at the golangci-lint release CI uses
+make lint
 ```
 
 ### Adding New Patterns

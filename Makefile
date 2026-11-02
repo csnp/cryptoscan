@@ -8,6 +8,14 @@ DATE=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
 
 LDFLAGS=-ldflags "-X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.date=$(DATE)"
 
+# GOLANGCI_LINT_VERSION is the golangci-lint release that `make lint` runs. It
+# is the release the CI lint job installs: golangci/golangci-lint-action@v4
+# with `version: latest` in .github/workflows/ci.yml installs v1.64.8. Change
+# the two together: TestMakeLintRunsTheGolangciLintReleaseCIInstalls in
+# cmd/cryptoscan compares this value with the workflow's golangci-lint step
+# and fails when they differ.
+GOLANGCI_LINT_VERSION=v1.64.8
+
 .PHONY: all build clean test lint install run help
 
 all: build
@@ -34,9 +42,9 @@ test-coverage:
 	go test -v -race -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
 
-## lint: Run linters
+## lint: Run golangci-lint at the release the CI lint job installs
 lint:
-	golangci-lint run
+	go run github.com/golangci/golangci-lint/cmd/golangci-lint@$(GOLANGCI_LINT_VERSION) run
 
 ## fmt: Format code
 fmt:

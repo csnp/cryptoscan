@@ -11,6 +11,7 @@ import (
 	"crypto/rand"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/asn1"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
@@ -699,8 +700,8 @@ func TestTrustRulesOnEachFixtureCertificate(t *testing.T) {
 }
 
 // generatedCert returns the DER of a certificate for pub signed by signer,
-// with issuer standing in as the parent.
-func generatedCert(t *testing.T, serial int64, pub any, signer *ecdsa.PrivateKey, isCA bool, issuer *x509.Certificate) ([]byte, *x509.Certificate) {
+// with issuer standing in as the parent and extra added to its extensions.
+func generatedCert(t *testing.T, serial int64, pub any, signer *ecdsa.PrivateKey, isCA bool, issuer *x509.Certificate, extra ...pkix.Extension) ([]byte, *x509.Certificate) {
 	t.Helper()
 	tmpl := &x509.Certificate{
 		SerialNumber:          big.NewInt(serial),
@@ -710,6 +711,7 @@ func generatedCert(t *testing.T, serial int64, pub any, signer *ecdsa.PrivateKey
 		IsCA:                  isCA,
 		BasicConstraintsValid: true,
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageDigitalSignature,
+		ExtraExtensions:       extra,
 	}
 	parent := issuer
 	if parent == nil {
@@ -729,6 +731,34 @@ func generatedCert(t *testing.T, serial int64, pub any, signer *ecdsa.PrivateKey
 func pemLines(der []byte) []string {
 	text := string(pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: der}))
 	return strings.Split(strings.TrimSuffix(text, "\n"), "\n")
+}
+
+// paddedCertificate returns a certificate for pub and its PEM lines, whose
+// base64 body takes bodyLines of the 64-character lines pem.Encode writes. A
+// non-critical extension of zero bytes, under an OID of the example arc
+// 2.999, pads the certificate to that size.
+func paddedCertificate(t *testing.T, pub any, bodyLines int) (der []byte, cert *x509.Certificate, lines []string) {
+	t.Helper()
+	signer, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	padded := func(size int) ([]byte, *x509.Certificate) {
+		return generatedCert(t, 20, pub, signer, false, nil, pkix.Extension{Id: asn1.ObjectIdentifier{2, 999, 1}, Value: make([]byte, size)})
+	}
+	// A body of bodyLines lines holds from (bodyLines-1)*48+1 to bodyLines*48
+	// bytes of DER. The size aimed at is the middle of that range, so the
+	// bytes by which an ECDSA signature's length varies leave the body on the
+	// same number of lines. What the certificate holds besides the padding is
+	// measured once at the size aimed at.
+	want := bodyLines*48 - 24
+	first, _ := padded(want)
+	der, cert = padded(want - (len(first) - want))
+	lines = pemLines(der)
+	if got := len(lines) - 2; got != bodyLines {
+		t.Fatalf("the padded certificate's body takes %d lines, want %d", got, bodyLines)
+	}
+	return der, cert, lines
 }
 
 func spkiOf(t *testing.T, pub any) []byte {
@@ -862,6 +892,17 @@ func TestCertificateBlockReadsOnlyWhatOpenSSLReads(t *testing.T) {
 	block := slices.Clone(lines[:end+1])
 	edit := func(f func([]string) []string) []string { return f(slices.Clone(block)) }
 
+	// Two certificates for the removed root's key, padded so that the end
+	// line of the first is the last line the block reader reads past the
+	// header and the end line of the second is one line further. The second
+	// certificate meets rule 3 on its own, so its block meets no rule because
+	// of where its end line is.
+	_, _, atCap := paddedCertificate(t, good.cert.PublicKey, maxCertificateLines-1)
+	pastCapDER, pastCapCert, pastCap := paddedCertificate(t, good.cert.PublicKey, maxCertificateLines)
+	if m, ok := trustKeys().match(pastCapDER, pastCapCert); !ok || m.rule != 3 {
+		t.Fatal("the certificate padded past the cap does not meet rule 3 on its own")
+	}
+
 	accept := map[string][]string{
 		"as written": block,
 		"CRLF line endings": edit(func(l []string) []string {
@@ -870,13 +911,9 @@ func TestCertificateBlockReadsOnlyWhatOpenSSLReads(t *testing.T) {
 			}
 			return l
 		}),
-		"lines after it": append(slices.Clone(block), "trailing text", pemCertificateBegin),
+		"lines after it":           append(slices.Clone(block), "trailing text", pemCertificateBegin),
+		"end line at the line cap": atCap,
 	}
-	tooLong := []string{pemCertificateBegin}
-	for len(tooLong) <= maxCertificateLines {
-		tooLong = append(tooLong, "AAAA")
-	}
-	tooLong = append(tooLong, pemCertificateEnd)
 	reject := map[string][]string{
 		"indented header":         edit(func(l []string) []string { l[0] = "  " + l[0]; return l }),
 		"text before the header":  edit(func(l []string) []string { l[0] = "cert: " + l[0]; return l }),
@@ -888,7 +925,7 @@ func TestCertificateBlockReadsOnlyWhatOpenSSLReads(t *testing.T) {
 		"a non-base64 character":  edit(func(l []string) []string { l[1] = "!" + l[1][1:]; return l }),
 		"another header inside":   edit(func(l []string) []string { return slices.Insert(l, 1, pemCertificateBegin) }),
 		"a private key block":     edit(func(l []string) []string { l[0] = "-----BEGIN PRIVATE KEY-----"; return l }),
-		"too many lines":          tooLong,
+		"too many lines":          pastCap,
 		"an empty block":          {pemCertificateBegin, pemCertificateEnd},
 		"a truncated certificate": edit(func(l []string) []string { return append(l[:2], l[len(l)-1]) }),
 	}

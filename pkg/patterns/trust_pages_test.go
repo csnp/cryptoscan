@@ -200,6 +200,78 @@ func TestTrustPagesNameNoHostOfTheLeaf(t *testing.T) {
 	}
 }
 
+// The removed-root page's Fix for a file that software loads as a trust store
+// or CA bundle says what removing the root does not do. After the instruction,
+// a sentence of its own states that removing the root stops only the chains
+// that end at it; the next, that cross-signed copies of the compromised
+// intermediates chain to a different root; the next, that the software that
+// loads the file also needs to check revocation, or to block by SPKI hash the
+// TLS keys that the compromised-key page lists. The line links that page by
+// its finding ID, and the number of keys it states is the number of TLS SPKI
+// rows on that page, so a change to that table fails here.
+func TestTrustStoreFixStatesWhatRemovingTheRootStops(t *testing.T) {
+	const (
+		name   = "trust-distrusted-root.md"
+		target = "trust-compromised-key.md"
+		label  = "- Trust store or CA bundle (rule 3): "
+		line   = "- Trust store or CA bundle (rule 3): remove emSign ECC Root CA - G3 from it. " +
+			"Removing it stops only the chains that end at this root. " +
+			"Cross-signed copies of the compromised intermediates chain to a different root that some trust stores keep. " +
+			"So the software that loads the file also needs to check revocation, or to block the six TLS keys that [TRUST-COMPROMISED-KEY-001](trust-compromised-key.md) lists, by SPKI hash. " +
+			"A file that lists distrusted certificates on purpose needs no change."
+	)
+	page := readPage(t, name)
+	_, fix, ok := strings.Cut(page, "\n## Fix\n")
+	if !ok {
+		t.Fatalf("%s has no Fix section", name)
+	}
+	fix, _, _ = strings.Cut(fix, "\n## ")
+	whole := 0
+	var bullets []string
+	for _, l := range strings.Split(fix, "\n") {
+		if l == line {
+			whole++
+		}
+		if strings.HasPrefix(l, label) {
+			bullets = append(bullets, l)
+		}
+	}
+	if whole != 1 {
+		t.Errorf("%s: the Fix section holds the trust-store line %d times as a whole line, want 1", name, whole)
+	}
+	for _, old := range []string{"keep revocation checking on", "six listed TLS keys", "you ship (rule 3)"} {
+		if strings.Contains(page, old) {
+			t.Errorf("%s still carries %q", name, old)
+		}
+	}
+
+	// The line's one link names the compromised-key finding by its ID and
+	// points at that finding's page, which sits beside this one.
+	if len(bullets) != 1 {
+		t.Errorf("%s: the Fix section has %d trust-store bullets, want 1", name, len(bullets))
+	} else {
+		links := regexp.MustCompile(`\[([^\]]*)\]\(([^)]*)\)`).FindAllStringSubmatch(bullets[0], -1)
+		if len(links) != 1 || links[0][1] != TrustCompromisedKeyID || links[0][2] != target {
+			t.Errorf("%s: the trust-store bullet has the links %q, want the one link [%s](%s)", name, links, TrustCompromisedKeyID, target)
+		}
+	}
+	if info, err := os.Stat(filepath.Join(trustPagesDir, target)); err != nil || !info.Mode().IsRegular() {
+		t.Errorf("%s is not a file beside %s: %v", target, name, err)
+	}
+
+	// The line states six TLS keys: the compromised-key page lists six TLS
+	// keys by SPKI hash.
+	rows := 0
+	for _, l := range strings.Split(readPage(t, target), "\n") {
+		if strings.Contains(l, "| tls | SPKI |") {
+			rows++
+		}
+	}
+	if rows != 6 || !strings.Contains(line, " the six TLS keys that ") {
+		t.Errorf("%s has %d TLS SPKI rows; the trust-store line on %s states six", target, rows, name)
+	}
+}
+
 // pageOpenSSL returns the openssl programs to run the pages' commands under:
 // the colon-separated paths in CRYPTOSCAN_TEST_OPENSSL, or the openssl on
 // PATH.

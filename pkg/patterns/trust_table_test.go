@@ -343,6 +343,9 @@ func TestTrustKeyTableReaderRefusesATableItDoesNotKnow(t *testing.T) {
 			delete(rowOf(rows, trustStatusDistrusted), "distrustDate")
 		}},
 		{"a row whose spkiSha256 is another row's", func(_ map[string]any, rows []map[string]any) { rows[0]["spkiSha256"] = rows[1]["spkiSha256"] }},
+		{"an exact copy of a row", func(file map[string]any, rows []map[string]any) {
+			file["keys"] = append(file["keys"].([]any), copyRow(rows[0]))
+		}},
 	}
 	for _, c := range cases {
 		data := edited(c.edit)
@@ -358,6 +361,29 @@ func TestTrustKeyTableReaderRefusesATableItDoesNotKnow(t *testing.T) {
 			}
 		})
 	}
+
+	// A key listed twice is refused by the duplicate check, which names both
+	// rows, and not by a check on the copied row's own fields.
+	t.Run("the refusal of a repeated key names both rows", func(t *testing.T) {
+		var last int
+		_, err := parse(t, edited(func(file map[string]any, rows []map[string]any) {
+			last = len(rows)
+			file["keys"] = append(file["keys"].([]any), copyRow(rows[0]))
+		}))
+		want := fmt.Sprintf("row %d: spkiSha256 %s is also row 0's", last, trustKeys().keys[0].SPKISHA256)
+		if err == nil || err.Error() != want {
+			t.Errorf("got error %v, want %q", err, want)
+		}
+	})
+}
+
+// copyRow returns a copy of a decoded table row.
+func copyRow(row map[string]any) map[string]any {
+	c := make(map[string]any, len(row))
+	for k, v := range row {
+		c[k] = v
+	}
+	return c
 }
 
 // readCaptured returns the first column of each line of a captured-values

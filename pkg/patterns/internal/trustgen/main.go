@@ -20,7 +20,9 @@
 // caught. Certificates with the same SubjectPublicKeyInfo are one key, named
 // by the subject common name they carry; a certificate with no common name,
 // and a key whose certificates carry two names, are refused. Each file holds
-// one certificate and is named by its SHA-256.
+// one certificate and is named by its SHA-256. A fixtures directory that does
+// not exist, and a use directory that does not exist or holds no .crt file,
+// are refused with an error naming the directory, and no table is written.
 //
 // The records file holds one line per public record the table cites: its
 // URL, the UTC time it states for itself, its role and the keys it lists, in
@@ -146,15 +148,19 @@ func encodeTable(keys []*Key) ([]byte, error) {
 
 // buildKeys reads every certificate under fixtures and returns one row per
 // SubjectPublicKeyInfo, sorted by SPKI hash, each citing the records of the
-// records file that list it.
+// records file that list it. It refuses a fixtures directory that does not
+// exist.
 func buildKeys(fixtures, recordsPath string) ([]*Key, error) {
 	records, err := readRecords(recordsPath)
 	if err != nil {
 		return nil, err
 	}
+	if _, err := os.Stat(fixtures); err != nil {
+		return nil, err
+	}
 	var keys []*Key
 	for _, d := range useDirs {
-		files, err := filepath.Glob(filepath.Join(fixtures, d.dir, "*.crt"))
+		files, err := certificateFiles(filepath.Join(fixtures, d.dir))
 		if err != nil {
 			return nil, err
 		}
@@ -209,6 +215,24 @@ func buildKeys(fixtures, recordsPath string) ([]*Key, error) {
 		return nil, fmt.Errorf("%s: %w", recordsPath, err)
 	}
 	return keys, nil
+}
+
+// certificateFiles returns the .crt files of a use directory, and refuses,
+// naming the directory, one that does not exist or holds no .crt file:
+// filepath.Glob returns no files and no error for either, which reads as a
+// use with no rows.
+func certificateFiles(dir string) ([]string, error) {
+	if _, err := os.Stat(dir); err != nil {
+		return nil, err
+	}
+	files, err := filepath.Glob(filepath.Join(dir, "*.crt"))
+	if err != nil {
+		return nil, err
+	}
+	if len(files) == 0 {
+		return nil, fmt.Errorf("%s: holds no .crt certificate", dir)
+	}
+	return files, nil
 }
 
 // record is one line of the records file.

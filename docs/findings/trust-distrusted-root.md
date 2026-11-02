@@ -98,7 +98,7 @@ It prints `served-N.pem: OK`, with the number of that certificate, when the chai
 ## Fix
 
 - Removed root (`keyUse` `root`): Move the chain to a CA whose root stays trusted, and remove emSign ECC Root CA - G3 from any bundle you ship; Chrome's removal date for all devices is 2026-10-27.
-- Trust store or CA bundle (rule 3): remove emSign ECC Root CA - G3 from it, and keep revocation checking on, or block the six listed TLS keys by SPKI hash, because the cross-signed copies of the listed intermediates chain to a different root that some trust stores keep. A file that lists distrusted certificates on purpose needs no change.
+- Trust store or CA bundle (rule 3): remove emSign ECC Root CA - G3 from it. Removing it stops only the chains that end at this root. Cross-signed copies of the compromised intermediates chain to a different root that some trust stores keep. So the software that loads the file also needs to check revocation, or to block the six TLS keys that [TRUST-COMPROMISED-KEY-001](trust-compromised-key.md) lists, by SPKI hash. A file that lists distrusted certificates on purpose needs no change.
 
 For a trust store or CA bundle, `cryptoscan gate . --ignore-category "Certificate,Deprecated Hash,Asymmetric Encryption"` leaves out the bundle's other findings by category and keeps the trust finding: it exits 1 with the trust finding alone. Excluding the file's path hides this finding too.
 

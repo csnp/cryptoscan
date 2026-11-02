@@ -107,6 +107,12 @@ All notable changes to CryptoScan are recorded here. This project follows
   gives their count and the first one's file and line. The finding page gives
   the command that keeps a bundle's trust finding in view by category, and
   the commands that record a file held on purpose as reviewed.
+- **The removed-root page's Fix for a trust store or CA bundle states what
+  removing the root stops.** Removing emSign ECC Root CA - G3 stops only the
+  chains that end at it; cross-signed copies of the compromised intermediates
+  chain to a different root, so the software that loads the file also needs
+  to check revocation, or to block the six TLS keys that
+  `TRUST-COMPROMISED-KEY-001` lists by SPKI hash.
 - **A JSON finding names its severity.** `--format json` wrote each finding's
   severity as a number from 0 to 4, as in `"severity": 3`, while
   `summary.bySeverity` is keyed by name. Each finding now carries the name, as

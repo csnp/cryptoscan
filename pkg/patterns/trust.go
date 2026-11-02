@@ -152,8 +152,9 @@ func trustKeys() *trustTable {
 // parseTrustTable reads a key table and checks that each row's SPKI hash is
 // the hash of its SPKI DER. It refuses with an error a table whose format
 // version it does not know or that has no rows, and a row whose use or status
-// is outside the format's sets or that carries distrustDate other than
-// exactly when its status is distrusted, so a table it cannot read whole is
+// is outside the format's sets, that carries distrustDate other than
+// exactly when its status is distrusted, or whose spkiSha256 an earlier row
+// already holds, so a table it cannot read whole is
 // never read as fewer keys or none.
 func parseTrustTable(data []byte) (*trustTable, error) {
 	var file struct {
@@ -170,6 +171,7 @@ func parseTrustTable(data []byte) (*trustTable, error) {
 		return nil, errors.New("the table has no rows")
 	}
 	t := &trustTable{bySPKI: make(map[string]*trustKey, len(file.Keys))}
+	rowBySPKI := make(map[string]int, len(file.Keys))
 	for i, k := range file.Keys {
 		if k == nil {
 			return nil, fmt.Errorf("row %d is null", i)
@@ -194,6 +196,10 @@ func parseTrustTable(data []byte) (*trustTable, error) {
 		if err != nil {
 			return nil, fmt.Errorf("row %d: spkiDer: %w", i, err)
 		}
+		if prev, ok := rowBySPKI[k.SPKISHA256]; ok {
+			return nil, fmt.Errorf("row %d: spkiSha256 %s is also row %d's", i, k.SPKISHA256, prev)
+		}
+		rowBySPKI[k.SPKISHA256] = i
 		k.publicKey = pub
 		t.keys = append(t.keys, k)
 		t.bySPKI[k.SPKISHA256] = k

@@ -326,7 +326,14 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 			effectiveFailOn = cfgFile.FailOn
 		}
 		if effectiveBaseline == "" && cfgFile.Baseline != "" && !opts.inventory {
+			// A relative path in the file is read from the file's own
+			// directory, so the same file works from any working directory.
+			// --baseline on the command line stays relative to the working
+			// directory, and an absolute path is used as written.
 			effectiveBaseline = cfgFile.Baseline
+			if !filepath.IsAbs(effectiveBaseline) {
+				effectiveBaseline = filepath.Join(filepath.Dir(cfgPath), effectiveBaseline)
+			}
 			baselineFromConfig = true
 		}
 		if outputFormat == "text" && cfgFile.Format != "" &&
@@ -482,8 +489,14 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	if effectiveBaseline != "" {
 		baseline, err := loadBaseline(effectiveBaseline)
 		if err != nil {
+			// Name where the path came from: a config file the user may not
+			// know applies, or the flag.
+			check := "Check the --baseline path."
+			if baselineFromConfig {
+				check = "Check the baseline path in " + cfgPath + "."
+			}
 			return nil, "", withHint(fmt.Errorf("failed to load baseline: %w", err),
-				"Check the --baseline path. To create a baseline: cryptoscan scan . --format json --output baseline.json")
+				check+" To create a baseline: cryptoscan scan . --format json --output baseline.json")
 		}
 		before := len(results.Findings)
 		results.Findings = filterNewFindings(results.Findings, results.Metadata[scanner.MetadataScanRoot], baseline)

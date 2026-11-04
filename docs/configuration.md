@@ -51,7 +51,7 @@ stderr. Pass `--no-config` to ignore config files and use only command-line opti
 | `failOn` | `--fail-on` | info, low, medium, high, critical |
 | `minSeverity` | `--min-severity` | info, low, medium, high, critical |
 | `format` | `--format` | text, json, csv, sarif, cbom |
-| `baseline` | `--baseline` | Path to a baseline JSON file |
+| `baseline` | `--baseline` | Path to a baseline JSON file; a relative path is resolved from the config file's directory |
 
 A flag set on the command line to something other than its default takes precedence over the same key in the file. The three `ignore` lists are added to any `--ignore`, `--ignore-category` and `--exclude` values rather than replaced by them.
 

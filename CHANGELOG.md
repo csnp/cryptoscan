@@ -307,6 +307,19 @@ All notable changes to CryptoScan are recorded here. This project follows
   named `dist` is left out as before, and so are the directories below one
   named `standalone`.
 
+- **A `baseline` path in `.cryptoscan.yaml` is resolved from the file's
+  directory.** A relative `baseline: baseline.json` in a config file was
+  opened from the working directory, so `cryptoscan gate path/to/project`
+  run from another directory failed with
+  `Error: failed to load baseline: open baseline.json: no such file or directory`
+  although the file sat beside the config. The path is now resolved from the
+  directory of the config file that names it; `--baseline` on the command
+  line is still resolved from the working directory, and an absolute path is
+  unchanged. A config file in a directory above the scan target whose
+  relative `baseline` was meant to be found from the working directory needs
+  the path written from the file's directory, or `--baseline` on the command
+  line.
+
 ### Documentation
 
 - **The terms in `LICENSE` match the Apache License 2.0 text word for word.**

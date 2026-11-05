@@ -21,6 +21,8 @@ cryptoscan scan . --format json --output baseline.json
 
 A baseline is portable across checkouts: each reviewed finding is matched on its path inside the scanned tree, its pattern and the text of its line, so the same baseline works on a CI runner that checks the repository out at a different path, and a line added above a reviewed finding does not make it new.
 
+The pattern is the finding's `patternId`. A baseline written by a release whose findings have no `patternId` still matches, because the pattern is then read from the finding's `id`.
+
 ## Exit code control
 
 Control when CI fails based on finding severity:
@@ -145,7 +147,7 @@ jobs:
           sarif_file: results.sarif
 ```
 
-SARIF rule IDs are unique per occurrence rather than per pattern: each carries the line and column of its match, such as `MD5-001-96-8` for the pattern `MD5-001`. GitHub Code Scanning therefore does not group results by pattern, and a result whose line moves gets a new rule ID, so its dismissal does not follow it (see the known limitations in [CHANGELOG.md](../CHANGELOG.md)).
+Each SARIF result's `ruleId` is the ID of the pattern that found it, such as `MD5-001`, or `DEP-` followed by the library name for a crypto library in a dependency manifest, such as `DEP-crypto-js`. GitHub code scanning therefore groups results by pattern, and a line added above a result does not change its `ruleId`. A rule's description, help text and default level are its pattern's, and each result keeps its own `level`. The finding's own ID, which adds where the finding is, such as `MD5-001-96-8` for a match on line 96, is in the result's `properties.findingId`, the same ID the JSON report gives the finding. The results carry no `partialFingerprints`.
 
 ## GitLab CI
 

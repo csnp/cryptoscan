@@ -1740,11 +1740,13 @@ func (s *Scanner) scanDependencyFile(path string, countScanned func()) {
 	countScanned()
 
 	for _, dep := range deps {
+		patternID := DependencyPatternPrefix + dep.Library.Name
 		finding := Finding{
-			ID:          fmt.Sprintf("DEP-%s-%s", dep.Library.Name, filepath.Base(path)),
-			Type:        "Crypto Library Dependency",
+			ID:          patternID + "-" + filepath.Base(path),
+			PatternID:   patternID,
+			Type:        dependencyFindingType,
 			FindingType: types.FindingTypeDependency,
-			Category:    "dependency",
+			Category:    dependencyCategory,
 			Algorithm:   strings.Join(dep.Library.Algorithms, ", "),
 			File:        path,
 			Line:        1,
@@ -1757,13 +1759,9 @@ func (s *Scanner) scanDependencyFile(path string, countScanned func()) {
 			FileType:    "dependency",
 			Description: dep.Description,
 			Remediation: dep.Remediation,
-			Tags:        []string{"dependency", string(dep.Library.Language)},
+			Tags:        dependencyTags(dep.Library),
 
 			EvidenceKind: EvidenceDependency,
-		}
-
-		if dep.Library.QuantumSafe {
-			finding.Tags = append(finding.Tags, "pqc-ready")
 		}
 
 		s.mu.Lock()

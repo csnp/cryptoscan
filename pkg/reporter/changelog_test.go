@@ -128,12 +128,12 @@ func TestChangelogReleasesHaveOneHeadingPerKind(t *testing.T) {
 }
 
 // scanCryptoJSDependency runs the real scanner over a directory whose
-// package.json lists crypto-js, and returns the ID and help text of the
-// crypto-js dependency rule in the SARIF output, and the Remediation column
-// of that finding's CSV row. The SARIF output is decoded with the field names
-// SARIF defines, from runs down to help.text, rather than with the reporter's
-// own types.
-func scanCryptoJSDependency(t *testing.T) (ruleID, sarifHelp, csvRemediation string) {
+// package.json lists crypto-js, and returns the ID of the finding, the help
+// text of its rule in the SARIF output, DEP-crypto-js, and the Remediation
+// column of the finding's CSV row. The SARIF output is decoded with the field
+// names SARIF defines, from runs down to help.text, rather than with the
+// reporter's own types.
+func scanCryptoJSDependency(t *testing.T) (findingID, sarifHelp, csvRemediation string) {
 	t.Helper()
 
 	// os.MkdirTemp rather than t.TempDir, whose path carries the test name.
@@ -173,6 +173,12 @@ func scanCryptoJSDependency(t *testing.T) (ruleID, sarifHelp, csvRemediation str
 					} `json:"rules"`
 				} `json:"driver"`
 			} `json:"tool"`
+			Results []struct {
+				RuleID     string `json:"ruleId"`
+				Properties struct {
+					FindingID string `json:"findingId"`
+				} `json:"properties"`
+			} `json:"results"`
 		} `json:"runs"`
 	}
 	if err := json.Unmarshal([]byte(out), &report); err != nil {
@@ -181,13 +187,19 @@ func scanCryptoJSDependency(t *testing.T) (ruleID, sarifHelp, csvRemediation str
 	if len(report.Runs) != 1 {
 		t.Fatalf("SARIF has %d runs, want 1", len(report.Runs))
 	}
+	const ruleID = "DEP-crypto-js"
 	for _, rule := range report.Runs[0].Tool.Driver.Rules {
-		if strings.HasPrefix(rule.ID, "DEP-crypto-js-") {
-			ruleID, sarifHelp = rule.ID, rule.Help.Text
+		if rule.ID == ruleID {
+			sarifHelp = rule.Help.Text
 		}
 	}
-	if ruleID == "" {
-		t.Fatalf("the SARIF output has no crypto-js dependency rule:\n%s", out)
+	for _, result := range report.Runs[0].Results {
+		if result.RuleID == ruleID {
+			findingID = result.Properties.FindingID
+		}
+	}
+	if sarifHelp == "" || findingID == "" {
+		t.Fatalf("the SARIF output has no %s rule with help text and a result that names its finding:\n%s", ruleID, out)
 	}
 
 	table, err := NewCSVReporter().Generate(results)
@@ -212,24 +224,25 @@ func scanCryptoJSDependency(t *testing.T) (ruleID, sarifHelp, csvRemediation str
 	}
 	found := false
 	for _, row := range rows[1:] {
-		if row[idColumn] == ruleID {
+		if row[idColumn] == findingID {
 			csvRemediation, found = row[remediationColumn], true
 		}
 	}
 	if !found {
-		t.Fatalf("the CSV output has no row for %s:\n%s", ruleID, table)
+		t.Fatalf("the CSV output has no row for %s:\n%s", findingID, table)
 	}
-	return ruleID, sarifHelp, csvRemediation
+	return findingID, sarifHelp, csvRemediation
 }
 
 // The 1.5.0 entry that gave the crypto-js dependency finding its replacement
 // text said "SARIF output is unchanged", but SARIF writes a finding's
 // remediation as its rule's help text, and CSV writes it in the Remediation
-// column. An entry that quotes the text must name both places.
+// column. An entry that quotes the text must name the finding by its ID, and
+// both places.
 func TestChangelogSaysWhereSARIFAndCSVCarryTheCryptoJSText(t *testing.T) {
-	ruleID, help, remediation := scanCryptoJSDependency(t)
+	findingID, help, remediation := scanCryptoJSDependency(t)
 	if help == "" || help != remediation {
-		t.Fatalf("SARIF rule %s has help text %q and its CSV row has Remediation %q; want the same crypto-js text in both", ruleID, help, remediation)
+		t.Fatalf("the SARIF rule of finding %s has help text %q and its CSV row has Remediation %q; want the same crypto-js text in both", findingID, help, remediation)
 	}
 
 	raw, err := os.ReadFile(changelogFile)
@@ -243,16 +256,16 @@ func TestChangelogSaysWhereSARIFAndCSVCarryTheCryptoJSText(t *testing.T) {
 			continue
 		}
 		checked++
-		for _, want := range []string{"`" + ruleID + "`", "`help.text`", "Remediation column"} {
+		for _, want := range []string{"`" + findingID + "`", "`help.text`", "Remediation column"} {
 			if !strings.Contains(entry.text, want) {
-				t.Errorf("%s, under %q: the entry that quotes %s does not contain %q; SARIF writes that text as the help.text of rule %s, and CSV writes it in the Remediation column", changelogFile, entry.release, quote, want, ruleID)
+				t.Errorf("%s, under %q: the entry that quotes %s does not contain %q; SARIF writes that text as the help.text of the rule of finding %s, and CSV writes it in the Remediation column", changelogFile, entry.release, quote, want, findingID)
 			}
 		}
 		if strings.Contains(entry.text, "SARIF output is unchanged") {
-			t.Errorf("%s, under %q: the entry that quotes %s says SARIF output is unchanged, but SARIF writes that text as the help of rule %s", changelogFile, entry.release, quote, ruleID)
+			t.Errorf("%s, under %q: the entry that quotes %s says SARIF output is unchanged, but SARIF writes that text as the help of the rule of finding %s", changelogFile, entry.release, quote, findingID)
 		}
 	}
 	if checked == 0 {
-		t.Fatalf("%s has no entry that quotes %s, the text SARIF writes as the help of rule %s and CSV writes in the Remediation column", changelogFile, quote, ruleID)
+		t.Fatalf("%s has no entry that quotes %s, the text SARIF writes as the help of the rule of finding %s and CSV writes in the Remediation column", changelogFile, quote, findingID)
 	}
 }

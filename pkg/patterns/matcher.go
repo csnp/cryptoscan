@@ -69,6 +69,7 @@ func (m *Matcher) Match(line, file string, lineNum int) []types.Finding {
 		for _, match := range matches {
 			findings = append(findings, types.Finding{
 				ID:          fmt.Sprintf("%s-%d-%d", p.ID, lineNum, match[0]),
+				PatternID:   p.ID,
 				Type:        p.Name,
 				Category:    p.Category,
 				Algorithm:   p.Algorithm,
@@ -146,6 +147,7 @@ func (m *Matcher) matchLine(line string, following []string, file string, lineNu
 
 			finding := types.Finding{
 				ID:          fmt.Sprintf("%s-%d-%d", p.ID, lineNum, match[0]),
+				PatternID:   p.ID,
 				Type:        p.Name,
 				FindingType: determineFindingType(p),
 				Category:    p.Category,
@@ -237,6 +239,7 @@ func (m *Matcher) matchLine(line string, following []string, file string, lineNu
 func newTrustFinding(p Pattern, m *trustMatch, line string, match []int, file string, lineNum int, fileCtx *analyzer.FileContext) types.Finding {
 	f := types.Finding{
 		ID:         fmt.Sprintf("%s-%d-%d", p.ID, lineNum, match[0]),
+		PatternID:  p.ID,
 		Type:       p.Name,
 		Category:   p.Category,
 		File:       file,

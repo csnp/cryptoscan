@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/csnp/cryptoscan/pkg/scanner"
+	"github.com/csnp/cryptoscan/pkg/types"
 	"github.com/csnp/cryptoscan/pkg/version"
 )
 
@@ -105,6 +106,9 @@ type sarifResult struct {
 }
 
 type sarifResultProps struct {
+	// FindingID is the finding's own ID, the result's ruleId followed by
+	// where the finding is, as the JSON report writes it.
+	FindingID   string `json:"findingId"`
 	QuantumRisk string `json:"quantumRisk,omitempty"`
 	Algorithm   string `json:"algorithm,omitempty"`
 	KeySize     int    `json:"keySize,omitempty"`
@@ -164,42 +168,79 @@ func sarifURI(scanTarget, path string) string {
 	return strings.ReplaceAll(uri, "\\", "/")
 }
 
+// sarifRuleID returns the ID of the rule a finding's result points at: the ID
+// of the pattern that raised the finding, without the line and offset the
+// finding's own ID adds, so that code scanning groups results by pattern and
+// a result keeps its rule when a line above it moves. A finding built without
+// a pattern ID is its own rule.
+func sarifRuleID(f scanner.Finding) string {
+	if f.PatternID != "" {
+		return f.PatternID
+	}
+	return f.ID
+}
+
+// newSARIFRule describes the rule id from the scanner's pattern of that ID,
+// which says the same for every result of the rule: a finding's severity is
+// lowered by where its match sits, and a trust finding's description and
+// remediation depend on the key rule it met. An ID that names no pattern,
+// that of a finding built without a pattern ID, is described from first, the
+// finding of the rule's first result.
+func newSARIFRule(id string, first scanner.Finding) sarifRule {
+	p, ok := scanner.LookupPattern(id)
+	if !ok {
+		p = scanner.PatternInfo{
+			ID:          id,
+			Name:        first.Type,
+			Category:    first.Category,
+			Severity:    first.Severity,
+			Quantum:     first.Quantum,
+			Description: first.Description,
+			Remediation: first.Remediation,
+			References:  first.References,
+			Tags:        first.Tags,
+		}
+	}
+	// A trust rule's one reference is its finding page.
+	helpURI := ""
+	if p.Category == types.CategoryTrust && len(p.References) > 0 {
+		helpURI = p.References[0]
+	}
+	return sarifRule{
+		ID:      id,
+		Name:    p.Name,
+		HelpURI: helpURI,
+		ShortDescription: sarifMessage{
+			Text: p.Description,
+		},
+		FullDescription: sarifMessage{
+			Text: p.Description,
+		},
+		Help: sarifMessage{
+			Text: p.Remediation,
+		},
+		DefaultConfig: sarifDefaultConfig{
+			Level: severityToSARIFLevel(p.Severity),
+		},
+		Properties: sarifRuleProperties{
+			Tags:        p.Tags,
+			QuantumRisk: string(p.Quantum),
+			Category:    p.Category,
+		},
+	}
+}
+
 // Generate creates the SARIF report
 func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
-	// Build rules from unique finding types, in the order of their first
+	// One rule per pattern that has a result, in the order of its first
 	// result, so that an unchanged tree produces the same rules array.
-	seenRules := make(map[string]bool)
+	ruleIndex := make(map[string]int)
 	rules := make([]sarifRule, 0)
 	for _, f := range results.Findings {
-		if !seenRules[f.ID] {
-			seenRules[f.ID] = true
-			// A trust finding's one reference is its finding page.
-			helpURI := ""
-			if f.IsTrust() && len(f.References) > 0 {
-				helpURI = f.References[0]
-			}
-			rules = append(rules, sarifRule{
-				ID:      f.ID,
-				Name:    f.Type,
-				HelpURI: helpURI,
-				ShortDescription: sarifMessage{
-					Text: f.Description,
-				},
-				FullDescription: sarifMessage{
-					Text: f.Description,
-				},
-				Help: sarifMessage{
-					Text: f.Remediation,
-				},
-				DefaultConfig: sarifDefaultConfig{
-					Level: severityToSARIFLevel(f.Severity),
-				},
-				Properties: sarifRuleProperties{
-					Tags:        f.Tags,
-					QuantumRisk: string(f.Quantum),
-					Category:    f.Category,
-				},
-			})
+		id := sarifRuleID(f)
+		if _, seen := ruleIndex[id]; !seen {
+			ruleIndex[id] = len(rules)
+			rules = append(rules, newSARIFRule(id, f))
 		}
 	}
 
@@ -207,12 +248,21 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 	sarifResults := make([]sarifResult, 0, len(results.Findings))
 	for _, f := range results.Findings {
 		uri := sarifURI(results.ScanTarget, f.File)
+		ruleID := sarifRuleID(f)
+
+		// A finding whose description is not its rule's, such as a trust
+		// finding on a certificate signed by a listed key, under the pattern
+		// that describes a certificate whose own key is listed, adds its own.
+		message := fmt.Sprintf("%s: %s", f.Type, f.Match)
+		if f.Description != "" && f.Description != rules[ruleIndex[ruleID]].FullDescription.Text {
+			message += ". " + f.Description
+		}
 
 		result := sarifResult{
-			RuleID: f.ID,
+			RuleID: ruleID,
 			Level:  severityToSARIFLevel(f.Severity),
 			Message: sarifMessage{
-				Text: fmt.Sprintf("%s: %s", f.Type, f.Match),
+				Text: message,
 			},
 			Locations: []sarifLocation{
 				{
@@ -228,6 +278,7 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 				},
 			},
 			Properties: sarifResultProps{
+				FindingID:   f.ID,
 				QuantumRisk: string(f.Quantum),
 				Algorithm:   f.Algorithm,
 				KeySize:     f.KeySize,

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/csnp/cryptoscan/pkg/scanner"
+	"github.com/csnp/cryptoscan/pkg/types"
 )
 
 // baseline is a JSON report from an earlier scan whose findings were reviewed.
@@ -178,10 +179,22 @@ func matchedLine(f scanner.Finding) string {
 	return f.Match
 }
 
-// patternID returns the ID of the pattern that produced a finding. The
-// matcher numbers each finding "<pattern>-<line>-<column>", and the line is
-// exactly what the key must not depend on.
+// patternID returns the ID of the pattern that produced a finding. A report
+// from this release records it as the finding's patternId. A report written
+// before records only the finding's ID, which adds to the pattern ID what the
+// key must not depend on: the matcher numbers each finding
+// "<pattern>-<line>-<offset>", and a dependency manifest numbers each of its
+// findings "DEP-<library>-<manifest file name>".
 func patternID(f scanner.Finding) string {
+	if f.PatternID != "" {
+		return f.PatternID
+	}
+	if f.FindingType == types.FindingTypeDependency && strings.HasPrefix(f.ID, scanner.DependencyPatternPrefix) {
+		manifest := "-" + filepath.Base(f.File)
+		if id, ok := strings.CutSuffix(f.ID, manifest); ok && len(id) > len(scanner.DependencyPatternPrefix) {
+			return id
+		}
+	}
 	suffix := "-" + strconv.Itoa(f.Line) + "-"
 	if i := strings.LastIndex(f.ID, suffix); i > 0 && isDigits(f.ID[i+len(suffix):]) {
 		return f.ID[:i]

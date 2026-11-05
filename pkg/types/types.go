@@ -187,6 +187,7 @@ type SourceLine struct {
 // Finding represents a single cryptographic finding
 type Finding struct {
 	ID              string             `json:"id"`
+	PatternID       string             `json:"patternId"` // Pattern that raised the finding, as "patterns list" prints it, or DEP-<library name>; ID adds where the finding is
 	Type            string             `json:"type"`
 	FindingType     FindingType        `json:"findingType"`
 	Category        string             `json:"category"`

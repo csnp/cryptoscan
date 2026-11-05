@@ -517,3 +517,10 @@ func createDependencyFinding(lib CryptoLibrary, version, path string) Dependency
 		Remediation: remediation,
 	}
 }
+
+// LibraryFinding returns what a manifest that lists lib reports for it: the
+// severity, quantum risk, description and remediation, which are the same for
+// every manifest and version. Version and File are empty.
+func LibraryFinding(lib CryptoLibrary) DependencyFinding {
+	return createDependencyFinding(lib, "", "")
+}

@@ -22,13 +22,11 @@ var trustPages = map[string]string{
 	"TRUST-DISTRUSTED-ROOT-001": "https://github.com/csnp/cryptoscan/blob/main/docs/findings/trust-distrusted-root.md",
 }
 
-// trustPatternOf is the pattern ID of a finding or SARIF rule ID, which is the
-// pattern ID followed by "-<line>-<column>", or "" for any other pattern.
+// trustPatternOf is the trust pattern a SARIF rule ID names, which is the
+// pattern ID itself, or "" for any other pattern.
 func trustPatternOf(id string) string {
-	for pattern := range trustPages {
-		if strings.HasPrefix(id, pattern+"-") {
-			return pattern
-		}
+	if _, trust := trustPages[id]; trust {
+		return id
 	}
 	return ""
 }
@@ -82,11 +80,11 @@ func TestTrustFindingsAreNotCBOMComponents(t *testing.T) {
 	}
 }
 
-// In SARIF, each trust rule's helpUri is its finding page and each trust
-// result carries the trust fields under the JSON report's names, the rule
-// number (trustRule) as an integer from 1 to 4. No other rule gets a helpUri,
-// no other result gets the trust fields, and no result carries a property
-// named rule.
+// In SARIF, each trust pattern has one rule, whose ID is the pattern ID and
+// whose helpUri is its finding page, and each trust result carries the trust
+// fields under the JSON report's names, the rule number (trustRule) as an
+// integer from 1 to 4. No other rule gets a helpUri, no other result gets the
+// trust fields, and no result carries a property named rule.
 func TestTrustSARIFRulesAndResults(t *testing.T) {
 	out, err := NewSARIFReporter().Generate(scanTrustFixture(t))
 	if err != nil {
@@ -124,8 +122,8 @@ func TestTrustSARIFRulesAndResults(t *testing.T) {
 			t.Errorf("rule %s is not a trust rule but has helpUri %v", id, helpURI)
 		}
 	}
-	if trustRules == 0 {
-		t.Error("no trust rule in the SARIF report")
+	if trustRules != len(trustPages) {
+		t.Errorf("%d trust rules in the SARIF report, want one for each of the %d trust patterns", trustRules, len(trustPages))
 	}
 	fields := []string{"kind", "matchedValue", "valueType", "keyUse", "trustRule"}
 	for _, r := range log.Runs[0].Results {

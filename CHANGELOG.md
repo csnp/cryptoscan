@@ -7,6 +7,16 @@ All notable changes to CryptoScan are recorded here. This project follows
 
 ### Added
 
+- **JSON findings carry `patternId`, the ID of the pattern that raised the
+  finding.** It is the ID `cryptoscan patterns list` prints, such as
+  `MD5-001`, or `DEP-` followed by the library name for a crypto library in a
+  dependency manifest, such as `DEP-crypto-js`. A finding's `id` adds where
+  the finding is: the line and the offset of the match in it, counted from 0,
+  as in `MD5-001-96-8` for a match at line 96, column 9, or the manifest's
+  file name, as in `DEP-crypto-js-package.json`. `--baseline` matches
+  findings on `patternId` when the baseline records it, and a baseline written
+  by an earlier release still matches the same findings.
+
 - **`scan` and `gate` flag certificates whose key is a publicly compromised
   CA key, and chains anchored on a root removed from browser trust stores.**
   Two patterns in a new `Trust` category, `TRUST-COMPROMISED-KEY-001`
@@ -108,6 +118,19 @@ All notable changes to CryptoScan are recorded here. This project follows
   algorithm is on the next line is not reported; cryptoserve reported it.
 
 ### Changed
+
+- **SARIF results use the pattern ID as `ruleId`, so code scanning groups
+  findings by pattern.** Existing alerts are re-created once under the new
+  IDs, and alerts dismissed before this release need to be dismissed again.
+  The location-specific ID moves to `properties.findingId`.
+
+  On `crypto-samples`, the 110 results point at 25 rules, one for each
+  pattern, where they pointed at 110 rules. A rule's name, descriptions, help
+  and `defaultConfiguration.level` are its pattern's rather than those of its
+  first result's finding, and each result keeps its own `level`. A result
+  whose finding's description is not its rule's, such as a trust finding on a
+  certificate signed by a listed key, adds that description to its message.
+  The results carry no `partialFingerprints`.
 
 - **A trust finding on the removed root's own certificate gives one action
   for each kind of file, and the text report lists trust findings first.** A

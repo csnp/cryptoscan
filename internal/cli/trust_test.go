@@ -106,8 +106,8 @@ func runTrust(t *testing.T, cmd *cobra.Command, target string, args ...string) s
 	return out
 }
 
-// trustPatternID is the pattern ID of a finding or SARIF rule ID, which is
-// the pattern ID followed by "-<line>-<column>".
+// trustPatternID is the pattern ID of a finding ID, which is the pattern ID
+// followed by "-<line>-<offset>". A SARIF rule ID is the pattern ID itself.
 func trustPatternID(id string) string {
 	for pattern := range trustPages {
 		if strings.HasPrefix(id, pattern+"-") {
@@ -334,9 +334,10 @@ type trustSARIF struct {
 	} `json:"runs"`
 }
 
-// gate's SARIF report carries both patterns, each rule with its page as
-// helpUri, and each result with the trust fields under the names the JSON
-// report uses, the rule number (trustRule) as an integer.
+// gate's SARIF report carries one rule for each pattern, whose ID is the
+// pattern ID and whose helpUri is the pattern's page, and each result under
+// its pattern's rule, with the trust fields under the names the JSON report
+// uses, the rule number (trustRule) as an integer.
 func TestTrustSARIF(t *testing.T) {
 	out := runTrust(t, gateCmd, trustFixture, "--format", "sarif")
 	if out.err != "" || out.code != 1 {
@@ -351,8 +352,11 @@ func TestTrustSARIF(t *testing.T) {
 	}
 	rules := map[string]int{}
 	for _, r := range log.Runs[0].Tool.Driver.Rules {
-		id := trustPatternID(r.ID)
-		if id == "" {
+		if trustPatternID(r.ID) != "" {
+			t.Errorf("rule %s carries a line and offset; a rule's ID is its pattern ID", r.ID)
+		}
+		id := r.ID
+		if _, trust := trustPages[id]; !trust {
 			continue
 		}
 		rules[id]++
@@ -360,13 +364,16 @@ func TestTrustSARIF(t *testing.T) {
 			t.Errorf("rule %s: helpUri %q, want %q", r.ID, r.HelpURI, trustPages[id])
 		}
 	}
-	if len(rules) != 2 {
-		t.Errorf("trust rules by pattern = %v, want both patterns", rules)
+	if len(rules) != 2 || rules[compromisedKeyID] != 1 || rules[distrustedRootID] != 1 {
+		t.Errorf("trust rules by pattern = %v, want one rule for each of the two patterns", rules)
 	}
 	results := 0
 	for _, r := range log.Runs[0].Results {
-		id := trustPatternID(r.RuleID)
-		if id == "" {
+		if trustPatternID(r.RuleID) != "" {
+			t.Errorf("result ruleId %s carries a line and offset; want the pattern ID", r.RuleID)
+		}
+		id := r.RuleID
+		if _, trust := trustPages[id]; !trust {
 			continue
 		}
 		results++

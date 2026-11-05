@@ -728,3 +728,296 @@ func TestEffortNeverSaysAssessmentNeeded(t *testing.T) {
 		}
 	}
 }
+
+// The tests below hold the API misuse checks ported from cryptoserve
+// (github.com/ecolibria/cryptoserve, the misuse rules in
+// sdk/javascript/lib/scanner.mjs at commit fa3e822d). An input whose source is
+// a file and line came from that cryptoserve test file under
+// sdk/javascript/test; any other input says what it checks.
+
+// misuseInput is the text of a file, one line or several separated by "\n",
+// and where it came from.
+type misuseInput struct {
+	source string
+	file   string
+	text   string
+}
+
+// reportsPattern reports whether Match reports a finding of pattern id on any
+// line of text.
+func reportsPattern(m *Matcher, file, text, id string) bool {
+	for _, line := range strings.Split(text, "\n") {
+		for _, f := range m.Match(line, file, 1) {
+			if strings.HasPrefix(f.ID, id+"-1-") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// CERT-VALIDATION-BYPASS-001 reports the four ways of turning certificate
+// verification off that cryptoserve reports and it did not:
+// rejectUnauthorized: false (misuse/tls-verify-disabled), the
+// NODE_TLS_REJECT_UNAUTHORIZED override set to 0
+// (misuse/node-tls-reject-unauthorized), ssl._create_unverified_context
+// (misuse/python-unverified-context), and a checkServerIdentity that checks
+// nothing (misuse/js-check-server-identity).
+func TestCertValidationBypassReportsJavaScriptAndPythonSpellings(t *testing.T) {
+	m := NewMatcher()
+	for _, in := range []misuseInput{
+		{"gate.test.mjs:157", "app.js", "const opts = { rejectUnauthorized: false };"},
+
+		{"scanner.test.mjs:500", "app.js", "process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';"},
+		{"scanner.test.mjs:501", "app.js", "process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '0';"},
+		{"scanner.test.mjs:502", "app.js", `process.env["NODE_TLS_REJECT_UNAUTHORIZED"] = 0;`},
+		{"scanner.test.mjs:503", "app.js", "process.env.NODE_TLS_REJECT_UNAUTHORIZED ||= '0';"},
+		{"scanner.test.mjs:504", "app.js", "process . env . NODE_TLS_REJECT_UNAUTHORIZED = '0';"},
+
+		{"gate.test.mjs:768", "unverified.py", "import ssl\nctx = ssl._create_unverified_context()"},
+		{"scanner.test.mjs:629", "app.py", "import ssl\nssl._create_default_https_context = ssl._create_unverified_context"},
+
+		{"scanner.test.mjs:673", "app.js", "const a = new https.Agent({ checkServerIdentity: () => undefined });"},
+		{"scanner.test.mjs:674", "app.js", "const a = new https.Agent({ checkServerIdentity: () => {} });"},
+		{"scanner.test.mjs:675", "app.js", "const a = new https.Agent({ checkServerIdentity: (host, cert) => null });"},
+		{"scanner.test.mjs:676", "app.js", "const a = new https.Agent({ checkServerIdentity: function (h, c) { return undefined; } });"},
+		{"scanner.test.mjs:677", "app.js", "const a = new https.Agent({ checkServerIdentity: () => true });"},
+		{"scanner.test.mjs:678", "app.js", "const a = new https.Agent({ checkServerIdentity: (h, c) => { return true; } });"},
+	} {
+		if !reportsPattern(m, in.file, in.text, "CERT-VALIDATION-BYPASS-001") {
+			t.Errorf("%s: %q reports no CERT-VALIDATION-BYPASS-001 finding", in.source, in.text)
+		}
+	}
+}
+
+// cryptoserve ends the override's value with the lookahead (?![\w.])
+// (lib/scanner.mjs:129), so that a 0 which only starts a longer value is not
+// taken for the 0 that turns verification off. Go's regexp has no lookahead,
+// so the port requires a character that is neither a word character nor a dot
+// after the value, or the end of the line. These hold both sides of that
+// boundary.
+func TestNodeTLSOverrideValueBoundary(t *testing.T) {
+	m := NewMatcher()
+	for _, in := range []misuseInput{
+		{"not a cryptoserve input: quoted 0 at the end of the line", "app.js", "process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'"},
+		{"not a cryptoserve input: bare 0 at the end of the line", "app.js", "process.env.NODE_TLS_REJECT_UNAUTHORIZED = 0"},
+		{"not a cryptoserve input: 0 in a template literal", "app.js", "process.env.NODE_TLS_REJECT_UNAUTHORIZED = `0`;"},
+		{"not a cryptoserve input: a carriage return after the value", "app.js", "process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0'\r"},
+		{"not a cryptoserve input: a comma after the value", "app.js", "if (insecure) process.env.NODE_TLS_REJECT_UNAUTHORIZED = 0, start();"},
+	} {
+		if !reportsPattern(m, in.file, in.text, "CERT-VALIDATION-BYPASS-001") {
+			t.Errorf("%s: %q reports no CERT-VALIDATION-BYPASS-001 finding", in.source, in.text)
+		}
+	}
+	for _, in := range []misuseInput{
+		{"scanner.test.mjs:594", "app.js", "process.env.NODE_TLS_REJECT_UNAUTHORIZED = 0.5;"},
+		{"scanner.test.mjs:595", "app.js", "process.env.NODE_TLS_REJECT_UNAUTHORIZED = 0x1;"},
+		{"scanner.test.mjs:596", "app.js", "process.env.NODE_TLS_REJECT_UNAUTHORIZED = '00';"},
+		{"scanner.test.mjs:601", "app.js", "process.env.NODE_TLS_REJECT_UNAUTHORIZED = 10;"},
+		{"not a cryptoserve input: 0.5 at the end of the line", "app.js", "process.env.NODE_TLS_REJECT_UNAUTHORIZED = 0.5"},
+		{"not a cryptoserve input: 00 at the end of the line", "app.js", "process.env.NODE_TLS_REJECT_UNAUTHORIZED = 00"},
+	} {
+		if reportsPattern(m, in.file, in.text, "CERT-VALIDATION-BYPASS-001") {
+			t.Errorf("%s: %q reports CERT-VALIDATION-BYPASS-001; a 0 that starts a longer value is not the value that turns verification off", in.source, in.text)
+		}
+	}
+}
+
+// Lines that name the override, or a checkServerIdentity, without turning
+// verification off. cryptoserve documents the first five as non-defects
+// (lib/scanner.mjs:103-107), and its tests hold each of its inputs here
+// unreported.
+func TestCertValidationBypassLeavesNonDefectsUnreported(t *testing.T) {
+	m := NewMatcher()
+	for _, in := range []misuseInput{
+		{"scanner.test.mjs:523", "app.js", "// Never write NODE_TLS_REJECT_UNAUTHORIZED: 0 anywhere."},
+		{"scanner.test.mjs:524", "app.js", "module.exports = { rules: { NODE_TLS_REJECT_UNAUTHORIZED: 0 } };"},
+		{"scanner.test.mjs:525", "app.js", "const SEVERITY = { NODE_TLS_REJECT_UNAUTHORIZED: 0, OTHER: 2 };"},
+		{"scanner.test.mjs:526", "app.js", "counts.NODE_TLS_REJECT_UNAUTHORIZED = 0;"},
+		{"scanner.test.mjs:527", "app.js", "class A { constructor(){ this.NODE_TLS_REJECT_UNAUTHORIZED = 0; } }"},
+
+		{"scanner.test.mjs:578", "app.js", "process.env.NODE_TLS_REJECT_UNAUTHORIZED = '1';"},
+		{"scanner.test.mjs:579", "app.js", "process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = '1';"},
+		{"scanner.test.mjs:580", "app.js", "const { env } = process;\nenv.NODE_TLS_REJECT_UNAUTHORIZED = '1';"},
+		{"scanner.test.mjs:581", "app.js", "Object.assign(process.env, { NODE_TLS_REJECT_UNAUTHORIZED: '1' });"},
+
+		{"scanner.test.mjs:615", "guide.js", "// never set NODE_TLS_REJECT_UNAUTHORIZED=0 in production"},
+		{"scanner.test.mjs:616", "guide.js", "const RULES = [{ bad: 'NODE_TLS_REJECT_UNAUTHORIZED=0', why: 'disables TLS' }];"},
+		{"scanner.test.mjs:617", "guide.js", "const issue = 'TLS disabled process-wide (NODE_TLS_REJECT_UNAUTHORIZED=0)';"},
+
+		{"not a cryptoserve input: a comparison reads the override", "app.js", "if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') warn();"},
+
+		{"scanner.test.mjs:662", "app.py", "import ssl\nctx.check_hostname = True"},
+		{"scanner.test.mjs:688", "app.js", "const a = new https.Agent({ checkServerIdentity: (host, cert) => tls.checkServerIdentity(host, cert) });"},
+	} {
+		if reportsPattern(m, in.file, in.text, "CERT-VALIDATION-BYPASS-001") {
+			t.Errorf("%s: %q reports CERT-VALIDATION-BYPASS-001, and nothing on it turns verification off", in.source, in.text)
+		}
+	}
+}
+
+// Ways of setting the override to 0 that cryptoserve's rule does not reach,
+// left unreported as cryptoserve leaves them (its test at
+// scanner.test.mjs:553 records them as known gaps). The last is listed with
+// the prefix values there, but Node.js stores the number 0x0 as the string
+// "0", which does turn verification off; the value boundary that keeps 0x1
+// unreported keeps 0x0 unreported too. A change that starts reporting one of
+// these updates the list of spellings not reported in PATTERNS.md with it.
+func TestNodeTLSOverrideSpellingsNotReached(t *testing.T) {
+	m := NewMatcher()
+	for _, in := range []misuseInput{
+		{"scanner.test.mjs:559", "app.js", "const { env } = process;\nenv.NODE_TLS_REJECT_UNAUTHORIZED = '0';"},
+		{"scanner.test.mjs:560", "app.js", "const e = process.env;\ne.NODE_TLS_REJECT_UNAUTHORIZED = '0';"},
+		{"scanner.test.mjs:561", "app.js", "Bun.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';"},
+		{"scanner.test.mjs:562", "app.js", "spawn('node', ['x.js'], { env: { ...process.env, NODE_TLS_REJECT_UNAUTHORIZED: '0' } });"},
+		{"scanner.test.mjs:563", "app.js", "Object.assign(process.env, { NODE_TLS_REJECT_UNAUTHORIZED: '0' });"},
+		{"scanner.test.mjs:564", "app.js", "process.env.NODE_TLS_REJECT_UNAUTHORIZED ??= '0';"},
+		{"scanner.test.mjs:565", "app.js", "Deno.env.set('NODE_TLS_REJECT_UNAUTHORIZED', '0');"},
+		{"scanner.test.mjs:597", "app.js", "process.env['NODE_TLS_REJECT_UNAUTHORIZED'] = 0x0;"},
+	} {
+		if reportsPattern(m, in.file, in.text, "CERT-VALIDATION-BYPASS-001") {
+			t.Errorf("%s: %q is now reported; move it to the reported spellings and update the list in PATTERNS.md", in.source, in.text)
+		}
+	}
+}
+
+// IV-DERIVED-001: Node.js crypto.createCipher derives the IV from its
+// password argument (misuse/create-cipher). createCipheriv takes the IV from
+// the caller and is not reported.
+func TestIVDerivedFromKey(t *testing.T) {
+	m := NewMatcher()
+	for _, in := range []misuseInput{
+		{"scanner.test.mjs:72", "old.js", "\n      const h = crypto.createCipher('des', password);\n    "},
+		{"scanner.test.mjs:1168", "big0.js", "const cx = crypto.createCipher('aes-256-cbc', key);"},
+		{"not a cryptoserve input: a double-quoted algorithm", "app.js", `const c = crypto.createCipher("aes-256-cbc", key);`},
+		{"not a cryptoserve input: an algorithm in a template literal", "app.js", "const c = crypto.createCipher(`aes-256-cbc`, key);"},
+		{"not a cryptoserve input: spaces inside the parenthesis", "app.js", "const c = createCipher ( 'aes-128-cbc', key);"},
+	} {
+		if !reportsPattern(m, in.file, in.text, "IV-DERIVED-001") {
+			t.Errorf("%s: %q reports no IV-DERIVED-001 finding", in.source, in.text)
+		}
+	}
+	for _, in := range []misuseInput{
+		{"scanner.test.mjs:43", "crypto.js", "      const cipher = crypto.createCipheriv('aes-256-gcm', key, iv);"},
+		{"scanner.test.mjs:54", "crypto.js", "      const cipher = createCipheriv('aes-256-gcm', key, iv);"},
+		{"gate.test.mjs:152", "app.js", "const c = require(\"crypto\");\nconst ci = c.createCipheriv(\"aes-256-cbc\", k, iv);"},
+	} {
+		if reportsPattern(m, in.file, in.text, "IV-DERIVED-001") {
+			t.Errorf("%s: %q reports IV-DERIVED-001, and createCipheriv takes the IV from the caller", in.source, in.text)
+		}
+	}
+}
+
+// RNG-WEAK-001: Math.random in JavaScript (misuse/insecure-random-js) and
+// Python's random module (misuse/insecure-random-python), followed on the line
+// by the name of a secret value. One ID holds both, and the finding carries
+// the language. No cryptoserve test names the Python rule, so its inputs are
+// built from the rule (lib/scanner.mjs:64), one for each function it names.
+func TestWeakRandomForSecrets(t *testing.T) {
+	m := NewMatcher()
+	for _, in := range []misuseInput{
+		{"scanner.test.mjs:789, with its DEL and U+009B", "rng.js", "const t = Math.random() + \"\x7f\u009b2K\" + token;"},
+		{"scanner.test.mjs:789, without its DEL and U+009B", "rng.js", `const t = Math.random() + "2K" + token;`},
+		{"not a cryptoserve input: the name in another case, as the rule's i flag allows", "app.js", "const id = Math.random().toString(36) + apiKey;"},
+		{"not a cryptoserve input: built from lib/scanner.mjs:64", "app.py", "import random\nt = str(random.random()) + token"},
+		{"not a cryptoserve input: built from lib/scanner.mjs:64", "app.py", "n = random.randint(0, 2**32) ^ secret"},
+		{"not a cryptoserve input: built from lib/scanner.mjs:64", "app.py", "c = random.choice(alphabet) + nonce"},
+	} {
+		if !reportsPattern(m, in.file, in.text, "RNG-WEAK-001") {
+			t.Errorf("%s: %q reports no RNG-WEAK-001 finding", in.source, in.text)
+		}
+	}
+	for _, in := range []misuseInput{
+		{"not a cryptoserve input: the fix the JavaScript rule prints (lib/scanner.mjs:58)", "app.js", "const token = crypto.randomBytes(32).toString('hex');"},
+		{"not a cryptoserve input: the fix the JavaScript rule prints (lib/scanner.mjs:58)", "app.js", "crypto.getRandomValues(new Uint8Array(32));"},
+		{"not a cryptoserve input: the fix the Python rule prints (lib/scanner.mjs:66)", "app.py", "token = secrets.token_bytes(32)"},
+		{"not a cryptoserve input: the name more than 40 characters after the call", "app.js", "const x = Math.random() * 100; /* ........................................ token */"},
+		{"not a cryptoserve input: no secret named after the call", "app.py", "delay = random.random() * 5"},
+	} {
+		if reportsPattern(m, in.file, in.text, "RNG-WEAK-001") {
+			t.Errorf("%s: %q reports RNG-WEAK-001", in.source, in.text)
+		}
+	}
+}
+
+// The severity and category of each ported check: CRITICAL for the IV and the
+// verification bypass and HIGH for the random number generator, as cryptoserve
+// reports them (lib/scanner.mjs:46-171). Each ID is defined once.
+func TestMisuseCheckSeverityAndCategory(t *testing.T) {
+	want := map[string]struct {
+		severity types.Severity
+		category string
+	}{
+		"IV-DERIVED-001":             {types.SeverityCritical, "Insecure Mode"},
+		"RNG-WEAK-001":               {types.SeverityHigh, "Random Number Generation"},
+		"CERT-VALIDATION-BYPASS-001": {types.SeverityCritical, "Configuration"},
+	}
+	defined := make(map[string]int)
+	for _, p := range NewMatcher().patterns {
+		w, ok := want[p.ID]
+		if !ok {
+			continue
+		}
+		defined[p.ID]++
+		if p.Severity != w.severity || p.Category != w.category {
+			t.Errorf("%s: severity %v, category %q; want %v, %q", p.ID, p.Severity, p.Category, w.severity, w.category)
+		}
+	}
+	for id := range want {
+		if defined[id] != 1 {
+			t.Errorf("%s is defined %d times, want once", id, defined[id])
+		}
+	}
+}
+
+// The effort line of CERT-VALIDATION-BYPASS-001 named Go's InsecureSkipVerify
+// on every finding of the ID, Python and JavaScript ones included. It names no
+// language's setting now.
+func TestCertValidationBypassEffortNamesNoGoSetting(t *testing.T) {
+	m := NewMatcher()
+	for _, in := range []struct {
+		file string
+		lang analyzer.Language
+		line string
+	}{
+		{"app.py", analyzer.LangPython, "r = requests.get(url, verify=False)"},
+		{"app.js", analyzer.LangJavaScript, "const opts = { rejectUnauthorized: false };"},
+		{"app.py", analyzer.LangPython, "ctx = ssl._create_unverified_context()"},
+	} {
+		fileCtx := &analyzer.FileContext{Language: in.lang, FileType: analyzer.FileTypeCode}
+		reported := false
+		for _, f := range m.MatchWithContext(in.line, in.file, 1, fileCtx, &analyzer.LineContext{}) {
+			if !strings.HasPrefix(f.ID, "CERT-VALIDATION-BYPASS-001-") {
+				continue
+			}
+			reported = true
+			if f.Effort == "" || strings.Contains(f.Effort, "InsecureSkipVerify") {
+				t.Errorf("%s (%s): Effort = %q, want a line that names no Go setting", in.line, in.lang, f.Effort)
+			}
+		}
+		if !reported {
+			t.Errorf("%s (%s): no CERT-VALIDATION-BYPASS-001 finding", in.line, in.lang)
+		}
+	}
+}
+
+// A finding of either new ID says what the misuse exposes, not the general
+// maintenance sentence a pattern with no specific impact gets.
+func TestMisuseImpactNamesTheRisk(t *testing.T) {
+	const general = "Standard cryptographic maintenance recommended"
+	seen := make(map[string]bool)
+	for _, p := range NewMatcher().patterns {
+		if p.ID != "IV-DERIVED-001" && p.ID != "RNG-WEAK-001" {
+			continue
+		}
+		seen[p.ID] = true
+		if impact := determineImpact(findingFromPattern(p)); impact == "" || impact == general {
+			t.Errorf("%s: Impact = %q", p.ID, impact)
+		}
+	}
+	for _, id := range []string{"IV-DERIVED-001", "RNG-WEAK-001"} {
+		if !seen[id] {
+			t.Errorf("no pattern %s", id)
+		}
+	}
+}

@@ -93,6 +93,19 @@ All notable changes to CryptoScan are recorded here. This project follows
   [Private repository URLs](docs/commands.md#private-repository-urls) also
   describes a git credential helper, the other way to keep a credential off
   the command line, and what a credential written into the URL exposes.
+- **`scan` and `gate` report Node.js `createCipher` and random values from a
+  generator that is not cryptographically secure, as `npx cryptoserve scan`
+  does.** `IV-DERIVED-001` (CRITICAL, category `Insecure Mode`) flags
+  `crypto.createCipher('<algorithm>', ...)`, which derives the IV from its
+  password argument, so every message encrypted with one password uses the
+  same IV; `createCipheriv` is not reported. `RNG-WEAK-001` (HIGH, in a new
+  `Random Number Generation` category) flags `Math.random()` in JavaScript
+  and `random.random()`, `random.randint()` or `random.choice()` in Python
+  when `token`, `secret`, `key`, `nonce`, `salt` or `password` (and `iv` in
+  JavaScript) follows the call within 40 characters on the same line. The
+  expressions and their test inputs come from cryptoserve's misuse rules.
+  CryptoScan matches one line at a time, so a `createCipher(` call whose
+  algorithm is on the next line is not reported; cryptoserve reported it.
 
 ### Changed
 
@@ -173,6 +186,22 @@ All notable changes to CryptoScan are recorded here. This project follows
   was scanned, and an error that quotes the target name a repository URL
   without the user name and password in it. The clone uses the URL as it was
   typed.
+- **`CERT-VALIDATION-BYPASS-001` reports four more ways of turning
+  certificate verification off**, the JavaScript and Python spellings that
+  `npx cryptoserve scan` reports: `rejectUnauthorized: false`,
+  `process.env.NODE_TLS_REJECT_UNAUTHORIZED` assigned `0` with `=` or `||=`,
+  `ssl._create_unverified_context`, called or assigned to
+  `ssl._create_default_https_context`, and a `checkServerIdentity` that
+  returns `undefined`, `null` or `true` or has an empty body. A `0` that only
+  starts a longer value, such as `0.5`, `0x1` or `'00'`, is not reported, and
+  neither is the variable's name in a comment, an object property or on
+  another object. A `checkServerIdentity` whose parameters or body continue
+  on the next line is not reported; cryptoserve reported it.
+  `--ignore CERT-VALIDATION-BYPASS-001` and an inline ignore
+  for the ID now leave these findings out as well. The finding's effort line
+  no longer names Go's `InsecureSkipVerify`; it reads "Immediate action
+  required - remove the setting that turns off certificate verification" in
+  every language.
 
 ### Fixed
 

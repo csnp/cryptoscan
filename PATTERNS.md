@@ -1,6 +1,6 @@
 # CryptoScan Detection Patterns
 
-CryptoScan uses 92 detection patterns to identify cryptographic algorithms, protocols, keys, certificates, and configurations in your codebase. Each pattern includes quantum risk classification and remediation guidance.
+CryptoScan uses 94 detection patterns to identify cryptographic algorithms, protocols, keys, certificates, and configurations in your codebase. Each pattern includes quantum risk classification and remediation guidance.
 
 `cryptoscan patterns list` prints the patterns from the scanner itself, with each pattern's ID, severity, quantum risk, category and name, and `cryptoscan patterns search <term>` finds the patterns for one algorithm, such as `cryptoscan patterns search sha1`. The tables on this page are written by hand; where they differ from the command, the command shows what a scan runs.
 
@@ -16,6 +16,7 @@ CryptoScan uses 92 detection patterns to identify cryptographic algorithms, prot
   - [Hash Functions](#hash-functions)
   - [Message Authentication Codes (MACs)](#message-authentication-codes-macs)
   - [Key Derivation Functions (KDFs)](#key-derivation-functions-kdfs)
+  - [Random Number Generation](#random-number-generation)
   - [Certificates](#certificates) *(NEW in v1.2)*
   - [Trust](#trust)
   - [TLS/SSL Protocols](#tlsssl-protocols)
@@ -159,6 +160,7 @@ Symmetric algorithms have varying quantum resistance.
 | CHACHA-001 | ChaCha20-Poly1305 (AEAD) | SAFE | Info | `ChaCha20-Poly1305`, `chacha20-poly1305` (RFC 8439) |
 | AES-001 | AES Algorithm | PARTIAL | Info | `AES-128`, `AES-256`, `AES-CBC` |
 | AES-ECB | AES-ECB Mode | PARTIAL | Critical | ECB mode (insecure regardless of quantum) |
+| IV-DERIVED-001 | IV Derived From Key | UNKNOWN | Critical | Node.js `crypto.createCipher('<algorithm>', ...)`, which derives the IV from its password argument, when the algorithm is a string on the same line as `createCipher(`; `createCipheriv` is not reported |
 | DES-001 | DES Algorithm | VULNERABLE | Critical | `DES`, `DES-CBC` (56-bit, completely broken) |
 | 3DES-001 | Triple DES | VULNERABLE | High | `3DES`, `Triple-DES`, `DESede` |
 | RC4-001 | RC4 Stream Cipher | VULNERABLE | Critical | `RC4`, `ARC4`, `ARCFOUR` |
@@ -247,6 +249,20 @@ KDFs derive cryptographic keys from passwords or other input material.
 
 ---
 
+### Random Number Generation
+
+Random number generators that are not cryptographically secure, used for a secret value.
+
+| Pattern ID | Name | Quantum Risk | Severity | What It Detects |
+|------------|------|--------------|----------|-----------------|
+| RNG-WEAK-001 | Non-Cryptographic Random Number Generator | UNKNOWN | High | `Math.random()` in JavaScript, or `random.random()`, `random.randint()` or `random.choice()` in Python, followed within 40 characters on the same line by `token`, `secret`, `key`, `nonce`, `salt` or `password` (and `iv` in JavaScript), in any case and also inside a longer word such as `apiKey` |
+
+The word has to come after the call, so `const token = Math.random()` is not reported.
+
+**Remediation**: Use a cryptographically secure generator: `crypto.randomBytes()` or `crypto.getRandomValues()` in JavaScript, and the `secrets` module, such as `secrets.token_bytes()`, in Python.
+
+---
+
 ### Certificates
 
 X.509 certificates, certificate chains, and PKI infrastructure. *(NEW in v1.2)*
@@ -265,7 +281,7 @@ X.509 certificates, certificate chains, and PKI infrastructure. *(NEW in v1.2)*
 | CERT-KEYUSAGE-001 | Certificate Key Usage | UNKNOWN | Info | `keyUsage`, `extendedKeyUsage` |
 | CERT-SAN-001 | Subject Alternative Name | UNKNOWN | Info | `subjectAltName`, `dnsNames` |
 | CERT-PARSE-001 | X.509 Certificate Parsing | UNKNOWN | Info | `x509.ParseCertificate`, `X509Certificate` |
-| CERT-VALIDATION-BYPASS-001 | Certificate Validation Bypass | UNKNOWN | **Critical** | `InsecureSkipVerify: true`, `verify=false`, `CERT_NONE` |
+| CERT-VALIDATION-BYPASS-001 | Certificate Validation Bypass | UNKNOWN | **Critical** | `InsecureSkipVerify: true`, `verify=false`, `CERT_NONE`, `check_hostname = False`, `rejectUnauthorized: false`, `process.env.NODE_TLS_REJECT_UNAUTHORIZED` set to `0`, `ssl._create_unverified_context`, a `checkServerIdentity` that returns `undefined`, `null` or `true` or has an empty body |
 | CERT-SELFSIGNED-001 | Self-Signed Certificate | UNKNOWN | Medium | `self_signed`, `generateSelfSignedCert` |
 | CERT-MTLS-001 | Mutual TLS (mTLS) | PARTIAL | Info | `mutual_tls`, `client_cert`, `RequireClientCert` |
 | CERT-REVOCATION-001 | Certificate Revocation | UNKNOWN | Info | `OCSP`, `CRL`, `checkRevocation` |
@@ -276,6 +292,8 @@ X.509 certificates, certificate chains, and PKI infrastructure. *(NEW in v1.2)*
 **Critical Findings**:
 - **Certificate Validation Bypass**: Disabling certificate validation enables man-in-the-middle attacks. This should be fixed immediately.
 - **Weak Certificate Signatures**: SHA-1 and MD5 signatures are deprecated and insecure. Replace certificates immediately.
+
+`NODE_TLS_REJECT_UNAUTHORIZED` is reported when `process.env.NODE_TLS_REJECT_UNAUTHORIZED` or `process.env['NODE_TLS_REJECT_UNAUTHORIZED']` is assigned `0`, quoted or not, with `=` or `||=`. The name in a comment, in an object property or on another object is not reported, and neither is a value that only starts with `0`, such as `0.5`, `0x1` or `'00'`. These ways of setting it to `0` are not reported either: `??=`, `Object.assign(process.env, ...)`, a destructured or renamed `process.env`, `Bun.env`, `Deno.env.set`, an environment passed to a child process, and the value written as `0x0`. Patterns match one line at a time, so a `checkServerIdentity` whose parameters or body continue on the next line is not reported.
 
 **Remediation**:
 - Use certificates with RSA-3072+ or ECC-P256+ keys

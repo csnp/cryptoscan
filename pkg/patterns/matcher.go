@@ -332,6 +332,14 @@ func determineImpact(f types.Finding) string {
 			return "PKI infrastructure - include in cryptographic inventory"
 		}
 	}
+	// The misuse checks carry the risk of the misuse itself, which has
+	// nothing to do with quantum computing.
+	switch {
+	case strings.HasPrefix(f.ID, "IV-DERIVED"):
+		return "Messages encrypted with the same password share one key and IV, so identical plaintext gives identical ciphertext."
+	case strings.HasPrefix(f.ID, "RNG-WEAK"):
+		return "Output of a non-cryptographic random number generator can be predicted, so a token, key or other secret made from it can be guessed."
+	}
 	// Algorithms that classical attacks already break: the risk is today,
 	// not a future quantum computer (checked before the quantum status).
 	if reason, ok := classicalBreaks[f.Algorithm]; ok {
@@ -362,7 +370,9 @@ func determineEffort(f types.Finding) string {
 	if f.Category == "Certificate" || strings.HasPrefix(f.ID, "CERT-") {
 		switch {
 		case strings.HasPrefix(f.ID, "CERT-VALIDATION-BYPASS"):
-			return "URGENT: Remove InsecureSkipVerify, configure proper CA trust store"
+			// The ID covers Go, Python and JavaScript spellings, so the
+			// line names none of them.
+			return "Immediate action required - remove the setting that turns off certificate verification"
 		case strings.HasPrefix(f.ID, "CERT-SIGALG-WEAK"):
 			return "Replace certificate: Request new cert with SHA-256+ from your CA"
 		case strings.HasPrefix(f.ID, "CERT-SELFSIGNED"):
@@ -524,6 +534,22 @@ func (m *Matcher) loadPatterns() {
 		Description: "AES in ECB mode detected. ECB mode is insecure as identical plaintext blocks produce identical ciphertext.",
 		Remediation: "Use AES-GCM (preferred) or AES-CBC with proper IV handling.",
 		Tags:        []string{"insecure-mode", "critical"},
+	})
+
+	// IV derived from the key (Node.js createCipher). cryptoserve's
+	// misuse/create-cipher rule (sdk/javascript/lib/scanner.mjs at fa3e822d):
+	// a call whose first argument is a string literal. createCipheriv takes
+	// the IV from the caller and does not match.
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "IV-DERIVED-001",
+		Name:        "IV Derived From Key",
+		Category:    "Insecure Mode",
+		Regex:       regexp.MustCompile(`createCipher\s*\(\s*['"\x60]`),
+		Severity:    types.SeverityCritical,
+		Quantum:     types.QuantumUnknown,
+		Description: "Node.js crypto.createCipher derives the cipher key and the IV from its password argument, with one round of MD5 and no salt. The same password always gives the same IV, so every message encrypted with it uses the same IV.",
+		Remediation: "Use crypto.createCipheriv with a key from a key derivation function such as crypto.scrypt and a new random IV for each message.",
+		Tags:        []string{"insecure-mode", "critical", "iv"},
 	})
 
 	// DES/3DES (Deprecated)
@@ -976,11 +1002,30 @@ func (m *Matcher) loadPatterns() {
 	})
 
 	// Certificate Validation Bypass (CRITICAL)
+	//
+	// The alternatives after verify_mode are cryptoserve's misuse rules for
+	// the same defect (sdk/javascript/lib/scanner.mjs at fa3e822d):
+	// rejectUnauthorized: false (misuse/tls-verify-disabled); the
+	// NODE_TLS_REJECT_UNAUTHORIZED override assigned 0 on process.env
+	// (misuse/node-tls-reject-unauthorized); ssl._create_unverified_context,
+	// called or assigned to _create_default_https_context
+	// (misuse/python-unverified-context); and a checkServerIdentity that
+	// returns undefined, null or true, or has an empty body
+	// (misuse/js-check-server-identity). The override is matched only as an
+	// assignment on process.env, so its name in prose, an object property or
+	// another receiver is not reported. cryptoserve ends its value with the
+	// lookahead (?![\w.]) so that 0.5, 0x1 and '00' are not read as 0; RE2 has
+	// no lookahead, so the value must be followed by a character that is
+	// neither a word character nor a dot, or by the end of the line.
 	m.patterns = append(m.patterns, Pattern{
-		ID:          "CERT-VALIDATION-BYPASS-001",
-		Name:        "Certificate Validation Bypass",
-		Category:    "Configuration",
-		Regex:       regexp.MustCompile(`(?i)(InsecureSkipVerify\s*[=:]\s*true|verify\s*[=:]\s*false|CERT_NONE|VERIFY_NONE|SSL_VERIFY_NONE|check_hostname\s*=\s*False|verify_mode\s*=\s*CERT_NONE)`),
+		ID:       "CERT-VALIDATION-BYPASS-001",
+		Name:     "Certificate Validation Bypass",
+		Category: "Configuration",
+		Regex: regexp.MustCompile(`(?i)(InsecureSkipVerify\s*[=:]\s*true|verify\s*[=:]\s*false|CERT_NONE|VERIFY_NONE|SSL_VERIFY_NONE|check_hostname\s*=\s*False|verify_mode\s*=\s*CERT_NONE` +
+			`|rejectUnauthorized\s*:\s*false` +
+			`|process\s*\.\s*env\s*(?:\.\s*NODE_TLS_REJECT_UNAUTHORIZED|\[\s*['"\x60]NODE_TLS_REJECT_UNAUTHORIZED['"\x60]\s*\])\s*(?:\|\|)?=\s*['"\x60]?0['"\x60]?(?:[^\w.]|$)` +
+			`|ssl\._create_unverified_context\s*\(|_create_default_https_context\s*=\s*ssl\._create_unverified_context` +
+			`|checkServerIdentity\s*:\s*(?:function\s*)?\([^)]*\)\s*(?:=>\s*)?(?:undefined\b|null\b|true\b|\{\s*\}|\{\s*return\s*(?:undefined|null|true)?\s*;?\s*\}))`),
 		Severity:    types.SeverityCritical,
 		Quantum:     types.QuantumUnknown,
 		Description: "Certificate validation is disabled. Critical security vulnerability enabling MITM attacks.",
@@ -1065,6 +1110,29 @@ func (m *Matcher) loadPatterns() {
 		Description: "JSON Web Key (JWK) format detected. Used in OAuth2/OIDC. RSA/EC keys are quantum-vulnerable.",
 		Remediation: "Audit JWK key types. Plan migration to PQC-compatible formats when JOSE PQC standards finalize.",
 		Tags:        []string{"key-format", "jwk", "oauth2", "quantum-vulnerable"},
+	})
+
+	// ============================================
+	// RANDOM NUMBER GENERATION
+	// ============================================
+
+	// A non-cryptographic random number generator used for a secret value.
+	// cryptoserve's misuse/insecure-random-js and misuse/insecure-random-python
+	// rules (sdk/javascript/lib/scanner.mjs at fa3e822d), one ID for both:
+	// the call, then within 40 characters on the same line the name of a
+	// secret value, in any case. The JavaScript list of names includes iv and
+	// the Python list does not, as in cryptoserve.
+	m.patterns = append(m.patterns, Pattern{
+		ID:          "RNG-WEAK-001",
+		Name:        "Non-Cryptographic Random Number Generator",
+		Category:    "Random Number Generation",
+		Regex:       regexp.MustCompile(`(?i)Math\.random\s*\(\s*\)[^\n]{0,40}(?:token|secret|key|nonce|salt|iv|password)|\brandom\s*\.\s*(?:random|randint|choice)\s*\([^\n]{0,40}(?:token|secret|key|nonce|salt|password)`),
+		Severity:    types.SeverityHigh,
+		Quantum:     types.QuantumUnknown,
+		Description: "A value from Math.random() in JavaScript or the random module in Python is used next to the name of a secret value such as a token, key, nonce, salt or password. These generators are not cryptographically secure, and their output can be predicted.",
+		Remediation: "Use a cryptographically secure generator: crypto.randomBytes() or crypto.getRandomValues() in JavaScript, and the secrets module, such as secrets.token_bytes(), in Python.",
+		References:  []string{"https://cwe.mitre.org/data/definitions/338.html"},
+		Tags:        []string{"random", "csprng"},
 	})
 
 	// ============================================

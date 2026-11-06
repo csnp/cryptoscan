@@ -116,6 +116,9 @@ All notable changes to CryptoScan are recorded here. This project follows
   expressions and their test inputs come from cryptoserve's misuse rules.
   CryptoScan matches one line at a time, so a `createCipher(` call whose
   algorithm is on the next line is not reported; cryptoserve reported it.
+  Neither finding names an algorithm, so a CBOM from `--format cbom` or
+  `cryptoscan cbom` does not list either as a component; the JSON, CSV,
+  SARIF and text reports list both.
 
 ### Changed
 

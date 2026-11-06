@@ -5,6 +5,9 @@ package reporter
 
 import (
 	"encoding/json"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/csnp/cryptoscan/pkg/scanner"
@@ -153,7 +156,7 @@ func TestCBOMLeavesOutFindingsThatAreNotAssets(t *testing.T) {
 	if !isCryptoAsset(scanner.Finding{Category: "Configuration", Algorithm: "RSA"}) {
 		t.Error("a Configuration finding that names an algorithm is left out of the CBOM")
 	}
-	for _, category := range []string{"Configuration", "Library Import", "PQC Library Import"} {
+	for _, category := range []string{"Configuration", "Library Import", "PQC Library Import", "Insecure Mode", "Random Number Generation"} {
 		if isCryptoAsset(scanner.Finding{Category: category}) {
 			t.Errorf("a %s finding that names no algorithm is written to the CBOM", category)
 		}
@@ -161,6 +164,81 @@ func TestCBOMLeavesOutFindingsThatAreNotAssets(t *testing.T) {
 	for _, category := range []string{"Weak Cipher", "Secret Detection", "Certificate", "dependency"} {
 		if !isCryptoAsset(scanner.Finding{Category: category}) {
 			t.Errorf("a %s finding is left out of the CBOM", category)
+		}
+	}
+}
+
+// IV-DERIVED-001 and RNG-WEAK-001 name a misuse and no algorithm. The CBOM
+// wrote each as an algorithm component named after the pattern, with no
+// algorithm properties. A real scan of both leaves them out of the CBOM, and
+// the other formats still report them. AES-ECB, in the same Insecure Mode
+// category, names its algorithm and is still a component.
+func TestCBOMLeavesOutMisuseFindingsThatNameNoAlgorithm(t *testing.T) {
+	// os.MkdirTemp rather than t.TempDir, whose path carries the test name.
+	dir, err := os.MkdirTemp("", "cryptoscan-misuse-")
+	if err != nil {
+		t.Fatalf("create fixture directory: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := os.RemoveAll(dir); err != nil {
+			t.Errorf("remove fixture directory: %v", err)
+		}
+	})
+	files := map[string]string{
+		"app.js": "const c = crypto.createCipher('aes-256-cbc', password);\n" +
+			"const t = Math.random().toString(36) + apiKey;\n",
+		"Crypto.java": "import javax.crypto.Cipher;\n\nclass Crypto {\n" +
+			"    Cipher ecb() throws Exception {\n" +
+			"        return Cipher.getInstance(\"AES/ECB/PKCS5Padding\");\n" +
+			"    }\n}\n",
+	}
+	for name, body := range files {
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+	}
+
+	results, err := scanner.New(scanner.Config{Target: dir, MinSeverity: scanner.SeverityInfo}).Scan()
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	results.ScanTarget = dir
+
+	misuses := []string{"IV Derived From Key", "Non-Cryptographic Random Number Generator"}
+	found := map[string]bool{}
+	for _, f := range results.Findings {
+		found[f.Type] = true
+	}
+	for _, name := range append([]string{"AES-ECB Mode"}, misuses...) {
+		if !found[name] {
+			t.Fatalf("the scan does not find %q, so this test checks nothing for it", name)
+		}
+	}
+
+	bom := cbomOf(t, results)
+	for _, name := range misuses {
+		if comps := componentsNamed(bom, name); len(comps) > 0 {
+			t.Errorf("the CBOM writes %d component(s) named %q", len(comps), name)
+		}
+	}
+	if comps := componentsNamed(bom, "AES-ECB"); len(comps) != 1 || comps[0].CryptoProperties.AssetType != "algorithm" {
+		t.Errorf("the CBOM writes %d component(s) named AES-ECB, want 1 algorithm component", len(comps))
+	}
+
+	for format, r := range map[string]Reporter{
+		"json":  NewJSONReporter(false),
+		"csv":   NewCSVReporter(),
+		"sarif": NewSARIFReporter(),
+		"text":  NewTextReporter(false),
+	} {
+		out, err := r.Generate(results)
+		if err != nil {
+			t.Fatalf("generate %s: %v", format, err)
+		}
+		for _, name := range misuses {
+			if !strings.Contains(out, name) {
+				t.Errorf("the %s report does not name %q", format, name)
+			}
 		}
 	}
 }

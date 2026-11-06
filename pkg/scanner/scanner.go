@@ -1764,6 +1764,25 @@ func (s *Scanner) scanDependencyFile(path string, countScanned func()) {
 			EvidenceKind: EvidenceDependency,
 		}
 
+		// The command-line rules and then the configuration-file rules are
+		// checked as scanFile checks them for a match in a source file, so
+		// that --ignore, --ignore-category and --min-severity, and the same
+		// settings in a configuration file, remove a dependency finding they
+		// match. An ignore pattern is matched against the finding's ID, which
+		// starts with the pattern ID, as for a match in a source file.
+		if s.shouldIgnorePattern(finding.ID, finding.Category) {
+			continue
+		}
+		if finding.Severity < s.config.MinSeverity {
+			continue
+		}
+		if rule, ok := s.configRuleFor(finding); ok {
+			s.mu.Lock()
+			s.configWithheld[rule] = append(s.configWithheld[rule], finding)
+			s.mu.Unlock()
+			continue
+		}
+
 		s.mu.Lock()
 		s.findings = append(s.findings, finding)
 		s.mu.Unlock()

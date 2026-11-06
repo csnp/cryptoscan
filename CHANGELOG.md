@@ -388,6 +388,34 @@ All notable changes to CryptoScan are recorded here. This project follows
   the path written from the file's directory, or `--baseline` on the command
   line.
 
+- **`--min-severity`, `--ignore` and `--ignore-category` remove crypto
+  libraries found in dependency manifests.** For a directory holding only a
+  `package.json` that depends on `crypto-js`,
+  `cryptoscan scan . --no-config --format json --min-severity critical`
+  reported `DEP-crypto-js-package.json`, severity MEDIUM, category
+  `dependency`, and so did `--ignore DEP-crypto-js`, `--ignore "DEP-*"` and
+  `--ignore-category dependency`. A `.cryptoscan.yaml` with
+  `minSeverity: critical`, or with `DEP-crypto-js` under `ignore.patterns` or
+  `dependency` under `ignore.categories`, left it in as well, and the text
+  report said `It removed no findings and kept no files out of the scan.`
+  Each of these rules now leaves the finding out of the report and out of the
+  findings printed while the scan runs, and the config file's summary counts
+  it under the setting that removed it, as in
+  `ignore.patterns removed 1 finding`. `--ignore` takes a dependency
+  finding's pattern ID, such as `DEP-crypto-js`, or its `id`, such as
+  `DEP-crypto-js-package.json`, as it takes `MD5-001` or `MD5-001-3-9` for a
+  finding in a source file. On the same directory,
+  `cryptoscan gate . --fail-on medium --ignore DEP-crypto-js` exited 1 and
+  now exits 0, and `cryptoscan cbom . --ignore-category dependency` now
+  leaves `crypto-js` out of the CBOM. The migration readiness score is
+  computed from the findings left in the report, as it already was when
+  these rules removed findings in source files, so a rule that removes a
+  dependency finding can now change the score: `--min-severity medium`
+  leaves out a quantum-safe library reported at INFO, such as `circl` in a
+  `go.mod`. On a tree with a `package.json`, a `requirements.txt`, a `go.mod`
+  and a Python file, a scan without these rules gives the same 9 findings,
+  score and exit code as before.
+
 ### Documentation
 
 - **The terms in `LICENSE` match the Apache License 2.0 text word for word.**

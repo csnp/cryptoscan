@@ -149,7 +149,7 @@ Algorithm names that appear only in prose, logs or comments are held back from t
 
 ## Install
 
-The first example on this page installs with `go install`. You can also build from source or download a binary.
+The first example on this page installs with `go install`, which needs Go. Without Go, for example in a CI job that runs Node, download a release binary.
 
 ### Build from source
 
@@ -170,7 +170,25 @@ cryptoscan version
 
 ### Download a binary
 
-Download pre-built binaries from [GitHub Releases](https://github.com/csnp/cryptoscan/releases/latest).
+Download a pre-built binary from [GitHub Releases](https://github.com/csnp/cryptoscan/releases/latest) and check it against the release's `checksums.txt` before you run it. In a CI job, copy this block into a step:
+
+```bash
+(
+  set -eux
+  cd "$(mktemp -d)"
+  url=https://github.com/csnp/cryptoscan/releases/latest/download
+  os=$(uname -s | tr '[:upper:]' '[:lower:]')
+  arch=$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')
+  curl -fsSLO "$url/checksums.txt"
+  grep "_${os}_${arch}\.tar\.gz$" checksums.txt > archive.sha256
+  archive=$(awk '{ print $2 }' archive.sha256)
+  curl -fsSLO "$url/$archive"
+  sha256sum -c archive.sha256
+  tar -xzf "$archive" cryptoscan
+  install cryptoscan /usr/local/bin/ 2>/dev/null || sudo install cryptoscan /usr/local/bin/
+  cryptoscan version
+)
+```
 
 ## Documentation
 

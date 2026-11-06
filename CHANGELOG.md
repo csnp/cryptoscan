@@ -120,9 +120,10 @@ All notable changes to CryptoScan are recorded here. This project follows
 ### Changed
 
 - **SARIF results use the pattern ID as `ruleId`, so code scanning groups
-  findings by pattern.** Existing alerts are re-created once under the new
-  IDs, and alerts dismissed before this release need to be dismissed again.
-  The location-specific ID moves to `properties.findingId`.
+  findings by pattern.** The location-specific ID moves to
+  `properties.findingId`. Alerts from earlier uploads carry the old rule IDs;
+  after the first upload from this version, check which alerts closed, which
+  opened and which dismissals remain.
 
   On `crypto-samples`, the 110 results point at 25 rules, one for each
   pattern, where they pointed at 110 rules. A rule's name, descriptions, help

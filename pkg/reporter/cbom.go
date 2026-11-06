@@ -179,13 +179,19 @@ func categoryToAssetType(category string) string {
 
 // nonAssetCategories are the categories, in lower case, of findings that
 // describe something other than a cryptographic asset: an import of a crypto
-// library, or a setting such as a hard-coded key size. CycloneDX has no asset
-// type for either, and written as algorithm components they carried a pattern
-// name, such as "Post-Quantum Crypto Library", and no algorithm properties.
+// library, a setting such as a hard-coded key size, or a misuse such as an IV
+// derived from the key or a non-cryptographic random number generator used
+// for a secret. CycloneDX has no asset type for any of these, and written as
+// algorithm components they carried a pattern name, such as "Post-Quantum
+// Crypto Library" or "IV Derived From Key", and no algorithm properties. A
+// finding in one of these categories that names an algorithm, such as AES-ECB
+// in Insecure Mode, is still a component.
 var nonAssetCategories = map[string]bool{
-	"configuration":      true,
-	"library import":     true,
-	"pqc library import": true,
+	"configuration":            true,
+	"library import":           true,
+	"pqc library import":       true,
+	"insecure mode":            true,
+	"random number generation": true,
 }
 
 // isCryptoAsset reports whether a finding becomes a CBOM component. A finding

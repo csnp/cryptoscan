@@ -253,9 +253,23 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 		// A finding whose description is not its rule's, such as a trust
 		// finding on a certificate signed by a listed key, under the pattern
 		// that describes a certificate whose own key is listed, adds its own.
+		rule := rules[ruleIndex[ruleID]]
 		message := fmt.Sprintf("%s: %s", f.Type, f.Match)
-		if f.Description != "" && f.Description != rules[ruleIndex[ruleID]].FullDescription.Text {
+		if f.Description != "" && f.Description != rule.FullDescription.Text {
 			message += ". " + f.Description
+		}
+		// So does a finding whose remediation is not its rule's help: a trust
+		// finding's remediation is the action for the use of the listed key
+		// it matched, where the help of TRUST-COMPROMISED-KEY-001 gives the
+		// action for a TLS key and for a code-signing key, and the removed
+		// root's own certificate gets the action for each kind of file that
+		// holds it, where the help of TRUST-DISTRUSTED-ROOT-001 is the action
+		// for a certificate the root signed.
+		if f.Remediation != "" && f.Remediation != rule.Help.Text {
+			if !strings.HasSuffix(message, ".") {
+				message += "."
+			}
+			message += " Remediation: " + f.Remediation
 		}
 
 		result := sarifResult{

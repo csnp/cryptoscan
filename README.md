@@ -105,7 +105,7 @@ CryptoScan identifies cryptographic usage across your technology stack:
 | **Key Material** | Private keys (RSA, EC, SSH, PGP, PKCS#8), JWT secrets, HMAC keys |
 | **Dependencies** | Crypto libraries listed in package.json, requirements.txt, pyproject.toml, go.mod, pom.xml, Cargo.toml and Gemfile |
 
-DSA is not detected, and detection matches whole words only, so a compound identifier such as `RSAPrivateKey` is not matched. MACs, key derivation, cloud KMS and configuration patterns are in the full detection table in [How CryptoScan works](docs/how-it-works.md). `cryptoscan patterns list` prints every pattern the scanner runs, with its ID, severity, quantum risk, category and name, and [PATTERNS.md](PATTERNS.md) explains how detection, confidence scoring and the risk levels work.
+DSA is not detected. The RSA-001 and AES-001 patterns match whole words only, so a compound identifier such as `RSAPrivateKey` or `AESCipher` is not matched. Some other patterns match inside a longer word: CERT-VALIDATION-BYPASS-001 reports `ssl_verify=False` by matching `verify=False`, and RNG-WEAK-001 matches `key` inside `apiKey`. MACs, key derivation, cloud KMS and configuration patterns are in the full detection table in [How CryptoScan works](docs/how-it-works.md). `cryptoscan patterns list` prints every pattern the scanner runs, with its ID, severity, quantum risk, category and name, `cryptoscan patterns list --format json` also prints each pattern's regular expression, and [PATTERNS.md](PATTERNS.md) explains how detection, confidence scoring and the risk levels work.
 
 ### Quantum Risk Classification
 

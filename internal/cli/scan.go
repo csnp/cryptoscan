@@ -100,8 +100,13 @@ reported without that flag.
 
 Not detected: DSA. Standalone DSA key generation is not matched by any
 pattern, so a codebase using it will not be told that it is quantum
-vulnerable. Detection is matched on whole words, so a compound identifier
-such as RSAPrivateKey or AESCipher is not matched either.
+vulnerable. The RSA-001 and AES-001 patterns match whole words only, so a
+compound identifier such as RSAPrivateKey or AESCipher is not matched
+either. Some other patterns match inside a longer word:
+CERT-VALIDATION-BYPASS-001 reports ssl_verify=False by matching
+verify=False, and RNG-WEAK-001 matches key inside apiKey. Run
+cryptoscan patterns list --format json to see each pattern's regular
+expression.
 
 Output formats:
   - text:  Human-readable console output (default)

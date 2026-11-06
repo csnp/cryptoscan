@@ -300,23 +300,29 @@ func TestSARIFRuleTextComesFromThePattern(t *testing.T) {
 // carries the finding's own description after its type and match: in the
 // committed fixture, the certificate signed by a listed key is reported under
 // TRUST-COMPROMISED-KEY-001, whose description is that of a certificate whose
-// own key is listed. A result whose finding says what its rule says keeps the
-// message "<type>: <match>".
+// own key is listed. A result whose finding's description is its rule's keeps
+// the message "<type>: <match>", followed by the finding's remediation when
+// that is not its rule's help (the test below).
 func TestSARIFMessageCarriesADescriptionItsRuleDoesNot(t *testing.T) {
 	log, _, findings := sarifAndJSON(t, scanTrustFixture(t))
 	run := log.Runs[0]
 
-	descriptions := map[string]string{}
+	descriptions, help := map[string]string{}, map[string]string{}
 	for _, rule := range run.Tool.Driver.Rules {
 		descriptions[rule.ID] = rule.FullDescription.Text
+		help[rule.ID] = rule.Help.Text
 	}
 	differing := 0
 	for i, r := range run.Results {
 		f := findings[i]
 		plain := f.Type + ": " + f.Match
 		if f.Description == descriptions[r.RuleID] {
-			if r.Message.Text != plain {
-				t.Errorf("result %s: message %q, want %q", f.ID, r.Message.Text, plain)
+			want := plain
+			if f.Remediation != "" && f.Remediation != help[r.RuleID] {
+				want += ". Remediation: " + f.Remediation
+			}
+			if r.Message.Text != want {
+				t.Errorf("result %s: message %q, want %q", f.ID, r.Message.Text, want)
 			}
 			continue
 		}
@@ -327,5 +333,46 @@ func TestSARIFMessageCarriesADescriptionItsRuleDoesNot(t *testing.T) {
 	}
 	if differing == 0 {
 		t.Error("no finding in the fixture has a description its rule does not, so the message check reads nothing")
+	}
+}
+
+// A trust finding's remediation depends on the use of the listed key it
+// matched and, for the removed root's own certificate, on the key rule it met,
+// so it can differ from its rule's help text, which is the pattern's. Such a
+// result's message ends with a full stop, "Remediation:" and the finding's own
+// remediation: in the committed fixture, the rule-3 match of
+// TRUST-DISTRUSTED-ROOT-001 on emSign ECC Root CA - G3 itself has the action
+// for each kind of file that holds the root, where its rule's help is the
+// action for a certificate the root signed. A result whose finding's
+// remediation is its rule's help carries no "Remediation:".
+func TestSARIFMessageCarriesARemediationItsRuleDoesNot(t *testing.T) {
+	log, _, findings := sarifAndJSON(t, scanTrustFixture(t))
+	run := log.Runs[0]
+
+	help := map[string]string{}
+	for _, rule := range run.Tool.Driver.Rules {
+		help[rule.ID] = rule.Help.Text
+	}
+	rootFile := 0
+	for i, r := range run.Results {
+		f := findings[i]
+		if f.Remediation == "" || f.Remediation == help[r.RuleID] {
+			if strings.Contains(r.Message.Text, "Remediation:") {
+				t.Errorf("result %s under rule %s: message %q carries a remediation, but the finding's remediation is its rule's help", f.ID, r.RuleID, r.Message.Text)
+			}
+			continue
+		}
+		if trustRule, _ := r.Properties["trustRule"].(float64); r.RuleID == "TRUST-DISTRUSTED-ROOT-001" && trustRule == 3 {
+			rootFile++
+		}
+		plain := f.Type + ": " + f.Match
+		before, found := strings.CutSuffix(r.Message.Text, " Remediation: "+f.Remediation)
+		if !found || !strings.HasPrefix(before, plain) || !strings.HasSuffix(before, ".") || strings.HasSuffix(before, "..") {
+			t.Errorf("result %s under rule %s: message %q, want %q and a full stop, then \"Remediation:\" and the finding's remediation %q",
+				f.ID, r.RuleID, r.Message.Text, plain, f.Remediation)
+		}
+	}
+	if rootFile != 1 {
+		t.Errorf("%d rule-3 results of TRUST-DISTRUSTED-ROOT-001 have a remediation their rule's help does not, want 1: the fixture's root/ file holds emSign ECC Root CA - G3", rootFile)
 	}
 }

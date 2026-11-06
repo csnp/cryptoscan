@@ -147,7 +147,7 @@ jobs:
           sarif_file: results.sarif
 ```
 
-Each SARIF result's `ruleId` is the ID of the pattern that found it, such as `MD5-001`, or `DEP-` followed by the library name for a crypto library in a dependency manifest, such as `DEP-crypto-js`. GitHub code scanning therefore groups results by pattern, and a line added above a result does not change its `ruleId`. A rule's description, help text and default level are its pattern's, and each result keeps its own `level`. The finding's own ID, which adds where the finding is, such as `MD5-001-96-8` for a match on line 96, is in the result's `properties.findingId`, the same ID the JSON report gives the finding. The results carry no `partialFingerprints`.
+Each SARIF result's `ruleId` is the ID of the pattern that found it, such as `MD5-001`, or `DEP-` followed by the library name for a crypto library in a dependency manifest, such as `DEP-crypto-js`. GitHub code scanning therefore groups results by pattern, and a line added above a result does not change its `ruleId`. A rule's description, help text and default level are its pattern's, and each result keeps its own `level`. A result whose finding's description is not its rule's adds that description to its message, and a result whose finding's remediation is not its rule's help text adds `Remediation:` and that remediation, so the result for the removed root's own certificate carries the action for each kind of file that holds it. The finding's own ID, which adds where the finding is, such as `MD5-001-96-8` for a match on line 96, is in the result's `properties.findingId`, the same ID the JSON report gives the finding. The results carry no `partialFingerprints`.
 
 ## GitLab CI
 

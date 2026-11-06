@@ -134,7 +134,13 @@ All notable changes to CryptoScan are recorded here. This project follows
   first result's finding, and each result keeps its own `level`. A result
   whose finding's description is not its rule's, such as a trust finding on a
   certificate signed by a listed key, adds that description to its message.
-  The results carry no `partialFingerprints`.
+  A result whose finding's remediation is not its rule's help adds
+  `Remediation:` and that remediation to its message: a trust finding's
+  remediation follows the use of the listed key it matched, and a rule-3
+  match of `TRUST-DISTRUSTED-ROOT-001`, on the removed root's own
+  certificate, gives the action for each kind of file that holds it, where
+  its rule's help is the action for a certificate the root signed. The
+  results carry no `partialFingerprints`.
 
 - **A trust finding on the removed root's own certificate gives one action
   for each kind of file, and the text report lists trust findings first.** A

@@ -87,7 +87,7 @@ Code under `docs`, `doc`, `documentation` and `wiki` directories is classified a
 | **Dependencies** | Crypto libraries listed in package.json, requirements.txt, pyproject.toml, go.mod, pom.xml, Cargo.toml and Gemfile |
 | **Configurations** | Hardcoded key sizes, algorithm selections, TLS settings |
 
-DSA is not detected: standalone DSA key generation matches no pattern. Detection matches whole words only, so compound identifiers such as `RSAPrivateKey` and `AESCipher` are not matched. Both are listed with the other known limitations in [CHANGELOG.md](../CHANGELOG.md). `cryptoscan patterns list` prints every pattern the scanner runs ([command reference](commands.md#commands)), and [PATTERNS.md](../PATTERNS.md) explains how detection, confidence scoring and the risk levels work.
+DSA is not detected: standalone DSA key generation matches no pattern. The RSA-001 and AES-001 patterns match whole words only, so compound identifiers such as `RSAPrivateKey` and `AESCipher` are not matched. Both are listed with the other known limitations in [CHANGELOG.md](../CHANGELOG.md). Some other patterns match inside a longer word: CERT-VALIDATION-BYPASS-001 reports `ssl_verify=False` by matching `verify=False`, and RNG-WEAK-001 matches `key` inside `apiKey`. `cryptoscan patterns list` prints every pattern the scanner runs ([command reference](commands.md#commands)), `cryptoscan patterns list --format json` also prints each pattern's regular expression, and [PATTERNS.md](../PATTERNS.md) explains how detection, confidence scoring and the risk levels work.
 
 ## Migration Readiness Score
 

@@ -427,6 +427,20 @@ All notable changes to CryptoScan are recorded here. This project follows
   `TestLicenseTermsMatchTheApacheLicense` in `cmd/cryptoscan` compares the
   terms in `LICENSE` word for word with a copy of the published file, and
   fails at the first word that differs, naming its line.
+- **The whole-word limitation in the README, `docs/how-it-works.md` and
+  `cryptoscan scan --help` names the patterns it applies to.** The three
+  texts said that detection matches whole words, so a compound identifier
+  such as `RSAPrivateKey` is not matched, while some patterns match inside a
+  longer word: a file holding `resp = client.get(url, ssl_verify=False)`
+  gets a CERT-VALIDATION-BYPASS-001 finding whose match is `verify=False`.
+  They now say that the RSA-001 and AES-001 patterns match whole words only,
+  give CERT-VALIDATION-BYPASS-001 and RNG-WEAK-001, which matches `key`
+  inside `apiKey`, as patterns that match inside a longer word, and point to
+  `cryptoscan patterns list --format json` for each pattern's regular
+  expression. `TestWholeWordSentencesNameWholeWordPatterns` in
+  `internal/cli` fails when a sentence about whole words in one of the three
+  texts names no pattern ID, or names a pattern whose expression can start
+  or end inside a word.
 
 ## [1.5.0] - 2026-10-18
 

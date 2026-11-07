@@ -150,6 +150,12 @@ All notable changes to CryptoScan are recorded here. This project follows
   chain to a different root, so the software that loads the file also needs
   to check revocation, or to block the six TLS keys that
   `TRUST-COMPROMISED-KEY-001` lists by SPKI hash.
+- **The rule-2 Description of `TRUST-COMPROMISED-KEY-001` names the key, not
+  the signer.** It says the certificate is signed under a listed key and that
+  the signature identifies the key, not who held it. The rule-1 and rule-2
+  Descriptions and the incident paragraph of the finding page end by saying
+  that the certificate and every chain through the key need replacing,
+  whether or not the software that validates the chain checks revocation.
 - **A JSON finding names its severity.** `--format json` wrote each finding's
   severity as a number from 0 to 4, as in `"severity": 3`, while
   `summary.bySeverity` is keyed by name. Each finding now carries the name, as

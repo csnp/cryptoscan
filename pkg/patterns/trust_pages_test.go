@@ -272,6 +272,52 @@ func TestTrustStoreFixStatesWhatRemovingTheRootStops(t *testing.T) {
 	}
 }
 
+// The compromised-key page's incident paragraph gives 2026-10-17 to the report
+// alone: the report itself included proof of control of the keys, so the page
+// never places every recovery after it. The paragraph stands once, as a whole
+// line, and its last sentence is the replacement that the certificate and
+// every chain through the key need, whichever kind of software validates
+// them.
+func TestTrustIncidentParagraphStatesProofOfControlAndTheReplacement(t *testing.T) {
+	const (
+		name      = "trust-compromised-key.md"
+		paragraph = "A report to the root programs and to eMudhra on 2026-10-17 included proof of control of the private keys of the eight intermediates, and several parties, Mozilla among them, have recovered the keys independently (Mozilla Bug 2083449, comments 0 and 18). eMudhra revoked its eight certificates on 2026-10-18, the cross-signed copies were revoked on 2026-10-19, and Chrome and Firefox block the six TLS keys. Software that checks revocation rejects chains through these keys. Software that does not, and still trusts a key, accepts any certificate signed with it, including ones the CA never issued. Either way, the certificate and every chain through the key need replacing."
+		anchor    = "the cross-signed copies were revoked on 2026-10-19"
+		closing   = "Either way, the certificate and every chain through the key need replacing."
+	)
+	page := readPage(t, name)
+
+	whole := 0
+	var incident []string
+	for _, l := range strings.Split(page, "\n") {
+		if l == paragraph {
+			whole++
+		}
+		if strings.Contains(l, anchor) {
+			incident = append(incident, l)
+		}
+	}
+	if n := strings.Count(page, paragraph); whole != 1 || n != 1 {
+		t.Errorf("%s holds the incident paragraph %d times as a whole line and %d times in all, want 1 and 1", name, whole, n)
+	}
+
+	// Read with its line breaks as spaces, so a phrase wrapped across two
+	// lines still counts.
+	flat := strings.ReplaceAll(page, "\n", " ")
+	if n := strings.Count(flat, "after a report"); n != 0 {
+		t.Errorf("%s says %q %d times, want 0", name, "after a report", n)
+	}
+	if n := strings.Count(flat, "proof of control"); n != 1 {
+		t.Errorf("%s says %q %d times, want 1", name, "proof of control", n)
+	}
+
+	if len(incident) != 1 {
+		t.Errorf("%s has %d lines that hold %q, want the one incident line", name, len(incident), anchor)
+	} else if !strings.HasSuffix(incident[0], closing) {
+		t.Errorf("%s: the incident line does not end with %q", name, closing)
+	}
+}
+
 // pageOpenSSL returns the openssl programs to run the pages' commands under:
 // the colon-separated paths in CRYPTOSCAN_TEST_OPENSSL, or the openssl on
 // PATH.

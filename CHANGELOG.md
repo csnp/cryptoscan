@@ -416,6 +416,21 @@ All notable changes to CryptoScan are recorded here. This project follows
   and a Python file, a scan without these rules gives the same 9 findings,
   score and exit code as before.
 
+- **SARIF artifact URIs are relative to the scan target when the target is
+  given as a relative path.** `cryptoscan scan crypto-samples --format sarif`
+  gave each of its 110 results the absolute path of its file on the machine
+  that ran the scan, and so did `cryptoscan scan . --format sarif`, the form
+  `docs/ci.md` runs, while a scan of the target's absolute path gave paths
+  relative to it, such as `CryptoSamples.java`. With a relative target, the
+  notification for a file that could not be analyzed carried the absolute
+  path too. The reporter related each path to the target as typed; it now
+  relates it to the directory the scan walked. On `crypto-samples`,
+  `scan crypto-samples`, `scan .` run in it and a scan of its absolute path
+  now write byte-identical SARIF reports, whose URIs are the paths the CBOM's
+  evidence locations give. A scan of a single file gives the file's name as
+  its URI, as in `CryptoSamples.java` for `crypto-samples/CryptoSamples.java`,
+  where a scan of the file's absolute path gave `.`.
+
 ### Documentation
 
 - **The terms in `LICENSE` match the Apache License 2.0 text word for word.**

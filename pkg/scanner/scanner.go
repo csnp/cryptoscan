@@ -237,8 +237,8 @@ type Results struct {
 
 	// ScanRoot is the directory finding paths were walked from, or empty for
 	// a Git URL, whose finding paths are relative to the repository root. It
-	// is used to recompute the migration score and is not written to any
-	// report.
+	// is used to recompute the migration score and as the directory SARIF
+	// artifact URIs are relative to, and is not written to any report.
 	ScanRoot string `json:"-"`
 }
 

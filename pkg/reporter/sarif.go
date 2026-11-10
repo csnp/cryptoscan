@@ -157,15 +157,32 @@ func severityToSARIFLevel(s scanner.Severity) string {
 	}
 }
 
-// sarifURI converts an absolute path to a URI relative to the scan target.
-func sarifURI(scanTarget, path string) string {
+// sarifURI converts path to a URI with forward slashes, relative to root, the
+// directory sarifRoot returns, when path is absolute. A relative path, such as
+// that of a URL scan, which is relative to the repository root, is not
+// related to root.
+func sarifURI(root, path string) string {
 	uri := path
 	if filepath.IsAbs(uri) {
-		if rel, err := filepath.Rel(scanTarget, uri); err == nil {
+		if rel, err := filepath.Rel(root, uri); err == nil {
 			uri = rel
 		}
 	}
 	return strings.ReplaceAll(uri, "\\", "/")
+}
+
+// sarifRoot returns the directory artifact URIs are relative to: the
+// directory the scan walked, which the scanner records as ScanRoot. That is
+// the target for a directory and the file's directory for a file. ScanTarget
+// is the target as it was given, such as "." or "crypto-samples", while the
+// scan command gives the scanner the target's absolute path, and filepath.Rel
+// cannot relate an absolute path to a relative base, so ScanTarget is used
+// only for results that record no ScanRoot.
+func sarifRoot(results *scanner.Results) string {
+	if results.ScanRoot != "" {
+		return results.ScanRoot
+	}
+	return results.ScanTarget
 }
 
 // sarifRuleID returns the ID of the rule a finding's result points at: the ID
@@ -245,9 +262,10 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 	}
 
 	// Build results
+	root := sarifRoot(results)
 	sarifResults := make([]sarifResult, 0, len(results.Findings))
 	for _, f := range results.Findings {
-		uri := sarifURI(results.ScanTarget, f.File)
+		uri := sarifURI(root, f.File)
 		ruleID := sarifRuleID(f)
 
 		// A finding whose description is not its rule's, such as a trust
@@ -319,7 +337,7 @@ func (r *SARIFReporter) Generate(results *scanner.Results) (string, error) {
 		for _, u := range results.UnanalyzedFiles {
 			location := sarifLocation{
 				PhysicalLocation: sarifPhysicalLocation{
-					ArtifactLocation: sarifArtifactLocation{URI: sarifURI(results.ScanTarget, u.File)},
+					ArtifactLocation: sarifArtifactLocation{URI: sarifURI(root, u.File)},
 				},
 			}
 			if u.Line > 0 {

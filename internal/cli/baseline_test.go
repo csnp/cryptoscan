@@ -287,14 +287,39 @@ func TestInferRootOfEveryFileSkipsDirectoriesThatLeaveOutAListedFile(t *testing.
 	if got := inferBaselineRoot(entries, current); got != tools {
 		t.Errorf("inferBaselineRoot = %q, want %q", got, tools)
 	}
-	if got := inferRootOfEveryFile(entries, current); got != root {
+	if got := inferRootOfEveryFile(entries, current, ""); got != root {
 		t.Errorf("inferRootOfEveryFile = %q, want %q", got, root)
 	}
 
 	// tool.py alone proposes root/tools only, so no directory proposed holds
 	// every file.
-	if got := inferRootOfEveryFile(entries, map[string]bool{"tool.py": true}); got != "" {
+	if got := inferRootOfEveryFile(entries, map[string]bool{"tool.py": true}, ""); got != "" {
 		t.Errorf("inferRootOfEveryFile with tool.py alone = %q, want empty", got)
+	}
+}
+
+// TestInferRootOfEveryFileLeavesOutTheDirectoryGiven sets a baseline whose
+// files are tools/keys.py, tools/a.py and tools/b.py against a tree with
+// tools/keys.py, a.py and b.py. Two files propose root/tools and one proposes
+// root, and both hold every listed file. With root/tools left out, root is
+// returned, and with root left out too, nothing is.
+func TestInferRootOfEveryFileLeavesOutTheDirectoryGiven(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "repo")
+	tools := filepath.Join(root, "tools")
+	entries := []scanner.Finding{
+		{File: filepath.Join(tools, "keys.py")},
+		{File: filepath.Join(tools, "a.py")},
+		{File: filepath.Join(tools, "b.py")},
+	}
+	current := map[string]bool{"tools/keys.py": true, "a.py": true, "b.py": true}
+	if got := inferRootOfEveryFile(entries, current, ""); got != tools {
+		t.Errorf("inferRootOfEveryFile = %q, want %q", got, tools)
+	}
+	if got := inferRootOfEveryFile(entries, current, tools); got != root {
+		t.Errorf("inferRootOfEveryFile leaving out %q = %q, want %q", tools, got, root)
+	}
+	if got := inferRootOfEveryFile(entries, map[string]bool{"a.py": true, "b.py": true}, tools); got != "" {
+		t.Errorf("inferRootOfEveryFile with a.py and b.py alone, leaving out %q = %q, want empty", tools, got)
 	}
 }
 

@@ -1851,6 +1851,213 @@ func TestGateWithBaselineWithoutRecordedRootAcceptsAFileThatMovedIntoTheOldPathO
 	}
 }
 
+// TestApplyBaselineWithoutRecordedRootAcceptsAnUnmovedFileWhenListedFilesShareAFolder
+// sets a baseline in the form 1.4.0 writes, which records no root, whose
+// files are all in tools/, against a tree in which tools/a.py and tools/b.py
+// moved to a.py and b.py and tools/keys.py did not move. The reported paths
+// propose tools/, which holds every listed file, over the directory
+// tools/keys.py proposes, and under tools/ alone the findings in
+// tools/keys.py were new. They are accepted under the other directory that
+// holds every listed file, as with the root recorded, and the findings in
+// the files that moved are still accepted under tools/. With the root
+// recorded, the findings in the files that moved are new.
+func TestApplyBaselineWithoutRecordedRootAcceptsAnUnmovedFileWhenListedFilesShareAFolder(t *testing.T) {
+	oldRoot := filepath.Join(t.TempDir(), "old", "checkout")
+	repo := filepath.Join(t.TempDir(), "repo")
+	const (
+		importLine = "from cryptography.hazmat.primitives.asymmetric import rsa"
+		keyLine    = "key = rsa.generate_private_key(public_exponent=65537, key_size=2048)"
+		aLine      = "c = Blowfish.new(key)"
+		bLine      = "d = Blowfish.new(other)"
+	)
+	finding := func(dir, file, pattern, line string) scanner.Finding {
+		return scanner.Finding{File: filepath.Join(dir, filepath.FromSlash(file)), PatternID: pattern, Match: line}
+	}
+	files := func(findings []scanner.Finding) []string {
+		var paths []string
+		for _, f := range findings {
+			paths = append(paths, filepath.ToSlash(strings.TrimPrefix(f.File, repo+string(filepath.Separator))))
+		}
+		return paths
+	}
+	// keys returns the findings in tools/keys.py under dir: RSA-001 twice
+	// and KEYSIZE-001.
+	keys := func(dir string) []scanner.Finding {
+		return []scanner.Finding{
+			finding(dir, "tools/keys.py", "RSA-001", importLine),
+			finding(dir, "tools/keys.py", "RSA-001", keyLine),
+			finding(dir, "tools/keys.py", "KEYSIZE-001", keyLine),
+		}
+	}
+	entries := append(keys(oldRoot),
+		finding(oldRoot, "tools/a.py", "BLOWFISH-001", aLine),
+		finding(oldRoot, "tools/b.py", "BLOWFISH-001", bLine),
+	)
+	moved := []scanner.Finding{
+		finding(repo, "a.py", "BLOWFISH-001", aLine),
+		finding(repo, "b.py", "BLOWFISH-001", bLine),
+	}
+	join := func(parts ...[]scanner.Finding) []scanner.Finding {
+		var all []scanner.Finding
+		for _, p := range parts {
+			all = append(all, p...)
+		}
+		return all
+	}
+	type outcome struct {
+		newFiles []string // the files of the reported findings that are new
+		accepted []bool   // whether the baseline accepts each removed finding
+	}
+	tests := []struct {
+		name              string
+		reported, removed []scanner.Finding
+		noRoot, rooted    outcome
+	}{
+		{
+			name:     "every finding reported",
+			reported: join(keys(repo), moved),
+			noRoot:   outcome{nil, []bool{}},
+			rooted:   outcome{[]string{"a.py", "b.py"}, []bool{}},
+		},
+		{
+			name:     "the RSA-001 findings removed",
+			reported: join(keys(repo)[2:], moved),
+			removed:  keys(repo)[:2],
+			noRoot:   outcome{nil, []bool{true, true}},
+			rooted:   outcome{[]string{"a.py", "b.py"}, []bool{true, true}},
+		},
+		{
+			name:     "every finding in tools/keys.py removed",
+			reported: moved,
+			removed:  keys(repo),
+			noRoot:   outcome{nil, []bool{true, true, true}},
+			rooted:   outcome{[]string{"a.py", "b.py"}, []bool{true, true, true}},
+		},
+	}
+	for _, tt := range tests {
+		baselines := []struct {
+			name string
+			b    *baseline
+			want outcome
+		}{
+			{"root recorded", &baseline{ScanTarget: ".", Metadata: map[string]string{scanner.MetadataScanRoot: oldRoot}, Findings: entries}, tt.rooted},
+			{"no root recorded", &baseline{ScanTarget: ".", Findings: entries}, tt.noRoot},
+		}
+		for _, bl := range baselines {
+			t.Run(bl.name+"/"+tt.name, func(t *testing.T) {
+				newFindings, accepted := applyBaseline(tt.reported, tt.removed, repo, bl.b)
+				if got := files(newFindings); !reflect.DeepEqual(got, bl.want.newFiles) {
+					t.Errorf("new findings in %v, want %v", got, bl.want.newFiles)
+				}
+				if !reflect.DeepEqual(accepted, bl.want.accepted) {
+					t.Errorf("accepted = %v, want %v", accepted, bl.want.accepted)
+				}
+			})
+		}
+	}
+}
+
+// TestGateWithBaselineWithoutRecordedRootAcceptsAnUnmovedFileWhenListedFilesShareAFolder
+// runs the reproduction of the issue: tools/keys.py holds an RSA key
+// generation, and tools/a.py and tools/b.py each hold a Blowfish line; after
+// a baseline is written, tools/a.py and tools/b.py move to a.py and b.py.
+// With the baseline in the 1.4.0 form, the report lists no finding in
+// tools/keys.py, and gate and scan --fail-on high exit 0, with no config file
+// and with a config file that ignores RSA-001 and KEYSIZE-001.
+func TestGateWithBaselineWithoutRecordedRootAcceptsAnUnmovedFileWhenListedFilesShareAFolder(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, content string) {
+		t.Helper()
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("tools/keys.py", rsaSource)
+	write("tools/a.py", "c = Blowfish.new(key)\n")
+	write("tools/b.py", "d = Blowfish.new(other)\n")
+	chdirForTest(t, dir)
+
+	rooted := filepath.Join(t.TempDir(), "baseline.json")
+	if out := runCommandWith(t, scanCmd, ".", "--stream=false", "--format", "json", "--output", rooted); out.err != "" {
+		t.Fatalf("baseline scan failed: %s", out.err)
+	}
+	legacy := legacyBaseline(t, rooted, 5)
+
+	for _, name := range []string{"a.py", "b.py"} {
+		if err := os.Rename(filepath.Join(dir, "tools", name), filepath.Join(dir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	unmoved := filepath.Join(dir, "tools", "keys.py")
+	baselines := []struct {
+		name string
+		path string
+	}{
+		{"baseline in the 1.4.0 form", legacy},
+		{"baseline that records its root", rooted},
+	}
+	for _, bl := range baselines {
+		out := runCommandWith(t, scanCmd, ".", "--stream=false", "--format", "json", "--baseline", bl.path)
+		if out.err != "" {
+			t.Fatalf("scan with the %s failed: %s", bl.name, out.err)
+		}
+		var report struct {
+			Findings []struct {
+				File      string `json:"file"`
+				PatternID string `json:"patternId"`
+			} `json:"findings"`
+		}
+		if err := json.Unmarshal([]byte(out.stdout), &report); err != nil {
+			t.Fatalf("scan output is not JSON: %v", err)
+		}
+		for _, f := range report.Findings {
+			if f.File == unmoved {
+				t.Errorf("with the %s, %s %s reported as new", bl.name, f.File, f.PatternID)
+			}
+		}
+	}
+
+	type run struct {
+		name string
+		cmd  *cobra.Command
+		args []string
+	}
+	gate := run{"gate", gateCmd, []string{"--baseline", legacy}}
+	noConfig := run{"gate --no-config", gateCmd, []string{"--no-config", "--baseline", legacy}}
+	scan := run{"scan --fail-on high", scanCmd, []string{"--stream=false", "--fail-on", "high", "--baseline", legacy}}
+	configs := []struct {
+		name, content string
+		runs          []run
+	}{
+		{"no config file", "", []run{gate, noConfig, scan}},
+		{"a config file that ignores RSA-001 and KEYSIZE-001", "ignore:\n  patterns: [RSA-001, KEYSIZE-001]\n", []run{gate, scan}},
+	}
+	for _, cfg := range configs {
+		if cfg.content != "" {
+			write(".cryptoscan.yaml", cfg.content)
+		}
+		for _, tt := range cfg.runs {
+			t.Run(cfg.name+"/"+tt.name, func(t *testing.T) {
+				out := runCommandWith(t, tt.cmd, ".", tt.args...)
+				if out.err != "" || out.code != 0 {
+					t.Errorf("exit code %d, error %q; want exit code 0", out.code, out.err)
+				}
+				if strings.Contains(out.stderr, "cryptoscan: exit code 1:") {
+					t.Errorf("stderr = %q, which gives the config file as a reason for exit code 1", out.stderr)
+				}
+			})
+		}
+	}
+}
+
 // legacyBaseline writes the report a scan saved at rooted again in the form
 // 1.4.0 writes, with no metadata, so no metadata.scanRoot, scanTarget "."
 // and no patternId, and returns the path of the copy. It stops the test

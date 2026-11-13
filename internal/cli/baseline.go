@@ -60,15 +60,22 @@ func filterNewFindings(findings []scanner.Finding, root string, b *baseline) []s
 // applyBaseline is filterNewFindings, and also reports whether the baseline
 // accepts each finding in withheld, the findings a config file removed. The
 // findings in the report take their entries first, so a finding the file
-// removed is accepted only by an entry no reported finding used. The
-// baseline's root is found from the reported findings, as filterNewFindings
-// finds it.
+// removed is accepted only by an entry no reported finding used. When the
+// baseline's root is inferred (see root), the paths of the withheld findings
+// count as well as those of the reported ones, since both are in the scanned
+// code: when the file removed every finding in the baseline's files, the
+// reported paths alone hold none of those files to infer the root from.
 func applyBaseline(findings, withheld []scanner.Finding, root string, b *baseline) ([]scanner.Finding, []bool) {
 	keys := make([]baselineKey, len(findings))
 	paths := make(map[string]bool)
 	for i, f := range findings {
 		keys[i] = findingKey(f, root)
 		paths[keys[i].path] = true
+	}
+	withheldKeys := make([]baselineKey, len(withheld))
+	for i, f := range withheld {
+		withheldKeys[i] = findingKey(f, root)
+		paths[withheldKeys[i].path] = true
 	}
 
 	reviewed := make(map[baselineKey]int)
@@ -89,8 +96,8 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 	}
 
 	accepted := make([]bool, len(withheld))
-	for i, f := range withheld {
-		if key := findingKey(f, root); reviewed[key] > 0 {
+	for i, key := range withheldKeys {
+		if reviewed[key] > 0 {
 			reviewed[key]--
 			accepted[i] = true
 		}
@@ -106,7 +113,7 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 // its scanTarget is the target as it was typed: an absolute path is used as
 // it is, and anything else ("." in the README's CI recipe, or a repository
 // URL that was cloned to a temporary directory) is inferred from the paths
-// the current scan reports.
+// of the current scan's findings, those a config file removed included.
 func (b *baseline) root(currentPaths map[string]bool) string {
 	if root := b.Metadata[scanner.MetadataScanRoot]; root != "" {
 		return root

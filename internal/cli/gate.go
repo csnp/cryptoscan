@@ -56,6 +56,7 @@ func init() {
 	gateCmd.Flags().StringVar(&ignorePatterns, "ignore", "", "Pattern IDs to ignore (comma-separated, e.g., \"RSA-001,CERT-*\")")
 	gateCmd.Flags().StringVar(&ignoreCategories, "ignore-category", "", "Categories to ignore (comma-separated, e.g., \"Certificate,Library Import\")")
 	gateCmd.Flags().StringVar(&configFile, "config", "", "Config file path (default: auto-detect .cryptoscan.yaml)")
+	gateCmd.Flags().BoolVar(&noConfig, "no-config", false, "Do not read a config file; use only command-line options")
 	gateCmd.Flags().BoolVar(&includeSkipped, "include-skipped", false, includeSkippedUsage)
 	gateCmd.Flags().BoolVar(&includeReports, "include-reports", false, includeReportsUsage)
 	gateCmd.Flags().BoolVar(&noColor, "no-color", false, "Disable colored output")

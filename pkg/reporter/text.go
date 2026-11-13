@@ -685,7 +685,7 @@ func (r *TextReporter) writeConfigSummary(b *strings.Builder, results *scanner.R
 		b.WriteString(r.color(colorCyan, "    "+e+"\n"))
 	}
 	if c.Source != scanner.ConfigSourceFlag && len(effects) > 0 {
-		b.WriteString(r.color(colorCyan, fmt.Sprintf("  Scan without it: cryptoscan scan %s --no-config\n", results.ScanTarget)))
+		b.WriteString(r.color(colorCyan, "  Scan without it: "+rerunWithoutConfig(c, results.ScanTarget)+"\n"))
 	}
 }
 

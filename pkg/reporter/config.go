@@ -53,6 +53,22 @@ func configEffects(c *scanner.ConfigReport) []string {
 	return effects
 }
 
+// rerunWithoutConfig is the command that repeats the scan without its config
+// file. A gate run, and a scan with --fail-on, keep their command and their
+// threshold, so that the command's exit code follows the same threshold as
+// the run's.
+func rerunWithoutConfig(c *scanner.ConfigReport, target string) string {
+	command := c.Rerun.Command
+	if command == "" {
+		command = "scan"
+	}
+	line := "cryptoscan " + command + " " + target
+	if c.Rerun.FailOn != "" {
+		line += " --fail-on " + c.Rerun.FailOn
+	}
+	return line + " --no-config"
+}
+
 // noFindingsHeadline replaces "No cryptographic findings detected" when the
 // report is empty and the config file removed or skipped something, since the
 // scan did not establish that nothing was there.

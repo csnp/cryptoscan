@@ -127,6 +127,7 @@ Flags:
       --ignore string           Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*")
       --ignore-category string  Categories to ignore (e.g., "Certificate,Library Import")
       --config string           Config file path (default: auto-detect .cryptoscan.yaml)
+      --no-config               Do not read a config file; use only command-line options
       --include-skipped         Scan the directories left out by default, such as .git, node_modules, vendor, dist, build, examples and testdata
       --include-reports         Scan as source the files left out because they start like a CryptoScan report
       --no-color                Disable colored output

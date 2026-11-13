@@ -244,6 +244,13 @@ All notable changes to CryptoScan are recorded here. This project follows
 
 ### Fixed
 
+- **The `Scan without it:` line of a `gate` run names a gate.** In a `gate`
+  run, and in a `scan --fail-on` run, the config block's `Scan without it:`
+  line cited `cryptoscan scan <dir> --no-config`, whose exit code follows
+  `scan`'s default rather than the run's threshold. It now reads
+  `cryptoscan gate <dir> --no-config` and
+  `cryptoscan scan <dir> --fail-on <severity> --no-config`.
+
 - **A Git URL scan gives paths inside the repository.** `cryptoscan scan`
   with a repository URL clones it into a temporary directory and removes the
   directory when the scan ends, and every path in the report pointed into

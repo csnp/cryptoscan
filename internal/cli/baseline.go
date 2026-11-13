@@ -83,7 +83,12 @@ func filterNewFindings(findings []scanner.Finding, root string, b *baseline) []s
 // baseline lists is under (see inferRootOfEveryFile). That root only adds to
 // the withheld findings the baseline accepts, so a removed finding in a file
 // that moved since, which the first root places at its entry, is still
-// accepted. When no such directory is inferred, only the first root is used.
+// accepted. A withheld finding can take, under the first root, the entry
+// another one has under the second: helper.py and tools/helper.py hold the
+// same line, and the first root places the baseline's tools/helper.py at
+// helper.py. The entries are then given out again where that gives one to a
+// withheld finding still not accepted (see acceptWithheld). When no such
+// directory is inferred, only the first root is used.
 func applyBaseline(findings, withheld []scanner.Finding, root string, b *baseline) ([]scanner.Finding, []bool) {
 	keys := make([]baselineKey, len(findings))
 	paths := make(map[string]bool)
@@ -119,12 +124,12 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 
 	// Each entry covers one finding. The reported findings take theirs by
 	// their key under baseRoot, and the withheld findings then take the
-	// entries left by their key under baseRoot and, when withheldRoot is
-	// another root, the entries still left by their key under it.
+	// entries left (see acceptWithheld).
+	first := make([]baselineKey, len(b.Findings))
 	byKey := make(map[baselineKey][]int)
 	for j, f := range b.Findings {
-		key := findingKey(f, baseRoot)
-		byKey[key] = append(byKey[key], j)
+		first[j] = findingKey(f, baseRoot)
+		byKey[first[j]] = append(byKey[first[j]], j)
 	}
 	taken := make([]bool, len(b.Findings))
 
@@ -140,33 +145,123 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 		newFindings = append(newFindings, f)
 	}
 
-	accepted := make([]bool, len(withheld))
-	if len(withheld) == 0 {
-		return newFindings, accepted
+	var second []baselineKey
+	if withheldRoot != baseRoot && len(withheld) > 0 {
+		second = make([]baselineKey, len(b.Findings))
+		for j, f := range b.Findings {
+			second[j] = findingKey(f, withheldRoot)
+		}
 	}
-	for i, key := range withheldKeys {
-		if js := byKey[key]; len(js) > 0 {
-			taken[js[0]] = true
-			byKey[key] = js[1:]
+	return newFindings, acceptWithheld(withheldKeys, first, second, taken)
+}
+
+// acceptWithheld reports, for each withheld finding with the key in keys,
+// whether the baseline accepts it. Each entry j that no reported finding took
+// (taken[j]) can be given to one withheld finding whose key is first[j], the
+// entry's key under the root of the reported findings, or, when second is not
+// nil, second[j], its key under the second root.
+//
+// The entries are given out in three steps. In the first, each withheld
+// finding in turn takes the first entry left whose first key is its own. In
+// the second, each one the first step did not accept takes the first entry
+// still left whose second key is its own. In the third, each one still not
+// accepted takes an entry whose first or second key is its own when the
+// finding that holds the entry can move to another entry matching its key,
+// whose holder can move in the same way, and so on until a finding moves to
+// an entry no finding holds. For example, helper.py's finding holds, by its
+// first key, the entry for tools/helper.py that tools/helper.py's finding
+// matches by its second key, and moves to the entry for helper.py, which
+// matches it by its second key. A finding that holds an entry is only moved
+// to another, so the third step adds to the findings the first two accept
+// and removes none of them.
+func acceptWithheld(keys, first, second []baselineKey, taken []bool) []bool {
+	accepted := make([]bool, len(keys))
+	if len(keys) == 0 {
+		return accepted
+	}
+	// holder[j] is the withheld finding entry j is given to, or -1.
+	holder := make([]int, len(first))
+	for j := range holder {
+		holder[j] = -1
+	}
+	give := func(entryKeys []baselineKey) {
+		left := make(map[baselineKey][]int)
+		for j, key := range entryKeys {
+			if !taken[j] && holder[j] == -1 {
+				left[key] = append(left[key], j)
+			}
+		}
+		for i, key := range keys {
+			if js := left[key]; !accepted[i] && len(js) > 0 {
+				holder[js[0]] = i
+				left[key] = js[1:]
+				accepted[i] = true
+			}
+		}
+	}
+	give(first)
+	if second == nil {
+		return accepted
+	}
+	give(second)
+
+	// matching lists the entries a withheld finding with a given key can
+	// hold, under either root.
+	matching := make(map[baselineKey][]int)
+	for j := range first {
+		if taken[j] {
+			continue
+		}
+		matching[first[j]] = append(matching[first[j]], j)
+		if second[j] != first[j] {
+			matching[second[j]] = append(matching[second[j]], j)
+		}
+	}
+	// Each finding still not accepted starts a search. seen[j] is the number
+	// of the last search that reached entry j, and expanded[key] that of the
+	// last search that went through the entries matching key: findings with
+	// the same key match the same entries, so a search goes through them
+	// once. A finding with a key in failed, one a search could not give an
+	// entry to, is not searched for: the findings that hold an entry keep
+	// one, so the search would fail again.
+	seen := make([]int, len(first))
+	expanded := make(map[baselineKey]int)
+	failed := make(map[baselineKey]bool)
+	search := 0
+	// place gives withheld finding i an entry matching its key, one no
+	// finding holds or one whose holder place can move to another entry, and
+	// reports whether it did.
+	var place func(i int) bool
+	place = func(i int) bool {
+		key := keys[i]
+		if expanded[key] == search {
+			return false
+		}
+		expanded[key] = search
+		for _, j := range matching[key] {
+			if seen[j] == search {
+				continue
+			}
+			seen[j] = search
+			if holder[j] == -1 || place(holder[j]) {
+				holder[j] = i
+				return true
+			}
+		}
+		return false
+	}
+	for i, key := range keys {
+		if accepted[i] || failed[key] {
+			continue
+		}
+		search++
+		if place(i) {
 			accepted[i] = true
+		} else {
+			failed[key] = true
 		}
 	}
-	if withheldRoot == baseRoot {
-		return newFindings, accepted
-	}
-	left := make(map[baselineKey]int)
-	for j, f := range b.Findings {
-		if !taken[j] {
-			left[findingKey(f, withheldRoot)]++
-		}
-	}
-	for i, key := range withheldKeys {
-		if !accepted[i] && left[key] > 0 {
-			left[key]--
-			accepted[i] = true
-		}
-	}
-	return newFindings, accepted
+	return accepted
 }
 
 // root returns the directory the baseline's file paths are under. Reports

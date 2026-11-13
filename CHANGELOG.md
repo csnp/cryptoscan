@@ -153,16 +153,23 @@ All notable changes to CryptoScan are recorded here. This project follows
   the tree and outnumber the listed files that did not move, a second root
   is looked for in the same way from the paths of the reported and the
   removed findings together, among the directories that hold every file the
-  baseline lists, and the removed findings are matched to the entries in two
+  baseline lists, and the removed findings are matched to the entries in three
   steps. Each entry covers one finding. In the first step, a removed finding
   is accepted when an entry the reported findings left lists it at the same
   path relative to the root found first. In the second, a removed finding
   the first step did not accept is accepted when an entry still unused lists
-  it at the same path relative to the second root, if one was found. An
-  entry used in the first step is not used again in the second, so a
-  removed finding can be left not accepted when another removed finding
-  with the same line used, in the first step, the entry that lists it
-  relative to the second root. The findings the file removed do
+  it at the same path relative to the second root, if one was found. In the
+  third, when a second root was found, a removed finding the first two steps
+  did not accept is accepted when the entries the reported findings left can
+  be given out again, one to each removed finding already accepted and one
+  to it, each entry to a finding it lists at the same path relative to
+  either root. When `helper.py` and `tools/helper.py` hold the same line and
+  the root the reported findings give places the baseline's
+  `tools/helper.py` at `helper.py`, the removed finding in `helper.py` takes
+  the entry for `tools/helper.py` in the first step; in the third, it moves
+  to the entry for `helper.py`, and the removed finding in `tools/helper.py`
+  takes the entry for `tools/helper.py`. A removed finding the first two
+  steps accept stays accepted. The findings the file removed do
   not change which reported findings such a baseline accepts. Paths kept out
   by `ignore.files` are counted
   under `pathsSkipped` and do not change the exit code; findings suppressed

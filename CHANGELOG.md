@@ -344,10 +344,10 @@ All notable changes to CryptoScan are recorded here. This project follows
   `tools/tool.py` and `tools/tools/tool.py` hold the same line; when
   `tools/tool.py` moves out to the top of the tree as `tool.py` and
   `tools/tools/tool.py` moves into the path it left, `tools/tool.py`'s entry
-  matches `tool.py`'s finding under the directory every listed file is
-  under, and matches `tools/tools/tool.py`'s finding, which now sits at
-  `tools/tool.py`, under the directory proposed by the most files; given out
-  under the first directory before the second, it goes to
+  matches `tools/tools/tool.py`'s finding, which now sits at
+  `tools/tool.py`, under the directory every listed file is under, and
+  matches `tool.py`'s finding under the directory proposed by the most
+  files; given out under the first directory before the second, it goes to
   `tools/tools/tool.py`'s finding, leaving `tool.py`'s finding, which
   matches only its own entry and only under the second directory, with
   nothing. The three-step method gives each finding its own entry instead.

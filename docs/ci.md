@@ -45,6 +45,11 @@ The file is listed in the text summary, under `unanalyzedFiles` in JSON, and
 as an error in the SARIF run's `invocations[].toolExecutionNotifications`.
 Without `--fail-on`, such a file does not change the exit code.
 
+With `--fail-on` set, and with `cryptoscan gate`, a config file found without
+`--config` ([where CryptoScan looks for one](configuration.md#configuration-file))
+that does not parse stops the run with an error naming it; a scan without
+`--fail-on` prints a warning and runs without the file.
+
 A file skipped because it looks minified or generated, such as `app.min.js`,
 because it is a dependency manifest the scanner has no reader for, such as
 `build.gradle` or `Pipfile`, or because it is a report CryptoScan wrote, such

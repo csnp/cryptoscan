@@ -87,9 +87,11 @@ A user name and password written into the URL itself are on the command line of 
 | Code | When |
 |------|------|
 | `0` | The scan finished and no finding reached the failure threshold. |
-| `1` | Without `--fail-on`: at least one CRITICAL finding. With `--fail-on <severity>`: at least one finding at that severity or higher. Also any error, such as a missing path or a baseline file that cannot be read. |
+| `1` | Without `--fail-on`: at least one CRITICAL finding. With `--fail-on <severity>`: at least one finding at that severity or higher. Also any error, such as a missing path, a baseline file that cannot be read or, with `--fail-on`, a config file found without `--config` that does not parse. |
 
 By default the scan exits 1 on any CRITICAL finding and 0 otherwise. `--fail-on` replaces that default, and a `failOn` key in `.cryptoscan.yaml` does the same when the flag is not given. Findings removed by `--baseline`, `--ignore` or `--ignore-category` do not count. The logic is the `exitCode` function in `internal/cli/scan.go`.
+
+With `--fail-on`, and with `cryptoscan gate`, a config file found without `--config` that does not parse stops the run before anything is scanned, with `Error: config file <path> could not be parsed: <error>`.
 
 Before 1.5.0, an invalid `--fail-on` value is accepted silently (see the 1.4.0 known limitations in [CHANGELOG.md](../CHANGELOG.md)), so in a pipeline that runs an earlier release, check the spelling of the severity. From 1.5.0, an unknown value is rejected before anything is scanned, with `Error: unknown --fail-on "hihg" (valid: info, low, medium, high, critical)` and exit code 1.
 

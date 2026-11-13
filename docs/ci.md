@@ -45,10 +45,23 @@ The file is listed in the text summary, under `unanalyzedFiles` in JSON, and
 as an error in the SARIF run's `invocations[].toolExecutionNotifications`.
 Without `--fail-on`, such a file does not change the exit code.
 
-With `--fail-on` set, and with `cryptoscan gate`, a config file found without
-`--config` ([where CryptoScan looks for one](configuration.md#configuration-file))
-that does not parse stops the run with an error naming it; a scan without
-`--fail-on` prints a warning and runs without the file.
+With `--fail-on` set, and with `cryptoscan gate`, the run also exits 1 when a
+config file found without `--config`
+([where CryptoScan looks for one](configuration.md#configuration-file))
+removed a finding at or above the threshold through `ignore.patterns`,
+`ignore.categories` or `minSeverity`. Such a report shows what the file's
+rules let through, not that nothing was found, and stderr carries
+`cryptoscan: exit code 1: a config file found without --config removed N findings at or above <severity>: <path>. Pass --config <path> to apply it and keep the normal exit code, or --no-config to use only command-line options.`
+A finding the baseline accepts does not count, so a baseline workflow with no
+new finding keeps exit 0. A file passed with `--config` keeps the normal exit
+code, and the text report still says what it removed. A `failOn` in the file
+is not `--fail-on`, so a scan that takes its threshold from the file is not
+failed this way, and `gate` takes a `failOn` from a found file only when it is
+lower than high. With `--fail-on` set, and with `gate`, a config file found
+without `--config` that does not parse stops the run with an error naming it;
+a scan without `--fail-on` prints a warning and runs without the file. To keep
+a found file in force in a pipeline, name it:
+`cryptoscan gate . --config .cryptoscan.yaml`.
 
 A file skipped because it looks minified or generated, such as `app.min.js`,
 because it is a dependency manifest the scanner has no reader for, such as

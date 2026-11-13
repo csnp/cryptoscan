@@ -684,6 +684,9 @@ func (r *TextReporter) writeConfigSummary(b *strings.Builder, results *scanner.R
 	for _, e := range effects {
 		b.WriteString(r.color(colorCyan, "    "+e+"\n"))
 	}
+	if line := failOnNotApplied(c); line != "" {
+		b.WriteString(r.color(colorCyan, "    "+line+"\n"))
+	}
 	if c.Source != scanner.ConfigSourceFlag && len(effects) > 0 {
 		b.WriteString(r.color(colorCyan, "  Scan without it: "+rerunWithoutConfig(c, results.ScanTarget)+"\n"))
 	}

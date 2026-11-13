@@ -269,6 +269,33 @@ func TestInferBaselineRootPrefersWhatMostFilesAgreeOn(t *testing.T) {
 	}
 }
 
+// TestInferRootOfEveryFileSkipsDirectoriesThatLeaveOutAListedFile sets a
+// baseline whose files are keys.py, tools/tool.py and tools/util.py against a
+// tree with keys.py, tool.py and util.py at the top. Two files propose
+// root/tools, which keys.py is not under, and one proposes root.
+func TestInferRootOfEveryFileSkipsDirectoriesThatLeaveOutAListedFile(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "repo")
+	tools := filepath.Join(root, "tools")
+	entries := []scanner.Finding{
+		{File: filepath.Join(root, "keys.py")},
+		{File: filepath.Join(tools, "tool.py")},
+		{File: filepath.Join(tools, "util.py")},
+	}
+	current := map[string]bool{"keys.py": true, "tool.py": true, "util.py": true}
+	if got := inferBaselineRoot(entries, current); got != tools {
+		t.Errorf("inferBaselineRoot = %q, want %q", got, tools)
+	}
+	if got := inferRootOfEveryFile(entries, current); got != root {
+		t.Errorf("inferRootOfEveryFile = %q, want %q", got, root)
+	}
+
+	// tool.py alone proposes root/tools only, so no directory proposed holds
+	// every file.
+	if got := inferRootOfEveryFile(entries, map[string]bool{"tool.py": true}); got != "" {
+		t.Errorf("inferRootOfEveryFile with tool.py alone = %q, want empty", got)
+	}
+}
+
 // A baseline written by 1.4.0 has no recorded scan root, and its scanTarget is
 // whatever the user typed: "." for the README recipe, or an absolute path.
 func TestBaselineFromEarlierRelease(t *testing.T) {

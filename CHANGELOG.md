@@ -313,6 +313,50 @@ All notable changes to CryptoScan are recorded here. This project follows
 
 ### Fixed
 
+- **A baseline written by 1.4.0 accepts the reviewed findings in files that
+  did not move after files it lists in a subdirectory moved to the top of
+  the tree.** A baseline written by 1.4.0 records no scan root, and for a
+  target such as `.` its root is found from the paths of the reported
+  findings: the directory proposed by the most files the baseline lists was
+  used, and that could be a subdirectory that a listed file is not under. In
+  a tree where `keys.py` holds an RSA key generation and `tools/a.py` and
+  `tools/b.py` each hold a Blowfish line, with a baseline written by 1.4.0
+  from inside the tree before `tools/a.py` and `tools/b.py` moved to `a.py`
+  and `b.py`, the paths `a.py` and `b.py` gave the baseline the root of
+  `tools/`, which `keys.py` is not under.
+  `cryptoscan scan . --stream=false --format json --baseline ../baseline.json`
+  listed RSA-001 twice and KEYSIZE-001 in `keys.py`, which did not move, as
+  new, and `cryptoscan gate . --baseline ../baseline.json` exited 1 with no
+  config file, while a `.cryptoscan.yaml` found in the scan target that
+  ignores RSA-001 and KEYSIZE-001, with or without BLOWFISH-001, made the
+  same `gate` run exit 0. When the directory proposed by the most files
+  leaves out a file the baseline lists, the directory every listed file is
+  under is now found in the same way, and the reported findings are matched
+  against the entries with the same three-step method the removed findings
+  already used: each finding in turn takes the first entry that matches it
+  under the directory every listed file is under, then, for a finding still
+  without one, the first entry that matches it under the directory proposed
+  by the most files; a finding still without one then takes an entry that
+  matches it under either directory when the finding holding that entry can
+  move to another entry it also matches, and so on, so both findings keep
+  an entry. Giving out the entries under one directory and then the other,
+  with no finding able to move, can give one finding's own entry away:
+  `tools/tool.py` and `tools/tools/tool.py` hold the same line; when
+  `tools/tool.py` moves out to the top of the tree as `tool.py` and
+  `tools/tools/tool.py` moves into the path it left, `tools/tool.py`'s entry
+  matches `tool.py`'s finding under the directory every listed file is
+  under, and matches `tools/tools/tool.py`'s finding, which now sits at
+  `tools/tool.py`, under the directory proposed by the most files; given out
+  under the first directory before the second, it goes to
+  `tools/tools/tool.py`'s finding, leaving `tool.py`'s finding, which
+  matches only its own entry and only under the second directory, with
+  nothing. The three-step method gives each finding its own entry instead.
+  In the tree above, and in this one, the report lists no finding, and
+  `gate` exits 0 with no config file and with either config file. With a
+  baseline that records its root, written from the same tree before the
+  move, the report lists the BLOWFISH-001 findings in `a.py` and `b.py` and
+  `gate` exits 0, as before.
+
 - **The `Scan without it:` line of a `gate` run names a gate.** In a `gate`
   run, and in a `scan --fail-on` run, the config block's `Scan without it:`
   line cited `cryptoscan scan <dir> --no-config`, whose exit code follows

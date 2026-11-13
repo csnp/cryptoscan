@@ -380,8 +380,10 @@ All notable changes to CryptoScan are recorded here. This project follows
   In the tree above, and in this one, the report lists no finding, and
   `gate` exits 0 with no config file and with either config file. With a
   baseline that records its root, written from the same tree before the
-  move, the report lists the BLOWFISH-001 findings in `a.py` and `b.py` and
-  `gate` exits 0, as before.
+  move, the result is the same as before: in the tree above, the report
+  lists the BLOWFISH-001 findings in `a.py` and `b.py` and `gate` exits 0;
+  in this one, the report also lists the SHA1-001 finding in `tool.py`, at
+  HIGH, and `gate` exits 1.
 
 - **The `Scan without it:` line of a `gate` run names a gate.** In a `gate`
   run, and in a `scan --fail-on` run, the config block's `Scan without it:`

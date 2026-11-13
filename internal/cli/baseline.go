@@ -61,10 +61,13 @@ func filterNewFindings(findings []scanner.Finding, root string, b *baseline) []s
 // accepts each finding in withheld, the findings a config file removed. The
 // findings in the report take their entries first, so a finding the file
 // removed is accepted only by an entry no reported finding used. When the
-// baseline's root is inferred (see root), the paths of the withheld findings
-// count as well as those of the reported ones, since both are in the scanned
-// code: when the file removed every finding in the baseline's files, the
-// reported paths alone hold none of those files to infer the root from.
+// baseline's root is inferred (see root), it is inferred from the reported
+// findings, as filterNewFindings infers it, so the withheld findings do not
+// change which reported findings are new. Only when the reported paths give
+// no root are the paths of the withheld findings used as well: when the file
+// removed every finding in the baseline's files, the reported paths hold none
+// of those files to infer the root from, and which entries the reported
+// findings match does not then depend on the root.
 func applyBaseline(findings, withheld []scanner.Finding, root string, b *baseline) ([]scanner.Finding, []bool) {
 	keys := make([]baselineKey, len(findings))
 	paths := make(map[string]bool)
@@ -75,11 +78,16 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 	withheldKeys := make([]baselineKey, len(withheld))
 	for i, f := range withheld {
 		withheldKeys[i] = findingKey(f, root)
-		paths[withheldKeys[i].path] = true
 	}
 
-	reviewed := make(map[baselineKey]int)
 	baseRoot := b.root(paths)
+	if baseRoot == "" && len(withheld) > 0 {
+		for _, key := range withheldKeys {
+			paths[key.path] = true
+		}
+		baseRoot = b.root(paths)
+	}
+	reviewed := make(map[baselineKey]int)
 	for _, f := range b.Findings {
 		reviewed[findingKey(f, baseRoot)]++
 	}
@@ -113,7 +121,7 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 // its scanTarget is the target as it was typed: an absolute path is used as
 // it is, and anything else ("." in the README's CI recipe, or a repository
 // URL that was cloned to a temporary directory) is inferred from the paths
-// of the current scan's findings, those a config file removed included.
+// of the current scan's findings (see applyBaseline for which ones).
 func (b *baseline) root(currentPaths map[string]bool) string {
 	if root := b.Metadata[scanner.MetadataScanRoot]; root != "" {
 		return root

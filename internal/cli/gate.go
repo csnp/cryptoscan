@@ -78,6 +78,7 @@ func gateTarget(cmd *cobra.Command, target string) (int, error) {
 	}
 	results, threshold, err := scanPipeline(cmd, target, pipelineOptions{
 		failOn:  given,
+		gate:    true,
 		formats: gateFormats,
 	})
 	if err != nil {

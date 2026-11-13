@@ -181,7 +181,7 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 // scanTarget runs the scan command and returns the exit code it ends with.
 func scanTarget(cmd *cobra.Command, target string) (int, error) {
-	results, threshold, err := scanPipeline(cmd, target, pipelineOptions{failOn: failOn})
+	results, threshold, err := scanPipeline(cmd, target, pipelineOptions{failOn: failOn, gate: failOn != ""})
 	if err != nil {
 		return 0, err
 	}
@@ -195,6 +195,12 @@ type pipelineOptions struct {
 	// failOn is the threshold given on the command line, or empty when none
 	// was given. A failOn in the config file applies only when it is empty.
 	failOn string
+	// gate marks a run whose pass or fail the command line asked for: scan
+	// with --fail-on, and gate. A failOn in the config file does not make a
+	// run one, since the file whose rules would fail the run could as well
+	// leave failOn out. Such a run does not go on without a config file it
+	// found but could not parse.
+	gate bool
 	// formats lists the output formats the command writes. A config file
 	// format outside it is ignored. Nil accepts every format.
 	formats []string
@@ -254,6 +260,11 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 			// Only error if explicitly specified
 			return nil, "", withHint(fmt.Errorf("failed to load config file %s: %w", cfgPath, err),
 				"Check the --config path, or leave out --config to look for .cryptoscan.yaml automatically.")
+		} else if opts.gate {
+			// The user may believe this file's rules are active, and a pass
+			// or fail decided without them is not the one they set up.
+			return nil, "", withHint(fmt.Errorf("config file %s could not be parsed: %w", cfgPath, err),
+				unparsableConfigHint(cmd))
 		} else {
 			// The user may believe this file's rules are active, so say that
 			// they are not.
@@ -614,6 +625,17 @@ func exitCode(results *scanner.Results, failOn string, gateFindings bool) int {
 		return 1
 	}
 	return 0
+}
+
+// unparsableConfigHint is the next step after a run with a threshold from the
+// command line stopped on a config file it found but could not parse.
+// --no-config is offered only by a command that has the flag.
+func unparsableConfigHint(cmd *cobra.Command) string {
+	hint := "With --fail-on, and with gate, a config file that does not parse stops the scan. Fix the file"
+	if cmd.Flags().Lookup("no-config") != nil {
+		return hint + ", or add --no-config to use only command-line options."
+	}
+	return hint + ", or pass --config with a file that parses."
 }
 
 // configRerun is the command the text report gives for running the scan again

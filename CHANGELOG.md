@@ -122,6 +122,15 @@ All notable changes to CryptoScan are recorded here. This project follows
 
 ### Changed
 
+- **With `--fail-on`, and under `gate`, a config file found without
+  `--config` that does not parse stops the run.** The file was left out with
+  a warning, and the run went on without its rules. The run now stops before
+  anything is scanned, with
+  `Error: config file <path> could not be parsed: <error>` and
+  `With --fail-on, and with gate, a config file that does not parse stops the scan. Fix the file, or add --no-config to use only command-line options.`
+  Without `--fail-on`, `scan` still prints the warning and runs without the
+  file, and so do `cbom` and `pqc`.
+
 - **SARIF results use the pattern ID as `ruleId`, so code scanning groups
   findings by pattern.** The location-specific ID moves to
   `properties.findingId`. Alerts from earlier uploads carry the old rule IDs;

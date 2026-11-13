@@ -41,7 +41,8 @@ JSON output carries the same information in a `config` object, and SARIF output 
 `runs[0].invocations`. When the file removed findings and none are left, the text
 report says so in place of "No cryptographic findings detected". An auto-detected
 file that is not valid YAML is not applied, and a warning naming it is printed to
-stderr. Pass `--no-config` to ignore config files and use only command-line options.
+stderr; with `--fail-on`, and with `gate`, the run stops with an error naming it
+instead. Pass `--no-config` to ignore config files and use only command-line options.
 
 | Key | Same as | Values |
 |-----|---------|--------|
@@ -57,7 +58,7 @@ A flag set on the command line to something other than its default takes precede
 
 When `--config` is not given, CryptoScan looks for `.cryptoscan.yaml`, `.cryptoscan.yml`, `cryptoscan.yaml` or `cryptoscan.yml` in the scan target's directory and then in each parent directory. For a Git URL it starts from the current directory.
 
-Before 1.5.0, a malformed file that was found automatically is ignored without a message, while the same file passed with `--config` stops the scan with an error. With an earlier release, run once with `--config .cryptoscan.yaml` to confirm your rules are active. From 1.5.0, the scan prints `Warning: config file <path> could not be parsed and was not applied: <error>` on standard error and runs without the file.
+Before 1.5.0, a malformed file that was found automatically is ignored without a message, while the same file passed with `--config` stops the scan with an error. With an earlier release, run once with `--config .cryptoscan.yaml` to confirm your rules are active. From 1.5.0, the scan prints `Warning: config file <path> could not be parsed and was not applied: <error>` on standard error and runs without the file. From 1.6.0, a run with `--fail-on`, or with `cryptoscan gate`, stops instead with `Error: config file <path> could not be parsed: <error>`.
 
 ## Inline suppression
 

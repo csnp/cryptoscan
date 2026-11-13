@@ -31,11 +31,14 @@ This runs the same scan as "cryptoscan scan --fail-on high". The one
 difference from scan is that default: scan on its own fails only on CRITICAL
 findings, which lets HIGH findings such as RSA-2048 key generation pass a
 build. gate fails on HIGH and CRITICAL unless you choose another level. A
-failOn set in a config file is used when --fail-on is not given.
+failOn set in a config file is used when --fail-on is not given; a file
+found without --config can lower the threshold, not raise it above high.
 
 Exit codes:
-  0  no finding at or above the threshold
-  1  at least one finding at or above the threshold, or the scan failed
+  0  none of the cases listed for 1
+  1  at least one finding at or above the threshold, a file that could not
+     be analyzed, a config file found without --config that removed a
+     finding at or above the threshold or does not parse, or the scan failed
 
 Examples:
   cryptoscan gate .
@@ -66,8 +69,8 @@ func runGate(cmd *cobra.Command, args []string) error {
 	return exitWith(gateTarget(cmd, args[0]))
 }
 
-// gateTarget scans target, prints the report, and returns 1 when a finding is
-// at or above the threshold.
+// gateTarget scans target, prints the report, and returns the exit code
+// gateExitCode decides.
 func gateTarget(cmd *cobra.Command, target string) (int, error) {
 	if !slices.Contains(gateFormats, outputFormat) {
 		return 0, fmt.Errorf("gate prints text, json or sarif, not %q; for a CBOM, use cryptoscan cbom", outputFormat)
@@ -76,16 +79,17 @@ func gateTarget(cmd *cobra.Command, target string) (int, error) {
 	if cmd.Flags().Changed("fail-on") {
 		given = gateFailOn
 	}
-	results, threshold, err := scanPipeline(cmd, target, pipelineOptions{
+	opts := pipelineOptions{
 		failOn:  given,
 		gate:    true,
 		formats: gateFormats,
-	})
+	}
+	results, threshold, err := scanPipeline(cmd, target, opts)
 	if err != nil {
 		return 0, err
 	}
 	if threshold == "" {
 		threshold = defaultGateFailOn
 	}
-	return exitCode(results, threshold, true), nil
+	return gateExitCode(results, threshold, opts.gateThreshold()), nil
 }

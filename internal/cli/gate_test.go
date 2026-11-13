@@ -169,12 +169,18 @@ func TestGateFailOnCriticalPassesHigh(t *testing.T) {
 	}
 }
 
+// A failOn in a config file sets gate's threshold when --fail-on is not
+// given. A file passed with --config sets it as written. A file found without
+// --config may lower the threshold but not raise it above high, so the same
+// file found in the scanned tree leaves gate failing on the HIGH finding.
 func TestGateConfigFailOnAppliesWhenFlagNotGiven(t *testing.T) {
 	dir := writeFixture(t, "keys.py", highFixture)
-	if err := os.WriteFile(filepath.Join(dir, ".cryptoscan.yaml"), []byte("failOn: critical\n"), 0644); err != nil {
+	cfgPath := filepath.Join(dir, ".cryptoscan.yaml")
+	if err := os.WriteFile(cfgPath, []byte("failOn: critical\n"), 0644); err != nil {
 		t.Fatal(err)
 	}
 	resetPipelineFlags(t)
+	configFile = cfgPath
 
 	var code int
 	captureStdout(func() {
@@ -185,7 +191,19 @@ func TestGateConfigFailOnAppliesWhenFlagNotGiven(t *testing.T) {
 		}
 	})
 	if code != 0 {
-		t.Errorf("gate with config failOn critical exit code = %d, want 0", code)
+		t.Errorf("gate --config with config failOn critical exit code = %d, want 0", code)
+	}
+
+	configFile = ""
+	captureStdout(func() {
+		var err error
+		code, err = gateTarget(gateCmd, dir)
+		if err != nil {
+			t.Errorf("gate failed: %v", err)
+		}
+	})
+	if code != 1 {
+		t.Errorf("gate with failOn critical in a config file it found exit code = %d, want 1: such a file cannot raise the threshold above high", code)
 	}
 }
 

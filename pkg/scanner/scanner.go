@@ -137,11 +137,116 @@ type ConfigReport struct {
 	Source          string                `json:"source"`
 	FindingsRemoved ConfigFindingsRemoved `json:"findingsRemoved"`
 	PathsSkipped    ConfigPathsSkipped    `json:"pathsSkipped"`
+	// FailOn is the file's failOn setting, or nil when the file sets none or
+	// the command reports an inventory. The command that ran sets it.
+	FailOn *ConfigFailOn `json:"failOn,omitempty"`
 
 	// Rerun is the command that repeats the scan without the file, which the
 	// text report gives. The command that ran sets it; it is not part of the
 	// JSON report.
 	Rerun ConfigRerun `json:"-"`
+
+	// Unbaselined counts by severity the findings in Results.ConfigWithheld
+	// that no baseline accepts: the findings the file alone kept out of the
+	// report. The scanner counts all of them; a command that applies a
+	// baseline lowers the counts. It is not part of the JSON report.
+	Unbaselined ConfigSeverityCounts `json:"-"`
+}
+
+// ConfigFailOn is the failOn setting of a config file. Applied says whether
+// it set the run's threshold: --fail-on on the command line takes precedence
+// over it, and in a gate run a file found without --config may lower the
+// threshold but not raise it. Cap is the threshold such a file could not
+// raise, set only when that is why Value was not applied; it is not part of
+// the JSON report.
+type ConfigFailOn struct {
+	Value   string `json:"value"`
+	Applied bool   `json:"applied"`
+	Cap     string `json:"-"`
+}
+
+// ConfigSeverityCounts counts findings by severity.
+type ConfigSeverityCounts struct {
+	Info     int `json:"info"`
+	Low      int `json:"low"`
+	Medium   int `json:"medium"`
+	High     int `json:"high"`
+	Critical int `json:"critical"`
+}
+
+// CountSeverities counts findings by severity.
+func CountSeverities(findings []Finding) ConfigSeverityCounts {
+	var c ConfigSeverityCounts
+	for _, f := range findings {
+		c.Add(f.Severity)
+	}
+	return c
+}
+
+// Add counts one finding of severity s.
+func (c *ConfigSeverityCounts) Add(s Severity) {
+	switch s {
+	case SeverityCritical:
+		c.Critical++
+	case SeverityHigh:
+		c.High++
+	case SeverityMedium:
+		c.Medium++
+	case SeverityLow:
+		c.Low++
+	default:
+		c.Info++
+	}
+}
+
+// Of returns the count for severity s.
+func (c ConfigSeverityCounts) Of(s Severity) int {
+	switch s {
+	case SeverityCritical:
+		return c.Critical
+	case SeverityHigh:
+		return c.High
+	case SeverityMedium:
+		return c.Medium
+	case SeverityLow:
+		return c.Low
+	default:
+		return c.Info
+	}
+}
+
+// AtOrAbove returns how many of the counted findings are at severity s or
+// higher.
+func (c ConfigSeverityCounts) AtOrAbove(s Severity) int {
+	n := 0
+	for _, sev := range []Severity{SeverityInfo, SeverityLow, SeverityMedium, SeverityHigh, SeverityCritical} {
+		if sev >= s {
+			n += c.Of(sev)
+		}
+	}
+	return n
+}
+
+// Plus returns the sum of c and o, severity by severity.
+func (c ConfigSeverityCounts) Plus(o ConfigSeverityCounts) ConfigSeverityCounts {
+	return ConfigSeverityCounts{
+		Info:     c.Info + o.Info,
+		Low:      c.Low + o.Low,
+		Medium:   c.Medium + o.Medium,
+		High:     c.High + o.High,
+		Critical: c.Critical + o.Critical,
+	}
+}
+
+// Minus returns c less o, severity by severity.
+func (c ConfigSeverityCounts) Minus(o ConfigSeverityCounts) ConfigSeverityCounts {
+	return ConfigSeverityCounts{
+		Info:     c.Info - o.Info,
+		Low:      c.Low - o.Low,
+		Medium:   c.Medium - o.Medium,
+		High:     c.High - o.High,
+		Critical: c.Critical - o.Critical,
+	}
 }
 
 // ConfigRerun names the command that ran and the --fail-on value its command
@@ -163,6 +268,15 @@ type ConfigFindingsRemoved struct {
 	MinSeverity      int `json:"minSeverity"`
 	Baseline         int `json:"baseline"`
 	Total            int `json:"total"`
+	// BySeverity counts the findings in Total by severity.
+	BySeverity ConfigSeverityCounts `json:"bySeverity"`
+
+	// The severities of each setting's findings, which the text and SARIF
+	// reports list. The JSON report carries only their sum, BySeverity.
+	IgnorePatternsBySeverity   ConfigSeverityCounts `json:"-"`
+	IgnoreCategoriesBySeverity ConfigSeverityCounts `json:"-"`
+	MinSeverityBySeverity      ConfigSeverityCounts `json:"-"`
+	BaselineBySeverity         ConfigSeverityCounts `json:"-"`
 }
 
 // ConfigPathsSkipped counts what ignore.files kept out of the scan. Skipped
@@ -224,6 +338,13 @@ type Results struct {
 	LanguageStats  map[string]int        `json:"languageStats"`
 	Metadata       map[string]string     `json:"metadata,omitempty"`
 	Config         *ConfigReport         `json:"config,omitempty"`
+	// ConfigWithheld holds the findings the config file's ignore.patterns,
+	// ignore.categories and minSeverity removed from the scanned code, one
+	// per location as the report would have listed them, so that the command
+	// that ran can check them against a baseline. A match in the config file
+	// itself is the file's own text, not a finding it kept out of the code,
+	// and is not held here. It is not part of the JSON report.
+	ConfigWithheld []Finding `json:"-"`
 
 	// UnanalyzedFiles lists files whose analysis stopped on an internal
 	// error, and dependency manifests that could not be decoded. The rest of
@@ -537,8 +658,9 @@ func (s *Scanner) Scan() (*Results, error) {
 	byEvidence, withheldByEvidence := countByEvidence(scanned, s.findings)
 
 	var configReport *ConfigReport
+	var configWithheld []Finding
 	if s.config.ConfigFile != nil {
-		configReport = s.configReport(raw)
+		configReport, configWithheld = s.configReport(raw)
 	}
 
 	// The clone of a URL scan is removed when the scan ends, so the report
@@ -554,6 +676,9 @@ func (s *Scanner) Scan() (*Results, error) {
 		}
 		for i := range s.skipped {
 			s.skipped[i].File = repoRelative(cloneRoot, s.skipped[i].File)
+		}
+		for i := range configWithheld {
+			configWithheld[i].File = repoRelative(cloneRoot, configWithheld[i].File)
 		}
 	}
 
@@ -626,6 +751,7 @@ func (s *Scanner) Scan() (*Results, error) {
 		LanguageStats:   s.stats.languageStats,
 		Metadata:        metadata,
 		Config:          configReport,
+		ConfigWithheld:  configWithheld,
 		UnanalyzedFiles: unanalyzed,
 		SkippedFiles:    skipped,
 
@@ -650,9 +776,14 @@ var ErrCloneFailed = errors.New("repository not found or not accessible")
 
 // configReport counts what each configuration-file setting removed. As with
 // the narrative count, each number is what removing that setting would add to
-// the report after deduplication, not the raw number of matches it held back.
-// The baseline count is added by the caller, which applies the baseline.
-func (s *Scanner) configReport(raw []Finding) *ConfigReport {
+// the report after deduplication, not the raw number of matches it held back,
+// and the severities counted are those of the findings it would add. The
+// matches of a source file and the dependency findings of a manifest are
+// held back alike, so both are counted. The baseline count is added by the
+// caller, which applies the baseline. The findings returned with the report
+// are those the settings kept out of the scanned code, for
+// Results.ConfigWithheld.
+func (s *Scanner) configReport(raw []Finding) (*ConfigReport, []Finding) {
 	rules := s.config.ConfigFile
 	report := &ConfigReport{
 		Path:         rules.Path,
@@ -661,6 +792,8 @@ func (s *Scanner) configReport(raw []Finding) *ConfigReport {
 	}
 
 	var counts [configRuleCount]int
+	var severities [configRuleCount]ConfigSeverityCounts
+	var fromCode []Finding
 	combined := append([]Finding(nil), raw...)
 	prev := len(s.findings)
 	for rule, withheld := range s.configWithheld {
@@ -668,18 +801,36 @@ func (s *Scanner) configReport(raw []Finding) *ConfigReport {
 			continue
 		}
 		combined = append(combined, withheld...)
-		n := len(s.deduplicateFindings(combined))
-		counts[rule] = n - prev
-		prev = n
+		deduped := s.deduplicateFindings(combined)
+		// Deduplication keeps each location in the order it first appears,
+		// so the locations this setting adds come after the ones before it.
+		for _, f := range deduped[prev:] {
+			severities[rule].Add(f.Severity)
+			// The file is scanned like any other file in the tree, and a
+			// pattern ID in its own ignore list can match. Such a match is
+			// counted against the setting that removed it, but it is the
+			// file's own text, so it is not one the file kept out of the code.
+			if rules.Path == "" || filepath.Clean(f.File) != filepath.Clean(rules.Path) {
+				fromCode = append(fromCode, f)
+			}
+		}
+		counts[rule] = len(deduped) - prev
+		prev = len(deduped)
 	}
 
+	byRule := severities[configRulePatterns].Plus(severities[configRuleCategories]).Plus(severities[configRuleMinSeverity])
 	report.FindingsRemoved = ConfigFindingsRemoved{
-		IgnorePatterns:   counts[configRulePatterns],
-		IgnoreCategories: counts[configRuleCategories],
-		MinSeverity:      counts[configRuleMinSeverity],
-		Total:            counts[configRulePatterns] + counts[configRuleCategories] + counts[configRuleMinSeverity],
+		IgnorePatterns:             counts[configRulePatterns],
+		IgnoreCategories:           counts[configRuleCategories],
+		MinSeverity:                counts[configRuleMinSeverity],
+		Total:                      counts[configRulePatterns] + counts[configRuleCategories] + counts[configRuleMinSeverity],
+		BySeverity:                 byRule,
+		IgnorePatternsBySeverity:   severities[configRulePatterns],
+		IgnoreCategoriesBySeverity: severities[configRuleCategories],
+		MinSeverityBySeverity:      severities[configRuleMinSeverity],
 	}
-	return report
+	report.Unbaselined = CountSeverities(fromCode)
+	return report, fromCode
 }
 
 // The environment variables that give the clone of an https repository URL a

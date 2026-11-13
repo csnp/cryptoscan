@@ -33,13 +33,20 @@ counts what each setting removed:
 ```
   Config file applied: /home/dev/project/.cryptoscan.yaml
     (found in the scan target)
-    ignore.patterns removed 3 findings
+    ignore.patterns removed 3 findings (2 high, 1 low)
   Scan without it: cryptoscan scan . --no-config
 ```
 
 JSON output carries the same information in a `config` object, and SARIF output in
 `runs[0].invocations`. When the file removed findings and none are left, the text
-report says so in place of "No cryptographic findings detected". An auto-detected
+report says so in place of "No cryptographic findings detected". With `--fail-on`,
+and with `cryptoscan gate`, a file found this way cannot pass the run by removing
+findings or raising the threshold: when its `ignore.patterns`, `ignore.categories`
+or `minSeverity` removed a finding at or above the threshold that no baseline
+accepts, the run exits 1 and names the file and the remedy; a `failOn` in it sets
+`gate`'s threshold only when it is lower than high; a file passed with `--config`
+keeps the normal exit code ([exit codes](commands.md#exit-codes)). In a pipeline,
+name the file: `cryptoscan gate . --config .cryptoscan.yaml`. An auto-detected
 file that is not valid YAML is not applied, and a warning naming it is printed to
 stderr; with `--fail-on`, and with `gate`, the run stops with an error naming it
 instead. Pass `--no-config` to ignore config files and use only command-line options.

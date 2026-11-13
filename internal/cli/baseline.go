@@ -53,6 +53,17 @@ func loadBaseline(path string) (*baseline, error) {
 // is the directory the current scan's file paths are under. Each baseline
 // entry covers one finding, so a second copy of a reviewed line is new.
 func filterNewFindings(findings []scanner.Finding, root string, b *baseline) []scanner.Finding {
+	newFindings, _ := applyBaseline(findings, nil, root, b)
+	return newFindings
+}
+
+// applyBaseline is filterNewFindings, and also reports whether the baseline
+// accepts each finding in withheld, the findings a config file removed. The
+// findings in the report take their entries first, so a finding the file
+// removed is accepted only by an entry no reported finding used. The
+// baseline's root is found from the reported findings, as filterNewFindings
+// finds it.
+func applyBaseline(findings, withheld []scanner.Finding, root string, b *baseline) ([]scanner.Finding, []bool) {
 	keys := make([]baselineKey, len(findings))
 	paths := make(map[string]bool)
 	for i, f := range findings {
@@ -76,7 +87,15 @@ func filterNewFindings(findings []scanner.Finding, root string, b *baseline) []s
 		}
 		newFindings = append(newFindings, f)
 	}
-	return newFindings
+
+	accepted := make([]bool, len(withheld))
+	for i, f := range withheld {
+		if key := findingKey(f, root); reviewed[key] > 0 {
+			reviewed[key]--
+			accepted[i] = true
+		}
+	}
+	return newFindings, accepted
 }
 
 // root returns the directory the baseline's file paths are under. Reports

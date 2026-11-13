@@ -119,7 +119,9 @@ CI/CD Integration:
   --ignore              Suppress specific pattern IDs (e.g., "RSA-001,CERT-*")
   --ignore-category     Suppress entire categories (e.g., "Certificate,Library Import")
   --fail-on             Exit non-zero if findings at this severity or higher,
-                        or if any file could not be analyzed. Without it,
+                        if any file could not be analyzed, or if a config
+                        file found without --config removed a finding at
+                        this severity or higher. Without it,
                         the scan exits 1 when any finding is CRITICAL
   --baseline            Only report new findings compared to baseline JSON
   --config              Path to .cryptoscan.yaml config file
@@ -169,7 +171,7 @@ func init() {
 	// CI/CD flexibility flags
 	scanCmd.Flags().StringVar(&ignorePatterns, "ignore", "", "Pattern IDs to ignore (comma-separated, e.g., \"RSA-001,CERT-*\")")
 	scanCmd.Flags().StringVar(&ignoreCategories, "ignore-category", "", "Categories to ignore (comma-separated, e.g., \"Certificate,Library Import\")")
-	scanCmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero if findings at this severity or higher ("+strings.Join(severityNames, ", ")+"), or if any file could not be analyzed. When neither this flag nor failOn in the config file is set, the scan exits 1 when any finding is CRITICAL")
+	scanCmd.Flags().StringVar(&failOn, "fail-on", "", "Exit non-zero if findings at this severity or higher ("+strings.Join(severityNames, ", ")+"), if any file could not be analyzed, or if a config file found without --config removed a finding at this severity or higher. When neither this flag nor failOn in the config file is set, the scan exits 1 when any finding is CRITICAL")
 	scanCmd.Flags().StringVar(&baselineFile, "baseline", "", "Baseline JSON file - only report new findings")
 	scanCmd.Flags().StringVar(&configFile, "config", "", "Config file path (default: auto-detect .cryptoscan.yaml)")
 	scanCmd.Flags().BoolVar(&noConfig, "no-config", false, "Do not read a config file; use only command-line options")
@@ -181,9 +183,13 @@ func runScan(cmd *cobra.Command, args []string) error {
 
 // scanTarget runs the scan command and returns the exit code it ends with.
 func scanTarget(cmd *cobra.Command, target string) (int, error) {
-	results, threshold, err := scanPipeline(cmd, target, pipelineOptions{failOn: failOn, gate: failOn != ""})
+	opts := pipelineOptions{failOn: failOn, gate: failOn != ""}
+	results, threshold, err := scanPipeline(cmd, target, opts)
 	if err != nil {
 		return 0, err
+	}
+	if opts.gate {
+		return gateExitCode(results, threshold, opts.gateThreshold()), nil
 	}
 	return exitCode(results, threshold, true), nil
 }
@@ -199,7 +205,8 @@ type pipelineOptions struct {
 	// with --fail-on, and gate. A failOn in the config file does not make a
 	// run one, since the file whose rules would fail the run could as well
 	// leave failOn out. Such a run does not go on without a config file it
-	// found but could not parse.
+	// found but could not parse, a failOn in a file it found may lower its
+	// threshold but not raise it, and its exit code is gateExitCode.
 	gate bool
 	// formats lists the output formats the command writes. A config file
 	// format outside it is ignored. Nil accepts every format.
@@ -214,6 +221,16 @@ type pipelineOptions struct {
 	// scan reports. A view is printed alone: no banner, and no findings
 	// streamed while the scan runs.
 	view func(format string) reporter.Reporter
+}
+
+// gateThreshold is the threshold the command line of a gated run set: the
+// --fail-on value, or gate's default when gate ran without the flag. scan is
+// gated only with --fail-on, so the default is gate's alone.
+func (o pipelineOptions) gateThreshold() string {
+	if o.failOn != "" {
+		return o.failOn
+	}
+	return defaultGateFailOn
 }
 
 // scanPipeline scans target, writes the report, and returns the results with
@@ -317,6 +334,9 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	// suppression rules go to the scanner separately from the command-line
 	// ones, so that what each removes can be counted in the report.
 	effectiveFailOn := opts.failOn
+	// failOnCap is the threshold a file's failOn was not allowed to raise, or
+	// empty when the file's failOn was not held back for that.
+	failOnCap := ""
 	effectiveBaseline := baselineFile
 	baselineFromConfig := false
 	var cfgRules *scanner.ConfigFileRules
@@ -339,7 +359,16 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 			cfgRules.HasMinSeverity = true
 		}
 		if effectiveFailOn == "" && cfgFile.FailOn != "" {
-			effectiveFailOn = cfgFile.FailOn
+			// A gated run keeps the threshold its command line set against a
+			// file it found rather than was given: such a file may lower the
+			// threshold, not raise it. scan is gated only with --fail-on,
+			// which the file does not override, so this holds back a failOn
+			// only in a gate run without --fail-on.
+			if opts.gate && cfgSource != scanner.ConfigSourceFlag && severityAbove(cfgFile.FailOn, opts.gateThreshold()) {
+				failOnCap = strings.ToLower(opts.gateThreshold())
+			} else {
+				effectiveFailOn = cfgFile.FailOn
+			}
 		}
 		if effectiveBaseline == "" && cfgFile.Baseline != "" && !opts.inventory {
 			// A relative path in the file is read from the file's own
@@ -514,12 +543,28 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 			return nil, "", withHint(fmt.Errorf("failed to load baseline: %w", err),
 				check+" To create a baseline: cryptoscan scan . --format json --output baseline.json")
 		}
-		before := len(results.Findings)
-		results.Findings = filterNewFindings(results.Findings, results.Metadata[scanner.MetadataScanRoot], baseline)
+		before := results.Findings
+		withheld := results.ConfigWithheld
+		var accepted []bool
+		results.Findings, accepted = applyBaseline(results.Findings, withheld, results.Metadata[scanner.MetadataScanRoot], baseline)
+		if results.Config != nil {
+			// A finding the config file removed that the baseline accepts
+			// would not be in the report without the file either.
+			var unbaselined []scanner.Finding
+			for i, f := range withheld {
+				if !accepted[i] {
+					unbaselined = append(unbaselined, f)
+				}
+			}
+			results.Config.Unbaselined = scanner.CountSeverities(unbaselined)
+		}
 		if baselineFromConfig && results.Config != nil {
-			removed := before - len(results.Findings)
+			removed := len(before) - len(results.Findings)
+			bySeverity := scanner.CountSeverities(before).Minus(scanner.CountSeverities(results.Findings))
 			results.Config.FindingsRemoved.Baseline = removed
+			results.Config.FindingsRemoved.BaselineBySeverity = bySeverity
 			results.Config.FindingsRemoved.Total += removed
+			results.Config.FindingsRemoved.BySeverity = results.Config.FindingsRemoved.BySeverity.Plus(bySeverity)
 		}
 		// Recalculate summary and migration score after filtering
 		results.Summary = calculateSummary(results.Findings)
@@ -572,6 +617,14 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	results.ScanTime = startTime
 	if results.Config != nil {
 		results.Config.Rerun = configRerun(cmd, opts)
+		// An inventory has no threshold, so it records no failOn.
+		if cfgFile != nil && cfgFile.FailOn != "" && !opts.inventory {
+			results.Config.FailOn = &scanner.ConfigFailOn{
+				Value:   cfgFile.FailOn,
+				Applied: opts.failOn == "" && failOnCap == "",
+				Cap:     failOnCap,
+			}
+		}
 	}
 
 	// Generate report
@@ -597,6 +650,9 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	writeSkippedNotice(os.Stderr, outputFormat, results.SkippedFiles)
 	writeSkippedDependencyNotice(os.Stderr, outputFormat, results.SkippedDependencyDirs)
 	writeSkippedDirectoriesNotice(os.Stderr, outputFormat, results.Skipped)
+	if opts.gate {
+		writeConfigRemovedNotice(os.Stderr, results, opts.gateThreshold())
+	}
 
 	return results, effectiveFailOn, nil
 }
@@ -625,6 +681,75 @@ func exitCode(results *scanner.Results, failOn string, gateFindings bool) int {
 		return 1
 	}
 	return 0
+}
+
+// gateExitCode decides the exit code of a run whose pass or fail the command
+// line asked for: scan with --fail-on, and gate. failOn is the threshold the
+// run settled on, and threshold the one its command line set (see
+// pipelineOptions.gateThreshold). It is exitCode, except that the run also
+// fails when configRemovedAtThreshold says that a config file the command
+// line did not name removed a finding at or above that threshold. A config
+// file passed with --config keeps the code exitCode gives.
+func gateExitCode(results *scanner.Results, failOn, threshold string) int {
+	if configRemovedAtThreshold(results, threshold) > 0 {
+		return 1
+	}
+	return exitCode(results, failOn, true)
+}
+
+// configRemovedAtThreshold returns how many findings at or above threshold a
+// config file that was found, rather than passed with --config, removed
+// through ignore.patterns, ignore.categories or minSeverity, with no baseline
+// accepting them, when no finding at or above threshold is left; otherwise
+// 0. Such a report shows what the file's rules let through, not that nothing
+// at the threshold was found: the file can sit in the scanned tree or in any
+// directory above it, where whoever set the threshold may not have looked.
+// Findings below the threshold, findings a baseline accepts, the files
+// ignore.files kept out of the scan, lines with an inline ignore comment,
+// findings the command line's own --ignore or --ignore-category removed, and
+// matches in the config file's own text (see Results.ConfigWithheld) are not
+// counted. When a finding at or above the threshold is left, the run fails
+// for that finding.
+func configRemovedAtThreshold(results *scanner.Results, threshold string) int {
+	c := results.Config
+	if c == nil || c.Source == scanner.ConfigSourceFlag {
+		return 0
+	}
+	// The threshold was checked before the scan ran.
+	sev, err := parseSeverity(threshold)
+	if err != nil || results.HasFindingsAtOrAbove(sev) {
+		return 0
+	}
+	return c.Unbaselined.AtOrAbove(sev)
+}
+
+// writeConfigRemovedNotice says why a gated run that configRemovedAtThreshold
+// fails exits 1, and how to keep the normal exit code or run without the
+// file. Every format gets it, since no report says what the exit code is.
+func writeConfigRemovedNotice(w io.Writer, results *scanner.Results, threshold string) {
+	n := configRemovedAtThreshold(results, threshold)
+	if n == 0 {
+		return
+	}
+	sev, _ := parseSeverity(threshold)
+	path := results.Config.Path
+	fmt.Fprintf(w, "cryptoscan: exit code 1: a config file found without --config removed %d %s at or above %s: %s. "+
+		"Pass --config %s to apply it and keep the normal exit code, or --no-config to use only command-line options.\n",
+		n, plural(n, "finding", "findings"), strings.ToLower(sev.String()), path, path)
+}
+
+// severityAbove reports whether severity value is above severity threshold.
+// Both were checked before the scan ran.
+func severityAbove(value, threshold string) bool {
+	v, err := parseSeverity(value)
+	if err != nil {
+		return false
+	}
+	t, err := parseSeverity(threshold)
+	if err != nil {
+		return false
+	}
+	return v > t
 }
 
 // unparsableConfigHint is the next step after a run with a threshold from the

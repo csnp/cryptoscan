@@ -123,6 +123,35 @@ All notable changes to CryptoScan are recorded here. This project follows
 ### Changed
 
 - **With `--fail-on`, and under `gate`, a config file found without
+  `--config` can no longer pass the run by removing findings or raising the threshold.**
+  A `.cryptoscan.yaml` found in the scan target, or in a directory above it,
+  that ignored every pattern made
+  `cryptoscan scan <dir> --fail-on low` exit 0 on a tree with one
+  `rsa.generate_private_key` call, which exits 1 with `--no-config`, and
+  `cryptoscan gate` exited 0 on the same tree; a found file holding
+  `failOn: critical` let `gate` pass two HIGH findings. Now, when such a
+  file's `ignore.patterns`, `ignore.categories` or `minSeverity` removed a
+  finding at or above the threshold, a run with `--fail-on` and a `gate` run
+  exit 1 and print
+  `cryptoscan: exit code 1: a config file found without --config removed N findings at or above <severity>: <path>. Pass --config <path> to apply it and keep the normal exit code, or --no-config to use only command-line options.`
+  on stderr, and a `failOn` in such a file sets `gate`'s threshold only when
+  it is lower than high; the config block of the text report counts what
+  each setting removed by severity and says when the file's `failOn` was not
+  applied, and JSON output carries the counts under
+  `config.findingsRemoved.bySeverity`. A finding a baseline accepts, from
+  `--baseline` or from the file, does not count, so a baseline workflow with
+  no new finding keeps exit 0; paths kept out by `ignore.files` are counted
+  under `pathsSkipped` and do not change the exit code; findings suppressed
+  by inline `cryptoscan:ignore` comments and findings removed by `--ignore`
+  or `--ignore-category` do not count. A file passed with `--config` keeps
+  the normal exit code, and so does a scan whose threshold is a `failOn` in
+  the file rather than `--fail-on`. `gate` takes `--no-config`. Upgrading: a
+  pipeline whose `scan --fail-on` or `gate` run relied on a `.cryptoscan.yaml`
+  it did not name, and that file removes a finding at or above the run's
+  threshold, exits 1 once; add `--config <path>` to the command to keep the
+  file in force, or `--no-config` to run without it.
+
+- **With `--fail-on`, and under `gate`, a config file found without
   `--config` that does not parse stops the run.** The file was left out with
   a warning, and the run went on without its rules. The run now stops before
   anything is scanned, with

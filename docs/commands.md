@@ -56,7 +56,7 @@ CI/CD flags:
 |------|-------------|
 | `--ignore string` | Pattern IDs to ignore (comma-separated, e.g., "RSA-001,CERT-*") |
 | `--ignore-category string` | Categories to ignore (comma-separated, e.g., "Certificate,Library Import") |
-| `--fail-on string` | Exit non-zero if findings at this severity or higher (info, low, medium, high, critical), or if any file could not be analyzed. When neither this flag nor failOn in the config file is set, the scan exits 1 when any finding is CRITICAL |
+| `--fail-on string` | Exit non-zero if findings at this severity or higher (info, low, medium, high, critical), if any file could not be analyzed, or if a config file found without --config removed a finding at this severity or higher. When neither this flag nor failOn in the config file is set, the scan exits 1 when any finding is CRITICAL |
 | `--baseline string` | Baseline JSON file - only report new findings |
 | `--config string` | Config file path (default: auto-detect .cryptoscan.yaml) |
 | `--no-config` | Do not read a config file; use only command-line options |
@@ -86,12 +86,12 @@ A user name and password written into the URL itself are on the command line of 
 
 | Code | When |
 |------|------|
-| `0` | The scan finished and no finding reached the failure threshold. |
-| `1` | Without `--fail-on`: at least one CRITICAL finding. With `--fail-on <severity>`: at least one finding at that severity or higher. Also any error, such as a missing path, a baseline file that cannot be read or, with `--fail-on`, a config file found without `--config` that does not parse. |
+| `0` | The scan finished and none of the cases listed for `1` applies. |
+| `1` | Without `--fail-on`: at least one CRITICAL finding. With `--fail-on <severity>`: at least one finding at that severity or higher, a file that could not be analyzed, or a config file found without `--config` that removed a finding at that severity or higher. Also any error, such as a missing path, a baseline file that cannot be read or, with `--fail-on`, a config file found without `--config` that does not parse. |
 
-By default the scan exits 1 on any CRITICAL finding and 0 otherwise. `--fail-on` replaces that default, and a `failOn` key in `.cryptoscan.yaml` does the same when the flag is not given. Findings removed by `--baseline`, `--ignore` or `--ignore-category` do not count. The logic is the `exitCode` function in `internal/cli/scan.go`.
+By default the scan exits 1 on any CRITICAL finding and 0 otherwise. `--fail-on` replaces that default, and a `failOn` key in `.cryptoscan.yaml` does the same when the flag is not given. Findings removed by `--baseline`, `--ignore` or `--ignore-category` do not count.
 
-With `--fail-on`, and with `cryptoscan gate`, a config file found without `--config` that does not parse stops the run before anything is scanned, with `Error: config file <path> could not be parsed: <error>`.
+With `--fail-on`, and with `cryptoscan gate`, a config file found without `--config` cannot pass the run by removing findings or raising the threshold. When its `ignore.patterns`, `ignore.categories` or `minSeverity` removed a finding at or above the threshold that no baseline accepts, the run exits 1 and prints `cryptoscan: exit code 1: a config file found without --config removed N findings at or above <severity>: <path>. Pass --config <path> to apply it and keep the normal exit code, or --no-config to use only command-line options.` on stderr; a `failOn` in such a file sets `gate`'s threshold only when it is lower than high. When the file does not parse, the run stops before anything is scanned, with `Error: config file <path> could not be parsed: <error>`. Findings a baseline accepts, findings suppressed by inline `cryptoscan:ignore` comments, paths kept out by `ignore.files` and findings removed by `--ignore` or `--ignore-category` do not count. A file passed with `--config` keeps the exit code described above, and so does a scan whose threshold is a `failOn` in the file rather than `--fail-on`. The logic is the `exitCode` and `gateExitCode` functions in `internal/cli/scan.go`.
 
 Before 1.5.0, an invalid `--fail-on` value is accepted silently (see the 1.4.0 known limitations in [CHANGELOG.md](../CHANGELOG.md)), so in a pipeline that runs an earlier release, check the spelling of the severity. From 1.5.0, an unknown value is rejected before anything is scanned, with `Error: unknown --fail-on "hihg" (valid: info, low, medium, high, critical)` and exit code 1.
 

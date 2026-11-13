@@ -137,6 +137,20 @@ type ConfigReport struct {
 	Source          string                `json:"source"`
 	FindingsRemoved ConfigFindingsRemoved `json:"findingsRemoved"`
 	PathsSkipped    ConfigPathsSkipped    `json:"pathsSkipped"`
+
+	// Rerun is the command that repeats the scan without the file, which the
+	// text report gives. The command that ran sets it; it is not part of the
+	// JSON report.
+	Rerun ConfigRerun `json:"-"`
+}
+
+// ConfigRerun names the command that ran and the --fail-on value its command
+// line gave, so that the command a report gives for running without the
+// config file decides its exit code as the run did. The zero value is scan
+// without --fail-on.
+type ConfigRerun struct {
+	Command string
+	FailOn  string
 }
 
 // ConfigFindingsRemoved counts the findings each setting removed from the

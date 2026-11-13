@@ -559,6 +559,9 @@ func scanPipeline(cmd *cobra.Command, target string, opts pipelineOptions) (*sca
 	results.ScanDuration = duration
 	results.ScanTarget = shownTarget
 	results.ScanTime = startTime
+	if results.Config != nil {
+		results.Config.Rerun = configRerun(cmd, opts)
+	}
 
 	// Generate report
 	report, err := rep.Generate(results)
@@ -611,6 +614,19 @@ func exitCode(results *scanner.Results, failOn string, gateFindings bool) int {
 		return 1
 	}
 	return 0
+}
+
+// configRerun is the command the text report gives for running the scan again
+// without its config file. A gate run, and a scan with --fail-on, are read by
+// their exit code, which follows the threshold, so the command keeps the
+// command that ran and the --fail-on value given. Plain scan, cbom and pqc
+// keep "scan" with no threshold.
+func configRerun(cmd *cobra.Command, opts pipelineOptions) scanner.ConfigRerun {
+	rerun := scanner.ConfigRerun{Command: "scan", FailOn: opts.failOn}
+	if cmd.Name() == "gate" {
+		rerun.Command = "gate"
+	}
+	return rerun
 }
 
 // exitWith ends the process with code once a command has finished. Commands

@@ -69,15 +69,19 @@ func filterNewFindings(findings []scanner.Finding, root string, b *baseline) []s
 // of those files to infer the root from, and which entries the reported
 // findings match does not then depend on the root.
 //
-// The withheld findings are set against the same root, unless the reported
-// paths give a root that a file the baseline lists is not under, as when a
-// new file's path is the end of a path the baseline lists in another
-// directory. The earlier scan listed only files under its own root, so such
-// a root is not that one, and the withheld findings are then set against the
+// The withheld findings are set against the same root first. When the
+// reported paths give a root that a file the baseline lists is not under, as
+// when a new file's path is the end of a path the baseline lists in another
+// directory, the earlier scan did not run from that root, since it listed
+// only files under its own root. The withheld findings the baseline does not
+// accept under it are then set against the entries still left, under the
 // root inferred from the paths of the reported and the withheld findings
 // together, among the directories every file the baseline lists is under
-// (see inferRootOfEveryFile). When no such directory is inferred, they keep
-// the root of the reported findings.
+// (see inferRootOfEveryFile). That root only adds to the withheld findings
+// the baseline accepts, so a removed finding in a file that moved since, which
+// the root of the reported findings places at its entry, is still accepted.
+// When no such directory is inferred, only the root of the reported findings
+// is used.
 func applyBaseline(findings, withheld []scanner.Finding, root string, b *baseline) ([]scanner.Finding, []bool) {
 	keys := make([]baselineKey, len(findings))
 	paths := make(map[string]bool)
@@ -113,7 +117,8 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 
 	// Each entry covers one finding. The reported findings take theirs by
 	// their key under baseRoot, and the withheld findings then take the
-	// entries left by their key under withheldRoot.
+	// entries left by their key under baseRoot and, when withheldRoot is
+	// another root, the entries still left by their key under it.
 	byKey := make(map[baselineKey][]int)
 	for j, f := range b.Findings {
 		key := findingKey(f, baseRoot)
@@ -137,6 +142,16 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 	if len(withheld) == 0 {
 		return newFindings, accepted
 	}
+	for i, key := range withheldKeys {
+		if js := byKey[key]; len(js) > 0 {
+			taken[js[0]] = true
+			byKey[key] = js[1:]
+			accepted[i] = true
+		}
+	}
+	if withheldRoot == baseRoot {
+		return newFindings, accepted
+	}
 	left := make(map[baselineKey]int)
 	for j, f := range b.Findings {
 		if !taken[j] {
@@ -144,7 +159,7 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 		}
 	}
 	for i, key := range withheldKeys {
-		if left[key] > 0 {
+		if !accepted[i] && left[key] > 0 {
 			left[key]--
 			accepted[i] = true
 		}

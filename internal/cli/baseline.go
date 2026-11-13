@@ -96,19 +96,30 @@ func filterNewFindings(findings []scanner.Finding, root string, b *baseline) []s
 // what a first and a second greedy pass accept and, for a finding neither
 // step accepts, moves another finding already holding an entry the first
 // finding also matches to a different entry that finding matches, where
-// one exists, so both keep an entry. When no second root is found, only
-// the root the reported paths give is used.
+// one exists, so both keep an entry.
+//
+// The root the reported paths give can also hold every file the baseline
+// lists and still not be the one the earlier scan ran from, as when every
+// listed file is in tools/ and most of them moved from it to the top of the
+// tree: under tools/, tools/keys.py, which did not move, is keyed at
+// keys.py. A second root is then found in the same way among the other
+// directories that hold every listed file, and the reported findings are
+// matched with the same method under the root the reported paths give
+// first and that root second. When no second root is found, only the root
+// the reported paths give is used.
 //
 // The withheld findings are then set against the entries left, under the
 // root the reported paths give or, when they give none, the root inferred
 // from the paths of the reported and the withheld findings together. That
 // root can leave out a listed file too, as when files moved up as above and
-// the config file removed every finding. The withheld findings the baseline
-// does not accept under a root that leaves out a listed file are then set
+// the config file removed every finding, or hold every listed file and not
+// be the root the earlier scan ran from, as in the tree above. The withheld
+// findings the baseline does not accept under the first root are then set
 // against the entries still left, under the root inferred from the paths of
 // the reported and the withheld findings together, among the directories
-// every file the baseline lists is under. That root only adds to the
-// withheld findings the baseline accepts, so a removed finding in a file
+// every file the baseline lists is under other than the first root. That
+// root only adds to the withheld findings the baseline accepts, so a
+// removed finding in a file
 // that moved since, which the first root places at its entry, is still
 // accepted. A withheld finding can take, under the first root, the entry
 // another one has under the second: helper.py and tools/helper.py hold the
@@ -132,10 +143,15 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 	_, given := b.givenRoot()
 	baseRoot := b.root(paths)
 	// everyRoot, when it is not empty, is the root the reported findings are
-	// set against before baseRoot.
-	everyRoot := ""
-	if !given && baseRoot != "" && !holdsEveryFile(baseRoot, b.Findings) {
-		everyRoot = inferRootOfEveryFile(b.Findings, paths)
+	// set against before baseRoot, and otherRoot the one they are set against
+	// after it.
+	everyRoot, otherRoot := "", ""
+	if !given && baseRoot != "" {
+		if !holdsEveryFile(baseRoot, b.Findings) {
+			everyRoot = inferRootOfEveryFile(b.Findings, paths, "")
+		} else {
+			otherRoot = inferRootOfEveryFile(b.Findings, paths, baseRoot)
+		}
 	}
 	withheldRoot := baseRoot
 	if !given && len(withheld) > 0 {
@@ -150,8 +166,14 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 			baseRoot = inferBaselineRoot(b.Findings, allPaths)
 			withheldRoot = baseRoot
 		}
-		if baseRoot != "" && !holdsEveryFile(baseRoot, b.Findings) {
-			if r := inferRootOfEveryFile(b.Findings, allPaths); r != "" {
+		if baseRoot != "" {
+			// A root that holds every listed file is not looked for again;
+			// the second root is another one that does.
+			except := ""
+			if holdsEveryFile(baseRoot, b.Findings) {
+				except = baseRoot
+			}
+			if r := inferRootOfEveryFile(b.Findings, allPaths, except); r != "" {
 				withheldRoot = r
 			}
 		}
@@ -159,7 +181,8 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 
 	// Each entry covers one finding. The reported findings take theirs with
 	// the same method as the withheld findings (see matchKeys), under
-	// everyRoot's key, when there is one, and then baseRoot's; an entry that
+	// everyRoot's key, when there is one, and then baseRoot's, or under
+	// baseRoot's key and then otherRoot's, when there is one; an entry that
 	// gives a reported finding is then taken, so the withheld findings do
 	// not take it too.
 	taken := make([]bool, len(b.Findings))
@@ -170,6 +193,12 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 		for j, f := range b.Findings {
 			reportedFirst[j] = findingKey(f, everyRoot)
 			reportedSecond[j] = findingKey(f, baseRoot)
+		}
+	} else if otherRoot != "" {
+		reportedSecond = make([]baselineKey, len(b.Findings))
+		for j, f := range b.Findings {
+			reportedFirst[j] = findingKey(f, baseRoot)
+			reportedSecond[j] = findingKey(f, otherRoot)
 		}
 	} else {
 		for j, f := range b.Findings {
@@ -365,13 +394,14 @@ func inferBaselineRoot(entries []scanner.Finding, currentPaths map[string]bool) 
 }
 
 // inferRootOfEveryFile is inferBaselineRoot among the directories that every
-// absolute file path in entries is under. The earlier scan read only the
-// files under the directory it scanned, so a proposed directory that leaves
-// out a file the baseline lists is not that directory.
-func inferRootOfEveryFile(entries []scanner.Finding, currentPaths map[string]bool) string {
+// absolute file path in entries is under, leaving out except when it is not
+// empty. The earlier scan read only the files under the directory it
+// scanned, so a proposed directory that leaves out a file the baseline lists
+// is not that directory.
+func inferRootOfEveryFile(entries []scanner.Finding, currentPaths map[string]bool, except string) string {
 	votes := proposedRoots(entries, currentPaths)
 	for dir := range votes {
-		if !holdsEveryFile(filepath.FromSlash(dir), entries) {
+		if (except != "" && filepath.FromSlash(dir) == except) || !holdsEveryFile(filepath.FromSlash(dir), entries) {
 			delete(votes, dir)
 		}
 	}

@@ -313,6 +313,32 @@ All notable changes to CryptoScan are recorded here. This project follows
 
 ### Fixed
 
+- **A baseline written by 1.4.0 accepts the reviewed findings in a file that
+  did not move when every file it lists is in one subdirectory and most of
+  them moved to the top of the tree.** In a tree where `tools/keys.py` holds
+  an RSA key generation and `tools/a.py` and `tools/b.py` each hold a
+  Blowfish line, with a baseline in the form 1.4.0 writes (no
+  `metadata.scanRoot`, `scanTarget` `.`) written from inside the tree before
+  `tools/a.py` and `tools/b.py` moved to `a.py` and `b.py`, the paths `a.py`
+  and `b.py` gave the baseline the root of `tools/`. That directory holds
+  every listed file, so the change above did not look for another root, and
+  under it the entries of `tools/keys.py` are keyed at `keys.py`.
+  `cryptoscan scan . --stream=false --format json --baseline ../baseline.json`
+  listed RSA-001 twice and KEYSIZE-001 in `tools/keys.py`, which did not
+  move, as new, and `cryptoscan gate . --baseline ../baseline.json` exited 1
+  with no config file, with `--no-config` and with a `.cryptoscan.yaml` that
+  ignores RSA-001 and KEYSIZE-001; `scan --fail-on high` exited 1 too. When
+  the directory proposed by the most files holds every listed file, the next
+  directory proposed that also holds every listed file is now found, and the
+  reported findings are matched with the same three-step method under the
+  first directory and then under that one; the removed findings the first
+  directory does not accept are set against the entries left under that
+  directory as well. In the tree above, the report lists no finding, and
+  `gate` exits 0 with no config file, with `--no-config` and with that config
+  file, as does `scan --fail-on high`. With a baseline that records its root,
+  written from the same tree before the move, the report lists the
+  BLOWFISH-001 findings in `a.py` and `b.py` and `gate` exits 0, as before.
+
 - **A baseline written by 1.4.0 accepts the reviewed findings in files that
   did not move after files it lists in a subdirectory moved to the top of
   the tree.** A baseline written by 1.4.0 records no scan root, and for a

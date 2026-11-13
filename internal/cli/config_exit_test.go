@@ -885,6 +885,256 @@ func TestApplyBaselineWithoutRecordedRootAndNoRootFromTheReportedFindings(t *tes
 	}
 }
 
+// TestApplyBaselineWithoutRecordedRootAcceptsReportedFindingsInFilesThatDidNotMove
+// sets a baseline in the form 1.4.0 writes, which records no root, against
+// trees in which files the baseline lists in tools/ moved to the top of the
+// tree after it was written and outnumber the listed files that did not
+// move, with the findings in keys.py, which did not move, reported. The
+// reported paths propose tools/, which keys.py is not under, over the
+// directory keys.py proposes, and under tools/ alone the findings in keys.py
+// were new. They are accepted under the root that holds every file the
+// baseline lists, as with the root recorded, and the findings in the files
+// that moved are still accepted under tools/. With the root recorded, the
+// findings in the files that moved are new. In the third case tools/a.py did
+// not move and a copy of it was added at the top of the tree: tools/a.py
+// takes its entry, as with the root recorded, and the copy is new.
+func TestApplyBaselineWithoutRecordedRootAcceptsReportedFindingsInFilesThatDidNotMove(t *testing.T) {
+	oldRoot := filepath.Join(t.TempDir(), "old", "checkout")
+	repo := filepath.Join(t.TempDir(), "repo")
+	const (
+		importLine = "from cryptography.hazmat.primitives.asymmetric import rsa"
+		keyLine    = "key = rsa.generate_private_key(public_exponent=65537, key_size=2048)"
+		aLine      = "c = Blowfish.new(key)"
+		bLine      = "d = Blowfish.new(other)"
+		cLine      = "e = Blowfish.new(third)"
+	)
+	finding := func(dir, file, pattern, line string) scanner.Finding {
+		return scanner.Finding{File: filepath.Join(dir, filepath.FromSlash(file)), PatternID: pattern, Match: line}
+	}
+	// files lists the paths, relative to repo, of the findings given.
+	files := func(findings []scanner.Finding) []string {
+		var paths []string
+		for _, f := range findings {
+			paths = append(paths, filepath.ToSlash(strings.TrimPrefix(f.File, repo+string(filepath.Separator))))
+		}
+		return paths
+	}
+	// keys returns the findings in keys.py under dir: RSA-001 twice and
+	// KEYSIZE-001.
+	keys := func(dir string) []scanner.Finding {
+		return []scanner.Finding{
+			finding(dir, "keys.py", "RSA-001", importLine),
+			finding(dir, "keys.py", "RSA-001", keyLine),
+			finding(dir, "keys.py", "KEYSIZE-001", keyLine),
+		}
+	}
+	entries := append(keys(oldRoot),
+		finding(oldRoot, "tools/a.py", "BLOWFISH-001", aLine),
+		finding(oldRoot, "tools/b.py", "BLOWFISH-001", bLine),
+	)
+	moved := []scanner.Finding{
+		finding(repo, "a.py", "BLOWFISH-001", aLine),
+		finding(repo, "b.py", "BLOWFISH-001", bLine),
+	}
+	type outcome struct {
+		newFiles []string // the files of the reported findings that are new
+		accepted []bool   // whether the baseline accepts each removed finding
+	}
+	tests := []struct {
+		name              string
+		entries           []scanner.Finding // from the checkout the baseline was written in
+		reported, removed []scanner.Finding
+		noRoot, rooted    outcome
+	}{
+		{
+			// tools/a.py and tools/b.py moved to a.py and b.py.
+			name:     "every finding reported",
+			entries:  entries,
+			reported: append(keys(repo), moved...),
+			noRoot:   outcome{nil, []bool{}},
+			rooted:   outcome{[]string{"a.py", "b.py"}, []bool{}},
+		},
+		{
+			// The same tree, with the RSA-001 findings removed.
+			name:     "the RSA-001 findings removed",
+			entries:  entries,
+			reported: append(keys(repo)[2:], moved...),
+			removed:  keys(repo)[:2],
+			noRoot:   outcome{nil, []bool{true, true}},
+			rooted:   outcome{[]string{"a.py", "b.py"}, []bool{true, true}},
+		},
+		{
+			// tools/b.py and tools/c.py moved to b.py and c.py, tools/a.py
+			// did not move, and a.py is a copy of it.
+			name:    "a copy of a listed file that did not move",
+			entries: append(entries[:len(entries):len(entries)], finding(oldRoot, "tools/c.py", "BLOWFISH-001", cLine)),
+			reported: append(keys(repo),
+				finding(repo, "tools/a.py", "BLOWFISH-001", aLine),
+				finding(repo, "a.py", "BLOWFISH-001", aLine),
+				finding(repo, "b.py", "BLOWFISH-001", bLine),
+				finding(repo, "c.py", "BLOWFISH-001", cLine),
+			),
+			noRoot: outcome{[]string{"a.py"}, []bool{}},
+			rooted: outcome{[]string{"a.py", "b.py", "c.py"}, []bool{}},
+		},
+	}
+	for _, tt := range tests {
+		baselines := []struct {
+			name string
+			b    *baseline
+			want outcome
+		}{
+			{"root recorded", &baseline{ScanTarget: ".", Metadata: map[string]string{scanner.MetadataScanRoot: oldRoot}, Findings: tt.entries}, tt.rooted},
+			{"no root recorded", &baseline{ScanTarget: ".", Findings: tt.entries}, tt.noRoot},
+		}
+		for _, bl := range baselines {
+			t.Run(bl.name+"/"+tt.name, func(t *testing.T) {
+				newFindings, accepted := applyBaseline(tt.reported, tt.removed, repo, bl.b)
+				if got := files(newFindings); !reflect.DeepEqual(got, bl.want.newFiles) {
+					t.Errorf("new findings in %v, want %v", got, bl.want.newFiles)
+				}
+				alone, _ := applyBaseline(tt.reported, nil, repo, bl.b)
+				if got, without := files(newFindings), files(alone); !reflect.DeepEqual(got, without) {
+					t.Errorf("new findings in %v with the removed findings set against the baseline, in %v without them", got, without)
+				}
+				if !reflect.DeepEqual(accepted, bl.want.accepted) {
+					t.Errorf("accepted = %v, want %v", accepted, bl.want.accepted)
+				}
+			})
+		}
+	}
+}
+
+// TestApplyBaselineWithoutRecordedRootAcceptsAFileThatMovedIntoTheOldPathOfAListedFile
+// sets a baseline in the form 1.4.0 writes, which records no root, against
+// trees in which a file the baseline lists in tools/ moved to the top of the
+// tree and a file the baseline lists in tools/tools/, holding the same lines,
+// moved into the path it left. The reported paths propose tools/, which a
+// listed file is not under, and the root that holds every listed file is the
+// top of the tree. Under that root, the findings in tools/ took the entries of
+// the file that moved, so the findings in the file that moved were new,
+// although under tools/ alone every reported finding is accepted. They are
+// all accepted: the findings in tools/ move to the entries of the file that
+// moved into tools/, and the findings in the file that moved take its
+// entries. In the first two cases, old.py, which the baseline lists, was
+// deleted; in the third, keys.py did not move. With the root recorded, the
+// findings in the files that moved to the top of the tree are new.
+func TestApplyBaselineWithoutRecordedRootAcceptsAFileThatMovedIntoTheOldPathOfAListedFile(t *testing.T) {
+	oldRoot := filepath.Join(t.TempDir(), "old", "checkout")
+	repo := filepath.Join(t.TempDir(), "repo")
+	const (
+		importLine = "from cryptography.hazmat.primitives.asymmetric import rsa"
+		keyLine    = "key = rsa.generate_private_key(public_exponent=65537, key_size=2048)"
+		aLine      = "c = Blowfish.new(key)"
+		bLine      = "d = Blowfish.new(other)"
+	)
+	finding := func(dir, file, pattern, line string) scanner.Finding {
+		return scanner.Finding{File: filepath.Join(dir, filepath.FromSlash(file)), PatternID: pattern, Match: line}
+	}
+	// files lists the paths, relative to repo, of the findings given.
+	files := func(findings []scanner.Finding) []string {
+		var paths []string
+		for _, f := range findings {
+			paths = append(paths, filepath.ToSlash(strings.TrimPrefix(f.File, repo+string(filepath.Separator))))
+		}
+		return paths
+	}
+	// rsaIn returns the findings in file under dir: RSA-001 twice and
+	// KEYSIZE-001.
+	rsaIn := func(dir, file string) []scanner.Finding {
+		return []scanner.Finding{
+			finding(dir, file, "RSA-001", importLine),
+			finding(dir, file, "RSA-001", keyLine),
+			finding(dir, file, "KEYSIZE-001", keyLine),
+		}
+	}
+	join := func(lists ...[]scanner.Finding) []scanner.Finding {
+		var all []scanner.Finding
+		for _, list := range lists {
+			all = append(all, list...)
+		}
+		return all
+	}
+	// The baseline lists old.py, tools/keys.py and tools/tools/keys.py.
+	// old.py was then deleted, tools/keys.py moved to keys.py and
+	// tools/tools/keys.py to tools/keys.py.
+	entries := join(
+		[]scanner.Finding{finding(oldRoot, "old.py", "BLOWFISH-001", aLine)},
+		rsaIn(oldRoot, "tools/keys.py"),
+		rsaIn(oldRoot, "tools/tools/keys.py"),
+	)
+	type outcome struct {
+		newFiles []string // the files of the reported findings that are new
+		accepted []bool   // whether the baseline accepts each removed finding
+	}
+	tests := []struct {
+		name              string
+		entries           []scanner.Finding // from the checkout the baseline was written in
+		reported, removed []scanner.Finding
+		noRoot, rooted    outcome
+	}{
+		{
+			name:     "every finding reported",
+			entries:  entries,
+			reported: join(rsaIn(repo, "keys.py"), rsaIn(repo, "tools/keys.py")),
+			noRoot:   outcome{nil, []bool{}},
+			rooted:   outcome{[]string{"keys.py", "keys.py", "keys.py"}, []bool{}},
+		},
+		{
+			// The same tree, with the RSA-001 findings removed.
+			name:     "the RSA-001 findings removed",
+			entries:  entries,
+			reported: join(rsaIn(repo, "keys.py")[2:], rsaIn(repo, "tools/keys.py")[2:]),
+			removed:  join(rsaIn(repo, "keys.py")[:2], rsaIn(repo, "tools/keys.py")[:2]),
+			noRoot:   outcome{nil, []bool{true, true, true, true}},
+			rooted:   outcome{[]string{"keys.py"}, []bool{false, false, true, true}},
+		},
+		{
+			// keys.py did not move, tools/a.py and tools/b.py moved to a.py
+			// and b.py, and tools/tools/a.py, which holds the line of
+			// tools/a.py, moved to tools/a.py.
+			name: "keys.py did not move",
+			entries: join(rsaIn(oldRoot, "keys.py"), []scanner.Finding{
+				finding(oldRoot, "tools/a.py", "BLOWFISH-001", aLine),
+				finding(oldRoot, "tools/b.py", "BLOWFISH-001", bLine),
+				finding(oldRoot, "tools/tools/a.py", "BLOWFISH-001", aLine),
+			}),
+			reported: join(rsaIn(repo, "keys.py"), []scanner.Finding{
+				finding(repo, "a.py", "BLOWFISH-001", aLine),
+				finding(repo, "b.py", "BLOWFISH-001", bLine),
+				finding(repo, "tools/a.py", "BLOWFISH-001", aLine),
+			}),
+			noRoot: outcome{nil, []bool{}},
+			rooted: outcome{[]string{"a.py", "b.py"}, []bool{}},
+		},
+	}
+	for _, tt := range tests {
+		baselines := []struct {
+			name string
+			b    *baseline
+			want outcome
+		}{
+			{"root recorded", &baseline{ScanTarget: ".", Metadata: map[string]string{scanner.MetadataScanRoot: oldRoot}, Findings: tt.entries}, tt.rooted},
+			{"no root recorded", &baseline{ScanTarget: ".", Findings: tt.entries}, tt.noRoot},
+		}
+		for _, bl := range baselines {
+			t.Run(bl.name+"/"+tt.name, func(t *testing.T) {
+				newFindings, accepted := applyBaseline(tt.reported, tt.removed, repo, bl.b)
+				if got := files(newFindings); !reflect.DeepEqual(got, bl.want.newFiles) {
+					t.Errorf("new findings in %v, want %v", got, bl.want.newFiles)
+				}
+				alone, _ := applyBaseline(tt.reported, nil, repo, bl.b)
+				if got, without := files(newFindings), files(alone); !reflect.DeepEqual(got, without) {
+					t.Errorf("new findings in %v with the removed findings set against the baseline, in %v without them", got, without)
+				}
+				if !reflect.DeepEqual(accepted, bl.want.accepted) {
+					t.Errorf("accepted = %v, want %v", accepted, bl.want.accepted)
+				}
+			})
+		}
+	}
+}
+
 // TestGateWithBaselineWithoutRecordedRootAcceptsWhatAFoundConfigRemoved is
 // the reproduction from the issue. keys.py gives RSA-001 twice at HIGH and
 // KEYSIZE-001 at LOW, a baseline lists all three, and a .cryptoscan.yaml
@@ -1081,7 +1331,8 @@ func TestGateWithBaselineWithoutRecordedRootAcceptsARemovedFindingInAMovedFile(t
 		}
 	}
 	// Without a config file, the baseline accepts the SHA1 finding in the
-	// moved tool.py, and only the MEDIUM finding in keys.py is new.
+	// moved tool.py, and the findings in util.py and in keys.py, which did
+	// not move, as well.
 	if out := runCommandWith(t, gateCmd, ".", "--baseline", legacy); out.err != "" || out.code != 0 {
 		t.Fatalf("gate without a config file = exit code %d, error %q; want exit code 0", out.code, out.err)
 	}
@@ -1343,6 +1594,259 @@ func TestGateWithBaselineWithoutRecordedRootAcceptsRemovedFindingsWithTheSameLin
 				})
 			}
 		})
+	}
+}
+
+// TestGateWithBaselineWithoutRecordedRootAcceptsTheFindingsInFilesThatDidNotMove
+// is the reproduction from the issue. keys.py gives RSA-001 twice at HIGH and
+// KEYSIZE-001 at LOW, tools/a.py and tools/b.py each give BLOWFISH-001 at
+// MEDIUM, and a baseline lists all five. a.py and b.py then moved to the top
+// of the tree. With the baseline in the form 1.4.0 writes, the paths a.py
+// and b.py gave the baseline the root of tools/a.py and tools/b.py, which
+// keys.py is not under: the report listed the findings in keys.py, which did
+// not move, as new, and gate exited 1 with no config file and with
+// --no-config, while a .cryptoscan.yaml found in the scan target that
+// ignores RSA-001 and KEYSIZE-001, with or without BLOWFISH-001, made gate
+// exit 0. Each run is made from inside the tree with target ".", as in the
+// issue.
+func TestGateWithBaselineWithoutRecordedRootAcceptsTheFindingsInFilesThatDidNotMove(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, content string) {
+		t.Helper()
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("keys.py", rsaSource)
+	write("tools/a.py", "c = Blowfish.new(key)\n")
+	write("tools/b.py", "d = Blowfish.new(other)\n")
+	chdirForTest(t, dir)
+
+	rooted := filepath.Join(t.TempDir(), "baseline.json")
+	if out := runCommandWith(t, scanCmd, ".", "--stream=false", "--format", "json", "--output", rooted); out.err != "" {
+		t.Fatalf("baseline scan failed: %s", out.err)
+	}
+	legacy := legacyBaseline(t, rooted, 5)
+
+	for _, name := range []string{"a.py", "b.py"} {
+		if err := os.Rename(filepath.Join(dir, "tools", name), filepath.Join(dir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	// The report lists no finding in keys.py, as with the root recorded.
+	keys := filepath.Join(dir, "keys.py")
+	baselines := []struct{ name, path string }{
+		{"baseline in the 1.4.0 form", legacy},
+		{"baseline that records its root", rooted},
+	}
+	for _, bl := range baselines {
+		out := runCommandWith(t, scanCmd, ".", "--stream=false", "--format", "json", "--baseline", bl.path)
+		if out.err != "" {
+			t.Fatalf("scan with the %s failed: %s", bl.name, out.err)
+		}
+		var report struct {
+			Findings []struct {
+				File      string `json:"file"`
+				PatternID string `json:"patternId"`
+			} `json:"findings"`
+		}
+		if err := json.Unmarshal([]byte(out.stdout), &report); err != nil {
+			t.Fatalf("scan output is not JSON: %v", err)
+		}
+		for _, f := range report.Findings {
+			if f.File == keys {
+				t.Errorf("with the %s, the report lists %s in keys.py, which did not move, as new", bl.name, f.PatternID)
+			}
+		}
+	}
+
+	// gate and scan --fail-on high exit 0 with no config file and with each
+	// config file found in the scan target. With --no-config, a config file
+	// left in the tree is scanned as a source file, and its RSA-001 line is a
+	// finding the baseline does not list, so gate --no-config runs with no
+	// file in the tree.
+	type run struct {
+		name string
+		cmd  *cobra.Command
+		args []string
+	}
+	gate := run{"gate", gateCmd, []string{"--baseline", legacy}}
+	noConfig := run{"gate --no-config", gateCmd, []string{"--no-config", "--baseline", legacy}}
+	scan := run{"scan --fail-on high", scanCmd, []string{"--stream=false", "--fail-on", "high", "--baseline", legacy}}
+	configs := []struct {
+		name, content string
+		runs          []run
+	}{
+		{"no config file", "", []run{gate, noConfig, scan}},
+		{"a config file that ignores RSA-001, KEYSIZE-001 and BLOWFISH-001", "ignore:\n  patterns: [RSA-001, KEYSIZE-001, BLOWFISH-001]\n", []run{gate, scan}},
+		{"a config file that ignores RSA-001 and KEYSIZE-001", "ignore:\n  patterns: [RSA-001, KEYSIZE-001]\n", []run{gate, scan}},
+	}
+	for _, cfg := range configs {
+		if cfg.content != "" {
+			write(".cryptoscan.yaml", cfg.content)
+		}
+		for _, tt := range cfg.runs {
+			t.Run(cfg.name+"/"+tt.name, func(t *testing.T) {
+				out := runCommandWith(t, tt.cmd, ".", tt.args...)
+				if out.err != "" || out.code != 0 {
+					t.Errorf("exit code %d, error %q; want exit code 0", out.code, out.err)
+				}
+				if strings.Contains(out.stderr, "cryptoscan: exit code 1:") {
+					t.Errorf("stderr = %q, which gives the config file as a reason for exit code 1", out.stderr)
+				}
+			})
+		}
+	}
+}
+
+// TestGateWithBaselineWithoutRecordedRootAcceptsAFileThatMovedIntoTheOldPathOfAListedFile
+// is the review-3 reproduction: the directory tools/a.py, tools/b.py and
+// tools/tool.py propose, tools/, holds a subdirectory of the same name,
+// tools/tools/, which tools/tools/tool.py, holding the same line as
+// tools/tool.py, is under. keys.py gives RSA-001 twice at HIGH and
+// KEYSIZE-001 at LOW, tools/a.py and tools/b.py each give BLOWFISH-001 at
+// MEDIUM, tools/tool.py gives SHA1-001 at HIGH, and tools/tools/tool.py
+// gives SHA1-001 at HIGH on the same line. A baseline lists all seven.
+// tools/a.py and tools/b.py then move to the top of the tree as before,
+// tools/tool.py moves out to the top of the tree as tool.py, and
+// tools/tools/tool.py moves into the path tools/tool.py left. Matching the
+// reported findings first under the directory that holds every listed file
+// and then under the directory tools/a.py, tools/b.py and tools/tool.py
+// propose, with no finding able to move between the two passes, gives
+// tools/tool.py's entry to tools/tool.py's new finding (which holds the
+// same line under either directory) under the first pass, leaving
+// tool.py's finding, which matches that entry only under the second pass,
+// with nothing: the report lists SHA1-001 in tool.py, which moved, as new,
+// and gate exits 1 with no config file and with --no-config. Each run is
+// made from inside the tree with target ".", as in the issue.
+func TestGateWithBaselineWithoutRecordedRootAcceptsAFileThatMovedIntoTheOldPathOfAListedFile(t *testing.T) {
+	const toolSource = "DIGEST = hashlib.sha1(b\"tool\").hexdigest()\n"
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, content string) {
+		t.Helper()
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("keys.py", rsaSource)
+	write("tools/a.py", "c = Blowfish.new(key)\n")
+	write("tools/b.py", "d = Blowfish.new(other)\n")
+	write("tools/tool.py", toolSource)
+	write("tools/tools/tool.py", toolSource)
+	chdirForTest(t, dir)
+
+	rooted := filepath.Join(t.TempDir(), "baseline.json")
+	if out := runCommandWith(t, scanCmd, ".", "--stream=false", "--format", "json", "--output", rooted); out.err != "" {
+		t.Fatalf("baseline scan failed: %s", out.err)
+	}
+	legacy := legacyBaseline(t, rooted, 7)
+
+	for _, name := range []string{"a.py", "b.py"} {
+		if err := os.Rename(filepath.Join(dir, "tools", name), filepath.Join(dir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// tools/tool.py moves out to the top of the tree first, so
+	// tools/tools/tool.py can then move into the path it left.
+	if err := os.Rename(filepath.Join(dir, "tools", "tool.py"), filepath.Join(dir, "tool.py")); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(dir, "tools", "tools", "tool.py"), filepath.Join(dir, "tools", "tool.py")); err != nil {
+		t.Fatal(err)
+	}
+
+	// With the baseline in the 1.4.0 form, the report lists no finding in
+	// tool.py, which moved out, or in tools/tool.py, which moved in: the
+	// root every listed file is under rescues tool.py's own entry, and
+	// tools/tool.py matches the entry tools/tools/tool.py gives it, holding
+	// the same line. With the root recorded, tool.py, which moved, is new,
+	// as a.py and b.py are; tools/tool.py still matches: it holds the same
+	// line as the entry recorded at that same path.
+	moved := filepath.Join(dir, "tool.py")
+	movedIn := filepath.Join(dir, "tools", "tool.py")
+	baselines := []struct {
+		name    string
+		path    string
+		wantNew map[string]bool
+	}{
+		{"baseline in the 1.4.0 form", legacy, map[string]bool{}},
+		{"baseline that records its root", rooted, map[string]bool{moved: true}},
+	}
+	for _, bl := range baselines {
+		out := runCommandWith(t, scanCmd, ".", "--stream=false", "--format", "json", "--baseline", bl.path)
+		if out.err != "" {
+			t.Fatalf("scan with the %s failed: %s", bl.name, out.err)
+		}
+		var report struct {
+			Findings []struct {
+				File      string `json:"file"`
+				PatternID string `json:"patternId"`
+			} `json:"findings"`
+		}
+		if err := json.Unmarshal([]byte(out.stdout), &report); err != nil {
+			t.Fatalf("scan output is not JSON: %v", err)
+		}
+		gotNew := map[string]bool{}
+		for _, f := range report.Findings {
+			if f.File == moved || f.File == movedIn {
+				gotNew[f.File] = true
+			}
+		}
+		for _, file := range []string{moved, movedIn} {
+			if gotNew[file] != bl.wantNew[file] {
+				t.Errorf("with the %s, %s reported as new = %v, want %v", bl.name, file, gotNew[file], bl.wantNew[file])
+			}
+		}
+	}
+
+	// gate and scan --fail-on high exit 0 with no config file and with each
+	// config file found in the scan target.
+	type run struct {
+		name string
+		cmd  *cobra.Command
+		args []string
+	}
+	gate := run{"gate", gateCmd, []string{"--baseline", legacy}}
+	noConfig := run{"gate --no-config", gateCmd, []string{"--no-config", "--baseline", legacy}}
+	scan := run{"scan --fail-on high", scanCmd, []string{"--stream=false", "--fail-on", "high", "--baseline", legacy}}
+	configs := []struct {
+		name, content string
+		runs          []run
+	}{
+		{"no config file", "", []run{gate, noConfig, scan}},
+		{"a config file that ignores RSA-001, KEYSIZE-001, BLOWFISH-001 and SHA1-001", "ignore:\n  patterns: [RSA-001, KEYSIZE-001, BLOWFISH-001, SHA1-001]\n", []run{gate, scan}},
+		{"a config file that ignores RSA-001 and KEYSIZE-001", "ignore:\n  patterns: [RSA-001, KEYSIZE-001]\n", []run{gate, scan}},
+	}
+	for _, cfg := range configs {
+		if cfg.content != "" {
+			write(".cryptoscan.yaml", cfg.content)
+		}
+		for _, tt := range cfg.runs {
+			t.Run(cfg.name+"/"+tt.name, func(t *testing.T) {
+				out := runCommandWith(t, tt.cmd, ".", tt.args...)
+				if out.err != "" || out.code != 0 {
+					t.Errorf("exit code %d, error %q; want exit code 0", out.code, out.err)
+				}
+				if strings.Contains(out.stderr, "cryptoscan: exit code 1:") {
+					t.Errorf("stderr = %q, which gives the config file as a reason for exit code 1", out.stderr)
+				}
+			})
+		}
 	}
 }
 

@@ -148,9 +148,10 @@ All notable changes to CryptoScan are recorded here. This project follows
   removed, and a removed finding the baseline lists at the same path
   relative to that root is accepted. When the root the reported findings
   give leaves out a file the baseline lists, as when a file added since has
-  the name of a file the baseline lists in another directory, the root for
-  the findings the file removed is found in the same way from the paths of
-  the reported and the removed findings together, among the directories
+  the name of a file the baseline lists in another directory, a removed
+  finding is accepted when the baseline lists it at the same path relative
+  to that root or relative to the root found in the same way from the paths
+  of the reported and the removed findings together, among the directories
   that hold every file the baseline lists. The findings the file removed do
   not change which reported findings such a baseline accepts. Paths kept out
   by `ignore.files` are counted

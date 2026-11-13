@@ -68,6 +68,16 @@ func filterNewFindings(findings []scanner.Finding, root string, b *baseline) []s
 // removed every finding in the baseline's files, the reported paths hold none
 // of those files to infer the root from, and which entries the reported
 // findings match does not then depend on the root.
+//
+// The withheld findings are set against the same root, unless the reported
+// paths give a root that a file the baseline lists is not under, as when a
+// new file's path is the end of a path the baseline lists in another
+// directory. The earlier scan listed only files under its own root, so such
+// a root is not that one, and the withheld findings are then set against the
+// root inferred from the paths of the reported and the withheld findings
+// together, among the directories every file the baseline lists is under
+// (see inferRootOfEveryFile). When no such directory is inferred, they keep
+// the root of the reported findings.
 func applyBaseline(findings, withheld []scanner.Finding, root string, b *baseline) ([]scanner.Finding, []bool) {
 	keys := make([]baselineKey, len(findings))
 	paths := make(map[string]bool)
@@ -81,32 +91,61 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 	}
 
 	baseRoot := b.root(paths)
-	if baseRoot == "" && len(withheld) > 0 {
-		for _, key := range withheldKeys {
-			paths[key.path] = true
+	withheldRoot := baseRoot
+	if _, given := b.givenRoot(); !given && len(withheld) > 0 {
+		allPaths := make(map[string]bool, len(paths)+len(withheldKeys))
+		for path := range paths {
+			allPaths[path] = true
 		}
-		baseRoot = b.root(paths)
+		for _, key := range withheldKeys {
+			allPaths[key.path] = true
+		}
+		switch {
+		case baseRoot == "":
+			baseRoot = inferBaselineRoot(b.Findings, allPaths)
+			withheldRoot = baseRoot
+		case !holdsEveryFile(baseRoot, b.Findings):
+			if r := inferRootOfEveryFile(b.Findings, allPaths); r != "" {
+				withheldRoot = r
+			}
+		}
 	}
-	reviewed := make(map[baselineKey]int)
-	for _, f := range b.Findings {
-		reviewed[findingKey(f, baseRoot)]++
+
+	// Each entry covers one finding. The reported findings take theirs by
+	// their key under baseRoot, and the withheld findings then take the
+	// entries left by their key under withheldRoot.
+	byKey := make(map[baselineKey][]int)
+	for j, f := range b.Findings {
+		key := findingKey(f, baseRoot)
+		byKey[key] = append(byKey[key], j)
 	}
+	taken := make([]bool, len(b.Findings))
 
 	// Not nil: a report with nothing new lists "findings": [], the same as a
 	// scan that found nothing.
 	newFindings := []scanner.Finding{}
 	for i, f := range findings {
-		if reviewed[keys[i]] > 0 {
-			reviewed[keys[i]]--
+		if js := byKey[keys[i]]; len(js) > 0 {
+			taken[js[0]] = true
+			byKey[keys[i]] = js[1:]
 			continue
 		}
 		newFindings = append(newFindings, f)
 	}
 
 	accepted := make([]bool, len(withheld))
+	if len(withheld) == 0 {
+		return newFindings, accepted
+	}
+	left := make(map[baselineKey]int)
+	for j, f := range b.Findings {
+		if !taken[j] {
+			left[findingKey(f, withheldRoot)]++
+		}
+	}
 	for i, key := range withheldKeys {
-		if reviewed[key] > 0 {
-			reviewed[key]--
+		if left[key] > 0 {
+			left[key]--
 			accepted[i] = true
 		}
 	}
@@ -123,13 +162,23 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 // URL that was cloned to a temporary directory) is inferred from the paths
 // of the current scan's findings (see applyBaseline for which ones).
 func (b *baseline) root(currentPaths map[string]bool) string {
-	if root := b.Metadata[scanner.MetadataScanRoot]; root != "" {
+	if root, ok := b.givenRoot(); ok {
 		return root
 	}
-	if filepath.IsAbs(b.ScanTarget) {
-		return b.ScanTarget
-	}
 	return inferBaselineRoot(b.Findings, currentPaths)
+}
+
+// givenRoot returns the root a baseline gives itself: the root it records,
+// or its scanTarget when that is an absolute path. ok is false when neither
+// is there and the root is inferred.
+func (b *baseline) givenRoot() (root string, ok bool) {
+	if root := b.Metadata[scanner.MetadataScanRoot]; root != "" {
+		return root, true
+	}
+	if filepath.IsAbs(b.ScanTarget) {
+		return b.ScanTarget, true
+	}
+	return "", false
 }
 
 // inferBaselineRoot finds the directory an earlier scan ran from when its
@@ -140,6 +189,38 @@ func (b *baseline) root(currentPaths map[string]bool) string {
 // matches, the baseline covers nothing in the current scan and the root does
 // not matter.
 func inferBaselineRoot(entries []scanner.Finding, currentPaths map[string]bool) string {
+	return mostProposed(proposedRoots(entries, currentPaths))
+}
+
+// inferRootOfEveryFile is inferBaselineRoot among the directories that every
+// absolute file path in entries is under. The earlier scan read only the
+// files under the directory it scanned, so a proposed directory that leaves
+// out a file the baseline lists is not that directory.
+func inferRootOfEveryFile(entries []scanner.Finding, currentPaths map[string]bool) string {
+	votes := proposedRoots(entries, currentPaths)
+	for dir := range votes {
+		if !holdsEveryFile(filepath.FromSlash(dir), entries) {
+			delete(votes, dir)
+		}
+	}
+	return mostProposed(votes)
+}
+
+// holdsEveryFile reports whether every absolute file path in entries is in
+// dir or below it, so that relativeTo keys each of them on a path relative
+// to dir.
+func holdsEveryFile(dir string, entries []scanner.Finding) bool {
+	for _, f := range entries {
+		if filepath.IsAbs(f.File) && outside(filepath.Rel(dir, f.File)) {
+			return false
+		}
+	}
+	return true
+}
+
+// proposedRoots counts, for each slash-separated directory, the distinct
+// files in entries that propose it (see inferBaselineRoot).
+func proposedRoots(entries []scanner.Finding, currentPaths map[string]bool) map[string]int {
 	votes := make(map[string]int)
 	seen := make(map[string]bool)
 	for _, f := range entries {
@@ -161,7 +242,13 @@ func inferBaselineRoot(entries []scanner.Finding, currentPaths map[string]bool) 
 			}
 		}
 	}
+	return votes
+}
 
+// mostProposed returns the directory with the most votes, on a tie the
+// shortest one and then the first in byte order, in the form of the
+// operating system, and "" when votes is empty.
+func mostProposed(votes map[string]int) string {
 	best := ""
 	for dir, n := range votes {
 		if best == "" || n > votes[best] ||
@@ -189,7 +276,7 @@ func relativeTo(root, file string) string {
 	}
 	rel, err := filepath.Rel(root, file)
 	switch {
-	case err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)):
+	case outside(rel, err):
 		return filepath.ToSlash(file)
 	case rel == ".":
 		// An earlier release recorded a single-file target as the root.
@@ -197,6 +284,12 @@ func relativeTo(root, file string) string {
 		return filepath.Base(file)
 	}
 	return filepath.ToSlash(rel)
+}
+
+// outside reports whether rel, as filepath.Rel returned it with err, leads
+// out of the directory it is relative to.
+func outside(rel string, err error) bool {
+	return err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator))
 }
 
 // matchedLine returns the source line a finding was reported on, from the

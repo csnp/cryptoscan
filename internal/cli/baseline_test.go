@@ -5,6 +5,8 @@ package cli
 
 import (
 	"encoding/json"
+	"fmt"
+	"math/rand"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -294,6 +296,158 @@ func TestInferRootOfEveryFileSkipsDirectoriesThatLeaveOutAListedFile(t *testing.
 	if got := inferRootOfEveryFile(entries, map[string]bool{"tool.py": true}); got != "" {
 		t.Errorf("inferRootOfEveryFile with tool.py alone = %q, want empty", got)
 	}
+}
+
+// TestAcceptWithheldAddsToTheFirstTwoSteps gives acceptWithheld 3000 random
+// sets of up to five withheld findings and up to five entries, with keys
+// drawn from four. Each entry has a key under the root of the reported
+// findings and is taken by a reported finding at a chance of one in five,
+// and at a chance of three in four the entries of a set also have keys under
+// a second root. In each set, the findings it accepts can each hold a
+// different entry matching their key, include every finding the first two
+// steps accept, and are as many as any assignment of the entries gives one
+// to. A finding the first two steps do not accept is accepted when it and
+// the findings accepted before it, by those steps or earlier in the third,
+// can each hold a different entry. With one root, the findings accepted are
+// the ones the first step accepts.
+func TestAcceptWithheldAddsToTheFirstTwoSteps(t *testing.T) {
+	alphabet := make([]baselineKey, 4)
+	for i, path := range []string{"helper.py", "tools/helper.py", "tool.py", "tools/tool.py"} {
+		alphabet[i] = baselineKey{path: path, pattern: "MD5-001", text: "h = hashlib.md5(data).hexdigest()"}
+	}
+	matches := func(key baselineKey, j int, first, second []baselineKey) bool {
+		return first[j] == key || (second != nil && second[j] == key)
+	}
+	// twoSteps gives out the entries as the first two steps do: each finding
+	// in turn takes the first entry left whose first key is its own, and
+	// then each one without an entry the first entry left whose second key
+	// is its own.
+	twoSteps := func(keys, first, second []baselineKey, taken []bool) []bool {
+		accepted := make([]bool, len(keys))
+		used := append([]bool(nil), taken...)
+		for _, entryKeys := range [][]baselineKey{first, second} {
+			if entryKeys == nil {
+				continue
+			}
+			for i, key := range keys {
+				for j := 0; j < len(entryKeys) && !accepted[i]; j++ {
+					if !used[j] && entryKeys[j] == key {
+						used[j], accepted[i] = true, true
+					}
+				}
+			}
+		}
+		return accepted
+	}
+	// most returns the largest number of the findings with keys that can
+	// each hold a different entry not used that matches their key, trying
+	// every assignment.
+	var most func(keys, first, second []baselineKey, used []bool) int
+	most = func(keys, first, second []baselineKey, used []bool) int {
+		if len(keys) == 0 {
+			return 0
+		}
+		best := most(keys[1:], first, second, used)
+		for j := range first {
+			if !used[j] && matches(keys[0], j, first, second) {
+				used[j] = true
+				if n := 1 + most(keys[1:], first, second, used); n > best {
+					best = n
+				}
+				used[j] = false
+			}
+		}
+		return best
+	}
+	paths := func(keys []baselineKey) []string {
+		out := make([]string, len(keys))
+		for i, key := range keys {
+			out[i] = key.path
+		}
+		return out
+	}
+
+	rng := rand.New(rand.NewSource(1))
+	added := 0
+	for set := 0; set < 3000; set++ {
+		keys := make([]baselineKey, rng.Intn(6))
+		for i := range keys {
+			keys[i] = alphabet[rng.Intn(len(alphabet))]
+		}
+		n := rng.Intn(6)
+		first := make([]baselineKey, n)
+		taken := make([]bool, n)
+		for j := range first {
+			first[j] = alphabet[rng.Intn(len(alphabet))]
+			taken[j] = rng.Intn(5) == 0
+		}
+		var second []baselineKey
+		if rng.Intn(4) > 0 {
+			second = make([]baselineKey, n)
+			for j := range second {
+				second[j] = alphabet[rng.Intn(len(alphabet))]
+			}
+		}
+		desc := fmt.Sprintf("withheld %v, first keys %v, second keys %v, taken %v", paths(keys), paths(first), paths(second), taken)
+
+		got := acceptWithheld(keys, first, second, taken)
+		if len(got) != len(keys) {
+			t.Fatalf("%s: %d results for %d findings", desc, len(got), len(keys))
+		}
+		var held []baselineKey
+		for i, ok := range got {
+			if ok {
+				held = append(held, keys[i])
+			}
+		}
+		if n := most(held, first, second, append([]bool(nil), taken...)); n != len(held) {
+			t.Errorf("%s: accepted %v, of which at most %d can each hold an entry", desc, got, n)
+		}
+		if n := most(keys, first, second, append([]bool(nil), taken...)); len(held) != n {
+			t.Errorf("%s: accepted %d findings, and an assignment gives entries to %d", desc, len(held), n)
+		}
+		before := twoSteps(keys, first, second, taken)
+		gained := false
+		var accepted []baselineKey // by the first two steps, then in turn by the third
+		for i := range keys {
+			if before[i] && !got[i] {
+				t.Errorf("%s: finding %d is accepted by the first two steps and not by acceptWithheld", desc, i)
+			}
+			if before[i] {
+				accepted = append(accepted, keys[i])
+			}
+			if got[i] && !before[i] {
+				gained = true
+				if second == nil {
+					t.Errorf("%s: with one root, finding %d is accepted and the first step does not accept it", desc, i)
+				}
+			}
+		}
+		if gained {
+			added++
+		}
+		// The third step takes in turn each finding the first two did not
+		// accept, and accepts it when the findings accepted by then and it
+		// can each hold a different entry.
+		for i := range keys {
+			if before[i] || second == nil {
+				continue
+			}
+			with := append(append([]baselineKey(nil), accepted...), keys[i])
+			fits := most(with, first, second, append([]bool(nil), taken...)) == len(with)
+			if got[i] != fits {
+				t.Errorf("%s: finding %d accepted = %v; that it and the findings accepted before it can each hold an entry is %v", desc, i, got[i], fits)
+			}
+			if got[i] {
+				accepted = append(accepted, keys[i])
+			}
+		}
+	}
+	// The sets test the third step only if it accepted a finding in some.
+	if added == 0 {
+		t.Fatal("in no set did acceptWithheld accept a finding the first two steps do not")
+	}
+	t.Logf("%d of 3000 sets had a finding accepted that the first two steps do not accept", added)
 }
 
 // A baseline written by 1.4.0 has no recorded scan root, and its scanTarget is

@@ -486,6 +486,8 @@ func TestApplyBaselineAcceptsRemovedFindingsWithEntriesLeftOver(t *testing.T) {
 // result from both. The root of the first was found from the reported
 // findings alone, so when the file removed every finding in the baseline's
 // files, none of the removed findings was matched to its entry.
+// TestApplyBaselineWithoutRecordedRootFindsItFromTheReportedFindings covers
+// trees in which the two give different results.
 func TestApplyBaselineWithoutRecordedRootAcceptsRemovedFindings(t *testing.T) {
 	oldRoot := filepath.Join(t.TempDir(), "old", "checkout")
 	repo := filepath.Join(t.TempDir(), "repo")
@@ -525,10 +527,6 @@ func TestApplyBaselineWithoutRecordedRootAcceptsRemovedFindings(t *testing.T) {
 		{"nothing reported", nil, removed, 0, []bool{true, true, true}},
 		{"a finding reported in a file the baseline does not list",
 			[]scanner.Finding{finding(repo, "new.py", "MD5-001", "h = hashlib.md5(data)")}, removed, 1, []bool{true, true, true}},
-		// A tool.py at the top of the tree is a file the baseline does not
-		// list, although its name and line are those of tools/tool.py.
-		{"a finding reported in a file with the name of a baseline file in another directory",
-			[]scanner.Finding{finding(repo, "tool.py", "SHA1-001", toolLine)}, removed, 1, []bool{true, true, true}},
 		{"one finding of a baseline file reported and the others removed",
 			removed[:1], removed[1:], 0, []bool{true, true}},
 		{"a removed finding the baseline does not hold",
@@ -543,6 +541,137 @@ func TestApplyBaselineWithoutRecordedRootAcceptsRemovedFindings(t *testing.T) {
 				}
 				if !reflect.DeepEqual(accepted, tt.want) {
 					t.Errorf("accepted = %v, want %v", accepted, tt.want)
+				}
+			})
+		}
+	}
+}
+
+// TestApplyBaselineWithoutRecordedRootFindsItFromTheReportedFindings sets a
+// baseline in the form 1.4.0 writes, which records no root, against trees in
+// which files moved after it was written, with findings reported and findings
+// a config file removed. The root of such a baseline is found from the
+// reported findings whenever their paths give one, so in each case the
+// removed findings leave the reported ones as they are without them. In the
+// first two cases that is also the result with the root recorded. In the
+// third, the reported path alone places the baseline's tools/tool.py at
+// tool.py, as it did before, and the removed findings in keys.py and auth.py
+// are not accepted; with the root recorded, tool.py's finding is new and the
+// removed findings are accepted.
+func TestApplyBaselineWithoutRecordedRootFindsItFromTheReportedFindings(t *testing.T) {
+	oldRoot := filepath.Join(t.TempDir(), "old", "checkout")
+	repo := filepath.Join(t.TempDir(), "repo")
+	const (
+		md5Line    = `H = hashlib.md5(b"t").hexdigest()`
+		toolLine   = `DIGEST = hashlib.sha1(b"tool").hexdigest()`
+		checkLine  = `CHECK = hashlib.sha1(b"check").hexdigest()`
+		importLine = "from cryptography.hazmat.primitives.asymmetric import rsa"
+		keyLine    = "key = rsa.generate_private_key(public_exponent=65537, key_size=2048)"
+	)
+	finding := func(dir, file, pattern, line string) scanner.Finding {
+		return scanner.Finding{File: filepath.Join(dir, filepath.FromSlash(file)), PatternID: pattern, Match: line}
+	}
+	// files lists the paths, relative to repo, of the findings given.
+	files := func(findings []scanner.Finding) []string {
+		var paths []string
+		for _, f := range findings {
+			paths = append(paths, filepath.ToSlash(strings.TrimPrefix(f.File, repo+string(filepath.Separator))))
+		}
+		return paths
+	}
+	type outcome struct {
+		newFiles []string // the files of the reported findings that are new
+		accepted []bool   // whether the baseline accepts each removed finding
+	}
+	tests := []struct {
+		name              string
+		entries           []scanner.Finding // from the checkout the baseline was written in
+		reported, removed []scanner.Finding
+		noRoot, rooted    outcome
+	}{
+		{
+			// t.py held an MD5 line and a/t.py a SHA1 line. t.py now holds
+			// the SHA1 line, a/u.py moved to u.py, and the file removed the
+			// findings in u.py.
+			name: "a reported finding the baseline does not list at its path",
+			entries: []scanner.Finding{
+				finding(oldRoot, "t.py", "MD5-001", md5Line),
+				finding(oldRoot, "a/t.py", "SHA1-001", toolLine),
+				finding(oldRoot, "a/u.py", "RSA-001", importLine),
+				finding(oldRoot, "a/u.py", "RSA-001", keyLine),
+			},
+			reported: []scanner.Finding{finding(repo, "t.py", "SHA1-001", toolLine)},
+			removed: []scanner.Finding{
+				finding(repo, "u.py", "RSA-001", importLine),
+				finding(repo, "u.py", "RSA-001", keyLine),
+			},
+			noRoot: outcome{[]string{"t.py"}, []bool{false, false}},
+			rooted: outcome{[]string{"t.py"}, []bool{false, false}},
+		},
+		{
+			// a/x.py and a/y.py moved to x.py and y.py, and the file removed
+			// the findings in them. z.py did not move.
+			name: "the reported findings of a file that did not move",
+			entries: []scanner.Finding{
+				finding(oldRoot, "a/x.py", "SHA1-001", toolLine),
+				finding(oldRoot, "a/y.py", "SHA1-001", checkLine),
+				finding(oldRoot, "z.py", "RSA-001", importLine),
+				finding(oldRoot, "z.py", "RSA-001", keyLine),
+			},
+			reported: []scanner.Finding{
+				finding(repo, "z.py", "RSA-001", importLine),
+				finding(repo, "z.py", "RSA-001", keyLine),
+			},
+			removed: []scanner.Finding{
+				finding(repo, "x.py", "SHA1-001", toolLine),
+				finding(repo, "y.py", "SHA1-001", checkLine),
+			},
+			noRoot: outcome{nil, []bool{false, false}},
+			rooted: outcome{nil, []bool{false, false}},
+		},
+		{
+			// A tool.py at the top of the tree is a file the baseline does
+			// not list, although its name and line are those of
+			// tools/tool.py. The file removed every finding in keys.py and
+			// auth.py.
+			name: "a reported finding in a file with the name of a baseline file in another directory",
+			entries: []scanner.Finding{
+				finding(oldRoot, "keys.py", "RSA-001", importLine),
+				finding(oldRoot, "keys.py", "RSA-001", keyLine),
+				finding(oldRoot, "auth.py", "RSA-001", keyLine),
+				finding(oldRoot, "tools/tool.py", "SHA1-001", toolLine),
+			},
+			reported: []scanner.Finding{finding(repo, "tool.py", "SHA1-001", toolLine)},
+			removed: []scanner.Finding{
+				finding(repo, "keys.py", "RSA-001", importLine),
+				finding(repo, "keys.py", "RSA-001", keyLine),
+				finding(repo, "auth.py", "RSA-001", keyLine),
+			},
+			noRoot: outcome{nil, []bool{false, false, false}},
+			rooted: outcome{[]string{"tool.py"}, []bool{true, true, true}},
+		},
+	}
+	for _, tt := range tests {
+		baselines := []struct {
+			name string
+			b    *baseline
+			want outcome
+		}{
+			{"root recorded", &baseline{ScanTarget: ".", Metadata: map[string]string{scanner.MetadataScanRoot: oldRoot}, Findings: tt.entries}, tt.rooted},
+			{"no root recorded", &baseline{ScanTarget: ".", Findings: tt.entries}, tt.noRoot},
+		}
+		for _, bl := range baselines {
+			t.Run(bl.name+"/"+tt.name, func(t *testing.T) {
+				newFindings, accepted := applyBaseline(tt.reported, tt.removed, repo, bl.b)
+				if got := files(newFindings); !reflect.DeepEqual(got, bl.want.newFiles) {
+					t.Errorf("new findings in %v, want %v", got, bl.want.newFiles)
+				}
+				alone, _ := applyBaseline(tt.reported, nil, repo, bl.b)
+				if got, without := files(newFindings), files(alone); !reflect.DeepEqual(got, without) {
+					t.Errorf("new findings in %v with the removed findings set against the baseline, in %v without them", got, without)
+				}
+				if !reflect.DeepEqual(accepted, bl.want.accepted) {
+					t.Errorf("accepted = %v, want %v", accepted, bl.want.accepted)
 				}
 			})
 		}

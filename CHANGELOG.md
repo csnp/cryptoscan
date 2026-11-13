@@ -142,9 +142,13 @@ All notable changes to CryptoScan are recorded here. This project follows
   `--baseline` or from the file, does not count, so a baseline workflow with
   no new finding keeps exit 0. A baseline written by 1.4.0 records no scan
   root, and for a target such as `.` its root is found from the paths of the
-  scan's findings; those paths include the findings the file removed, so
-  such a baseline accepts the findings it lists also when the file removed
-  every finding in its files. Paths kept out by `ignore.files` are counted
+  reported findings. When no reported finding's path is the end of a path
+  the baseline lists, for example when the file removed every finding, the
+  root is found in the same way from the paths of the findings the file
+  removed, and a removed finding the baseline lists at the same path
+  relative to that root is accepted. The findings the file removed do not
+  change which reported findings such a baseline accepts. Paths kept out by
+  `ignore.files` are counted
   under `pathsSkipped` and do not change the exit code; findings suppressed
   by inline `cryptoscan:ignore` comments and findings removed by `--ignore`
   or `--ignore-category` do not count. A file passed with `--config` keeps

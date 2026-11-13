@@ -478,3 +478,167 @@ func TestApplyBaselineAcceptsRemovedFindingsWithEntriesLeftOver(t *testing.T) {
 		})
 	}
 }
+
+// TestApplyBaselineWithoutRecordedRootAcceptsRemovedFindings sets the
+// findings a config file removed against a baseline in the form 1.4.0
+// writes, which records no root and holds the target as typed, and against
+// the same baseline with its root recorded. Each case expects the same
+// result from both. The root of the first was found from the reported
+// findings alone, so when the file removed every finding in the baseline's
+// files, none of the removed findings was matched to its entry.
+func TestApplyBaselineWithoutRecordedRootAcceptsRemovedFindings(t *testing.T) {
+	oldRoot := filepath.Join(t.TempDir(), "old", "checkout")
+	repo := filepath.Join(t.TempDir(), "repo")
+	const (
+		importLine = "from cryptography.hazmat.primitives.asymmetric import rsa"
+		keyLine    = "key = rsa.generate_private_key(public_exponent=65537, key_size=2048)"
+		toolLine   = `DIGEST = hashlib.sha1(b"tool").hexdigest()`
+	)
+	finding := func(dir, file, pattern, line string) scanner.Finding {
+		return scanner.Finding{File: filepath.Join(dir, filepath.FromSlash(file)), PatternID: pattern, Match: line}
+	}
+	entries := []scanner.Finding{
+		finding(oldRoot, "keys.py", "RSA-001", importLine),
+		finding(oldRoot, "keys.py", "RSA-001", keyLine),
+		finding(oldRoot, "auth.py", "RSA-001", keyLine),
+		finding(oldRoot, "tools/tool.py", "SHA1-001", toolLine),
+	}
+	baselines := []struct {
+		name string
+		b    *baseline
+	}{
+		{"root recorded", &baseline{ScanTarget: ".", Metadata: map[string]string{scanner.MetadataScanRoot: oldRoot}, Findings: entries}},
+		{"no root recorded", &baseline{ScanTarget: ".", Findings: entries}},
+	}
+	removed := []scanner.Finding{
+		finding(repo, "keys.py", "RSA-001", importLine),
+		finding(repo, "keys.py", "RSA-001", keyLine),
+		finding(repo, "auth.py", "RSA-001", keyLine),
+	}
+	tests := []struct {
+		name     string
+		reported []scanner.Finding
+		removed  []scanner.Finding
+		wantNew  int
+		want     []bool
+	}{
+		{"nothing reported", nil, removed, 0, []bool{true, true, true}},
+		{"a finding reported in a file the baseline does not list",
+			[]scanner.Finding{finding(repo, "new.py", "MD5-001", "h = hashlib.md5(data)")}, removed, 1, []bool{true, true, true}},
+		// A tool.py at the top of the tree is a file the baseline does not
+		// list, although its name and line are those of tools/tool.py.
+		{"a finding reported in a file with the name of a baseline file in another directory",
+			[]scanner.Finding{finding(repo, "tool.py", "SHA1-001", toolLine)}, removed, 1, []bool{true, true, true}},
+		{"one finding of a baseline file reported and the others removed",
+			removed[:1], removed[1:], 0, []bool{true, true}},
+		{"a removed finding the baseline does not hold",
+			nil, []scanner.Finding{finding(repo, "keys.py", "RSA-001", "weak = rsa.generate_private_key(public_exponent=3, key_size=512)")}, 0, []bool{false}},
+	}
+	for _, bl := range baselines {
+		for _, tt := range tests {
+			t.Run(bl.name+"/"+tt.name, func(t *testing.T) {
+				newFindings, accepted := applyBaseline(tt.reported, tt.removed, repo, bl.b)
+				if len(newFindings) != tt.wantNew {
+					t.Errorf("%d new findings, want %d", len(newFindings), tt.wantNew)
+				}
+				if !reflect.DeepEqual(accepted, tt.want) {
+					t.Errorf("accepted = %v, want %v", accepted, tt.want)
+				}
+			})
+		}
+	}
+}
+
+// TestGateWithBaselineWithoutRecordedRootAcceptsWhatAFoundConfigRemoved is
+// the reproduction from the issue. keys.py gives RSA-001 twice at HIGH and
+// KEYSIZE-001 at LOW, a baseline lists all three, and a .cryptoscan.yaml
+// found in the scan target ignores both patterns. With the baseline in the
+// form 1.4.0 writes, with no metadata.scanRoot, scanTarget "." and no
+// patternId, gate exited 1 and named the config file, although the baseline
+// lists every finding the file removed from keys.py. Each run is made from
+// inside the tree with target ".", as in the issue.
+func TestGateWithBaselineWithoutRecordedRootAcceptsWhatAFoundConfigRemoved(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "keys.py"), []byte(rsaSource), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	wd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(dir); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		if err := os.Chdir(wd); err != nil {
+			t.Errorf("restore working directory: %v", err)
+		}
+	})
+
+	rooted := filepath.Join(t.TempDir(), "baseline.json")
+	if out := runCommandWith(t, scanCmd, ".", "--stream=false", "--format", "json", "--output", rooted); out.err != "" {
+		t.Fatalf("baseline scan failed: %s", out.err)
+	}
+	data, err := os.ReadFile(rooted)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var report map[string]json.RawMessage
+	if err := json.Unmarshal(data, &report); err != nil {
+		t.Fatal(err)
+	}
+	var findings []map[string]json.RawMessage
+	if err := json.Unmarshal(report["findings"], &findings); err != nil {
+		t.Fatal(err)
+	}
+	if len(findings) != 3 {
+		t.Fatalf("the baseline lists %d findings; the fixture should give 3", len(findings))
+	}
+	for _, f := range findings {
+		delete(f, "patternId")
+	}
+	delete(report, "metadata")
+	report["scanTarget"], _ = json.Marshal(".")
+	report["findings"], _ = json.Marshal(findings)
+	if data, err = json.Marshal(report); err != nil {
+		t.Fatal(err)
+	}
+	legacy := filepath.Join(t.TempDir(), "baseline.json")
+	if err := os.WriteFile(legacy, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	cfgPath := filepath.Join(dir, ".cryptoscan.yaml")
+	if err := os.WriteFile(cfgPath, []byte("ignore:\n  patterns: [RSA-001, KEYSIZE-001]\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	// Without a baseline, the file's removals fail the run.
+	line := configExitLine(2, "high", cfgPath)
+	if out := runCommandWith(t, gateCmd, "."); out.code != 1 || !strings.Contains(out.stderr, line+"\n") {
+		t.Fatalf("gate without a baseline = exit code %d, stderr %q; want 1 and the line %q", out.code, out.stderr, line)
+	}
+
+	runs := []struct {
+		name string
+		cmd  *cobra.Command
+		args []string
+	}{
+		{"gate, baseline in the 1.4.0 form", gateCmd, []string{"--baseline", legacy}},
+		{"scan --fail-on high, baseline in the 1.4.0 form", scanCmd, []string{"--stream=false", "--fail-on", "high", "--baseline", legacy}},
+		{"gate, baseline that records its root", gateCmd, []string{"--baseline", rooted}},
+	}
+	for _, tt := range runs {
+		t.Run(tt.name, func(t *testing.T) {
+			out := runCommandWith(t, tt.cmd, ".", tt.args...)
+			if out.err != "" || out.code != 0 {
+				t.Errorf("exit code %d, error %q; want exit code 0", out.code, out.err)
+			}
+			if strings.Contains(out.stderr, "cryptoscan: exit code 1:") {
+				t.Errorf("stderr = %q, which gives the config file as a reason for exit code 1", out.stderr)
+			}
+		})
+	}
+}

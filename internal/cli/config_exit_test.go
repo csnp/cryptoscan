@@ -1708,13 +1708,14 @@ func TestGateWithBaselineWithoutRecordedRootAcceptsTheFindingsInFilesThatDidNotM
 }
 
 // TestGateWithBaselineWithoutRecordedRootAcceptsAFileThatMovedIntoTheOldPathOfAListedFile
-// is the review-3 reproduction: the directory tools/a.py, tools/b.py and
-// tools/tool.py propose, tools/, holds a subdirectory of the same name,
-// tools/tools/, which tools/tools/tool.py, holding the same line as
-// tools/tool.py, is under. keys.py gives RSA-001 twice at HIGH and
-// KEYSIZE-001 at LOW, tools/a.py and tools/b.py each give BLOWFISH-001 at
-// MEDIUM, tools/tool.py gives SHA1-001 at HIGH, and tools/tools/tool.py
-// gives SHA1-001 at HIGH on the same line. A baseline lists all seven.
+// sets a baseline in the 1.4.0 form against a tree in which the directory
+// tools/a.py, tools/b.py and tools/tool.py propose, tools/, holds a
+// subdirectory of the same name, tools/tools/, which tools/tools/tool.py,
+// holding the same line as tools/tool.py, is under. keys.py gives RSA-001
+// twice at HIGH and KEYSIZE-001 at LOW, tools/a.py and tools/b.py each give
+// BLOWFISH-001 at MEDIUM, tools/tool.py gives SHA1-001 at HIGH, and
+// tools/tools/tool.py gives SHA1-001 at HIGH on the same line. A baseline
+// lists all seven.
 // tools/a.py and tools/b.py then move to the top of the tree as before,
 // tools/tool.py moves out to the top of the tree as tool.py, and
 // tools/tools/tool.py moves into the path tools/tool.py left. Matching the

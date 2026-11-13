@@ -83,13 +83,16 @@ func filterNewFindings(findings []scanner.Finding, root string, b *baseline) []s
 // under one root and then the other can give a finding's own entry away:
 // tool.py and tools/tools/tool.py hold the same line; when tools/tool.py
 // moves out to tool.py and tools/tools/tool.py moves into the path
-// tools/tool.py left, tools/tool.py's entry, under the root that holds
-// every listed file, matches both tool.py's finding (at tool.py's own
-// entry's path under the root the reported paths give) and
-// tools/tools/tool.py's finding (at that same path, since they hold the
-// same line); a pass taken in either order can give it to the finding
-// that also matches its own entry under the other root, and leave the
-// other finding, which matches only there, with nothing. The method keeps
+// tools/tool.py left, tools/tool.py's entry matches tool.py's finding
+// under the root the reported paths give, where it is keyed at tool.py,
+// and tools/tools/tool.py's finding under the root that holds every
+// listed file, where it is keyed at tools/tool.py, the path that finding
+// now has (they hold the same line); a pass under the root that holds
+// every listed file before the root the reported paths give, the order
+// taken here, gives it to tools/tools/tool.py's finding, which also
+// matches its own entry under the root the reported paths give, and
+// leaves tool.py's finding, which matches only that entry and only under
+// the root the reported paths give, with nothing. The method keeps
 // what a first and a second greedy pass accept and, for a finding neither
 // step accepts, moves another finding already holding an entry the first
 // finding also matches to a different entry that finding matches, where

@@ -69,19 +69,21 @@ func filterNewFindings(findings []scanner.Finding, root string, b *baseline) []s
 // of those files to infer the root from, and which entries the reported
 // findings match does not then depend on the root.
 //
-// The withheld findings are set against the same root first. When the
-// reported paths give a root that a file the baseline lists is not under, as
-// when a new file's path is the end of a path the baseline lists in another
-// directory, the earlier scan did not run from that root, since it listed
-// only files under its own root. The withheld findings the baseline does not
-// accept under it are then set against the entries still left, under the
-// root inferred from the paths of the reported and the withheld findings
-// together, among the directories every file the baseline lists is under
-// (see inferRootOfEveryFile). That root only adds to the withheld findings
-// the baseline accepts, so a removed finding in a file that moved since, which
-// the root of the reported findings places at its entry, is still accepted.
-// When no such directory is inferred, only the root of the reported findings
-// is used.
+// The withheld findings are set against the same root first. A root that a
+// file the baseline lists is not under is not the one the earlier scan ran
+// from, since that scan listed only files under its own root. The reported
+// paths can give such a root, as when a new file's path is the end of a path
+// the baseline lists in another directory, and so can the paths of the
+// withheld findings when the reported paths give none, as when files the
+// baseline lists in a subdirectory moved to the top of the tree and
+// outnumber the listed files that did not move. The withheld findings the
+// baseline does not accept under such a root are then set against the
+// entries still left, under the root inferred from the paths of the reported
+// and the withheld findings together, among the directories every file the
+// baseline lists is under (see inferRootOfEveryFile). That root only adds to
+// the withheld findings the baseline accepts, so a removed finding in a file
+// that moved since, which the first root places at its entry, is still
+// accepted. When no such directory is inferred, only the first root is used.
 func applyBaseline(findings, withheld []scanner.Finding, root string, b *baseline) ([]scanner.Finding, []bool) {
 	keys := make([]baselineKey, len(findings))
 	paths := make(map[string]bool)
@@ -104,11 +106,11 @@ func applyBaseline(findings, withheld []scanner.Finding, root string, b *baselin
 		for _, key := range withheldKeys {
 			allPaths[key.path] = true
 		}
-		switch {
-		case baseRoot == "":
+		if baseRoot == "" {
 			baseRoot = inferBaselineRoot(b.Findings, allPaths)
 			withheldRoot = baseRoot
-		case !holdsEveryFile(baseRoot, b.Findings):
+		}
+		if baseRoot != "" && !holdsEveryFile(baseRoot, b.Findings) {
 			if r := inferRootOfEveryFile(b.Findings, allPaths); r != "" {
 				withheldRoot = r
 			}

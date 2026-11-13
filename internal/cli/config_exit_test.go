@@ -727,6 +727,112 @@ func TestApplyBaselineWithoutRecordedRootFindsItFromTheReportedFindings(t *testi
 	}
 }
 
+// TestApplyBaselineWithoutRecordedRootAndNoRootFromTheReportedFindings sets a
+// baseline in the form 1.4.0 writes, which records no root, against trees in
+// which tools/a.py and tools/b.py moved to a.py and b.py after it was written
+// and no reported finding's path is the end of a path the baseline lists, so
+// that the root is found from the paths of the reported and the removed
+// findings together. In the first two cases keys.py did not move, and a.py
+// and b.py propose tools/, the directory they moved out of, over the
+// directory keys.py proposes. The removed findings in a.py and b.py are
+// accepted under tools/, as they were before, and the removed findings in
+// keys.py, which is not under tools/, under the root found among the
+// directories that hold every file the baseline lists, as with the root
+// recorded. With the root recorded, the removed findings in a.py and b.py are
+// not accepted. In the third, keys.py is gone, no directory proposed holds
+// the keys.py the baseline lists, and the removed findings are set against
+// tools/ alone, as before.
+func TestApplyBaselineWithoutRecordedRootAndNoRootFromTheReportedFindings(t *testing.T) {
+	oldRoot := filepath.Join(t.TempDir(), "old", "checkout")
+	repo := filepath.Join(t.TempDir(), "repo")
+	const (
+		importLine = "from cryptography.hazmat.primitives.asymmetric import rsa"
+		keyLine    = "key = rsa.generate_private_key(public_exponent=65537, key_size=2048)"
+		aLine      = "c = Blowfish.new(key)"
+		bLine      = "d = Blowfish.new(other)"
+		md5Line    = `H = hashlib.md5(b"t").hexdigest()`
+	)
+	finding := func(dir, file, pattern, line string) scanner.Finding {
+		return scanner.Finding{File: filepath.Join(dir, filepath.FromSlash(file)), PatternID: pattern, Match: line}
+	}
+	// files lists the paths, relative to repo, of the findings given.
+	files := func(findings []scanner.Finding) []string {
+		var paths []string
+		for _, f := range findings {
+			paths = append(paths, filepath.ToSlash(strings.TrimPrefix(f.File, repo+string(filepath.Separator))))
+		}
+		return paths
+	}
+	entries := []scanner.Finding{
+		finding(oldRoot, "keys.py", "RSA-001", importLine),
+		finding(oldRoot, "keys.py", "RSA-001", keyLine),
+		finding(oldRoot, "keys.py", "KEYSIZE-001", keyLine),
+		finding(oldRoot, "tools/a.py", "BLOWFISH-001", aLine),
+		finding(oldRoot, "tools/b.py", "BLOWFISH-001", bLine),
+	}
+	removed := []scanner.Finding{
+		finding(repo, "keys.py", "RSA-001", importLine),
+		finding(repo, "keys.py", "RSA-001", keyLine),
+		finding(repo, "keys.py", "KEYSIZE-001", keyLine),
+		finding(repo, "a.py", "BLOWFISH-001", aLine),
+		finding(repo, "b.py", "BLOWFISH-001", bLine),
+	}
+	type outcome struct {
+		newFiles []string // the files of the reported findings that are new
+		accepted []bool   // whether the baseline accepts each removed finding
+	}
+	tests := []struct {
+		name              string
+		reported, removed []scanner.Finding
+		noRoot, rooted    outcome
+	}{
+		{
+			name:    "nothing reported",
+			removed: removed,
+			noRoot:  outcome{nil, []bool{true, true, true, true, true}},
+			rooted:  outcome{nil, []bool{true, true, true, false, false}},
+		},
+		{
+			name:     "a finding reported in a file the baseline does not list",
+			reported: []scanner.Finding{finding(repo, "new.py", "MD5-001", md5Line)},
+			removed:  removed,
+			noRoot:   outcome{[]string{"new.py"}, []bool{true, true, true, true, true}},
+			rooted:   outcome{[]string{"new.py"}, []bool{true, true, true, false, false}},
+		},
+		{
+			name:    "the file that did not move is gone",
+			removed: removed[3:],
+			noRoot:  outcome{nil, []bool{true, true}},
+			rooted:  outcome{nil, []bool{false, false}},
+		},
+	}
+	for _, tt := range tests {
+		baselines := []struct {
+			name string
+			b    *baseline
+			want outcome
+		}{
+			{"root recorded", &baseline{ScanTarget: ".", Metadata: map[string]string{scanner.MetadataScanRoot: oldRoot}, Findings: entries}, tt.rooted},
+			{"no root recorded", &baseline{ScanTarget: ".", Findings: entries}, tt.noRoot},
+		}
+		for _, bl := range baselines {
+			t.Run(bl.name+"/"+tt.name, func(t *testing.T) {
+				newFindings, accepted := applyBaseline(tt.reported, tt.removed, repo, bl.b)
+				if got := files(newFindings); !reflect.DeepEqual(got, bl.want.newFiles) {
+					t.Errorf("new findings in %v, want %v", got, bl.want.newFiles)
+				}
+				alone, _ := applyBaseline(tt.reported, nil, repo, bl.b)
+				if got, without := files(newFindings), files(alone); !reflect.DeepEqual(got, without) {
+					t.Errorf("new findings in %v with the removed findings set against the baseline, in %v without them", got, without)
+				}
+				if !reflect.DeepEqual(accepted, bl.want.accepted) {
+					t.Errorf("accepted = %v, want %v", accepted, bl.want.accepted)
+				}
+			})
+		}
+	}
+}
+
 // TestGateWithBaselineWithoutRecordedRootAcceptsWhatAFoundConfigRemoved is
 // the reproduction from the issue. keys.py gives RSA-001 twice at HIGH and
 // KEYSIZE-001 at LOW, a baseline lists all three, and a .cryptoscan.yaml
@@ -951,6 +1057,96 @@ func TestGateWithBaselineWithoutRecordedRootAcceptsARemovedFindingInAMovedFile(t
 
 	// The baseline accepts the reported finding in util.py, so the report
 	// lists none.
+	out := runCommandWith(t, scanCmd, ".", "--stream=false", "--format", "json", "--baseline", legacy)
+	if out.err != "" {
+		t.Fatalf("scan with the baseline in the 1.4.0 form failed: %s", out.err)
+	}
+	var report struct {
+		Findings []struct {
+			File      string `json:"file"`
+			PatternID string `json:"patternId"`
+		} `json:"findings"`
+	}
+	if err := json.Unmarshal([]byte(out.stdout), &report); err != nil {
+		t.Fatalf("scan output is not JSON: %v", err)
+	}
+	if len(report.Findings) != 0 {
+		t.Errorf("findings = %+v, want none", report.Findings)
+	}
+}
+
+// TestGateWithBaselineWithoutRecordedRootAcceptsRemovedFindingsAfterFilesMovedUp
+// is the reproduction from the issue. keys.py gives RSA-001 twice at HIGH and
+// KEYSIZE-001 at LOW, tools/a.py and tools/b.py each give BLOWFISH-001 at
+// MEDIUM, and a baseline lists all five. a.py and b.py then moved to the top
+// of the tree, and a .cryptoscan.yaml found in the scan target ignores
+// RSA-001, KEYSIZE-001 and BLOWFISH-001, so no finding is reported. With the
+// baseline in the form 1.4.0 writes, the paths a.py and b.py gave the
+// baseline the root of tools/a.py and tools/b.py, which keys.py is not under,
+// and gate exited 1 and named the config file, although the baseline lists
+// both HIGH findings the file removed. Each run is made from inside the tree
+// with target ".", as in the issue.
+func TestGateWithBaselineWithoutRecordedRootAcceptsRemovedFindingsAfterFilesMovedUp(t *testing.T) {
+	dir, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	write := func(name, content string) {
+		t.Helper()
+		path := filepath.Join(dir, filepath.FromSlash(name))
+		if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("keys.py", rsaSource)
+	write("tools/a.py", "c = Blowfish.new(key)\n")
+	write("tools/b.py", "d = Blowfish.new(other)\n")
+	chdirForTest(t, dir)
+
+	rooted := filepath.Join(t.TempDir(), "baseline.json")
+	if out := runCommandWith(t, scanCmd, ".", "--stream=false", "--format", "json", "--output", rooted); out.err != "" {
+		t.Fatalf("baseline scan failed: %s", out.err)
+	}
+	legacy := legacyBaseline(t, rooted, 5)
+
+	for _, name := range []string{"a.py", "b.py"} {
+		if err := os.Rename(filepath.Join(dir, "tools", name), filepath.Join(dir, name)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(".cryptoscan.yaml", "ignore:\n  patterns: [RSA-001, KEYSIZE-001, BLOWFISH-001]\n")
+	cfgPath := filepath.Join(dir, ".cryptoscan.yaml")
+	// Without a baseline, the file's removals fail the run.
+	line := configExitLine(2, "high", cfgPath)
+	if out := runCommandWith(t, gateCmd, "."); out.code != 1 || !strings.Contains(out.stderr, line+"\n") {
+		t.Fatalf("gate without a baseline = exit code %d, stderr %q; want 1 and the line %q", out.code, out.stderr, line)
+	}
+
+	runs := []struct {
+		name string
+		cmd  *cobra.Command
+		args []string
+	}{
+		{"gate, baseline in the 1.4.0 form", gateCmd, []string{"--baseline", legacy}},
+		{"scan --fail-on high, baseline in the 1.4.0 form", scanCmd, []string{"--stream=false", "--fail-on", "high", "--baseline", legacy}},
+		{"gate, baseline that records its root", gateCmd, []string{"--baseline", rooted}},
+	}
+	for _, tt := range runs {
+		t.Run(tt.name, func(t *testing.T) {
+			out := runCommandWith(t, tt.cmd, ".", tt.args...)
+			if out.err != "" || out.code != 0 {
+				t.Errorf("exit code %d, error %q; want exit code 0", out.code, out.err)
+			}
+			if strings.Contains(out.stderr, "cryptoscan: exit code 1:") {
+				t.Errorf("stderr = %q, which gives the config file as a reason for exit code 1", out.stderr)
+			}
+		})
+	}
+
+	// The config file removed every finding, so the report lists none.
 	out := runCommandWith(t, scanCmd, ".", "--stream=false", "--format", "json", "--baseline", legacy)
 	if out.err != "" {
 		t.Fatalf("scan with the baseline in the 1.4.0 form failed: %s", out.err)

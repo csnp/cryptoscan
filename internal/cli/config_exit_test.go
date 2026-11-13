@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"reflect"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -1771,22 +1772,28 @@ func TestGateWithBaselineWithoutRecordedRootAcceptsAFileThatMovedIntoTheOldPathO
 		t.Fatal(err)
 	}
 
-	// With the baseline in the 1.4.0 form, the report lists no finding in
-	// tool.py, which moved out, or in tools/tool.py, which moved in: the
-	// root every listed file is under rescues tool.py's own entry, and
-	// tools/tool.py matches the entry tools/tools/tool.py gives it, holding
-	// the same line. With the root recorded, tool.py, which moved, is new,
-	// as a.py and b.py are; tools/tool.py still matches: it holds the same
-	// line as the entry recorded at that same path.
-	moved := filepath.Join(dir, "tool.py")
-	movedIn := filepath.Join(dir, "tools", "tool.py")
+	// With the baseline in the 1.4.0 form, the report lists no finding, and
+	// gate exits 0. The entry recorded at tools/tool.py matches tool.py's
+	// finding only under tools/, the directory proposed by the most listed
+	// files, where it is keyed at tool.py. Under the top of the tree, the
+	// directory every listed file is under, it is keyed at tools/tool.py and
+	// matches the finding that moved into tools/tool.py. tool.py's finding
+	// takes that entry in the third step of the matching, which moves the
+	// other finding to the entry recorded at tools/tools/tool.py, keyed at
+	// tools/tool.py under tools/ (see
+	// TestMatchKeysGivesAFileThatMovedOutTheEntryOfItsOldPath). With the
+	// root recorded, tool.py, which moved, is new, as a.py and b.py are, and
+	// gate exits 1: tool.py's SHA1-001 finding is at HIGH, gate's default
+	// threshold. tools/tool.py still matches: it holds the same line as the
+	// entry recorded at that same path.
 	baselines := []struct {
-		name    string
-		path    string
-		wantNew map[string]bool
+		name     string
+		path     string
+		wantNew  []string // the path and pattern of each finding listed, sorted
+		wantCode int      // gate's exit code
 	}{
-		{"baseline in the 1.4.0 form", legacy, map[string]bool{}},
-		{"baseline that records its root", rooted, map[string]bool{moved: true}},
+		{"baseline in the 1.4.0 form", legacy, nil, 0},
+		{"baseline that records its root", rooted, []string{"a.py BLOWFISH-001", "b.py BLOWFISH-001", "tool.py SHA1-001"}, 1},
 	}
 	for _, bl := range baselines {
 		out := runCommandWith(t, scanCmd, ".", "--stream=false", "--format", "json", "--baseline", bl.path)
@@ -1802,16 +1809,20 @@ func TestGateWithBaselineWithoutRecordedRootAcceptsAFileThatMovedIntoTheOldPathO
 		if err := json.Unmarshal([]byte(out.stdout), &report); err != nil {
 			t.Fatalf("scan output is not JSON: %v", err)
 		}
-		gotNew := map[string]bool{}
+		var gotNew []string
 		for _, f := range report.Findings {
-			if f.File == moved || f.File == movedIn {
-				gotNew[f.File] = true
+			rel, err := filepath.Rel(dir, f.File)
+			if err != nil {
+				t.Fatal(err)
 			}
+			gotNew = append(gotNew, filepath.ToSlash(rel)+" "+f.PatternID)
 		}
-		for _, file := range []string{moved, movedIn} {
-			if gotNew[file] != bl.wantNew[file] {
-				t.Errorf("with the %s, %s reported as new = %v, want %v", bl.name, file, gotNew[file], bl.wantNew[file])
-			}
+		slices.Sort(gotNew)
+		if !reflect.DeepEqual(gotNew, bl.wantNew) {
+			t.Errorf("with the %s, the report lists %q, want %q", bl.name, gotNew, bl.wantNew)
+		}
+		if out := runCommandWith(t, gateCmd, ".", "--baseline", bl.path); out.err != "" || out.code != bl.wantCode {
+			t.Errorf("gate with the %s: exit code %d, error %q; want exit code %d", bl.name, out.code, out.err, bl.wantCode)
 		}
 	}
 
@@ -2054,6 +2065,97 @@ func TestGateWithBaselineWithoutRecordedRootAcceptsAnUnmovedFileWhenListedFilesS
 					t.Errorf("stderr = %q, which gives the config file as a reason for exit code 1", out.stderr)
 				}
 			})
+		}
+	}
+}
+
+// TestMatchKeysGivesAFileThatMovedOutTheEntryOfItsOldPath keys the entries
+// a baseline that records no root lists for the tree in
+// TestGateWithBaselineWithoutRecordedRootAcceptsAFileThatMovedIntoTheOldPathOfAListedFile,
+// with one RSA-001 entry for keys.py, under the two directories
+// applyBaseline sets the reported findings against after the move: the top
+// of the tree, which every listed file is under, and tools/, the directory
+// proposed by the most listed files. The entry recorded at tools/tool.py is
+// keyed at tools/tool.py under the first and at tool.py under the second.
+// The first step of matchKeys gives it to the finding that moved into
+// tools/tool.py. With all three steps, tool.py's finding takes it, and the
+// finding that moved in takes the entry recorded at tools/tools/tool.py,
+// keyed at tools/tool.py under tools/.
+func TestMatchKeysGivesAFileThatMovedOutTheEntryOfItsOldPath(t *testing.T) {
+	oldRoot := filepath.Join(t.TempDir(), "old", "checkout")
+	repo := filepath.Join(t.TempDir(), "repo")
+	const (
+		keyLine  = "key = rsa.generate_private_key(public_exponent=65537, key_size=2048)"
+		aLine    = "c = Blowfish.new(key)"
+		bLine    = "d = Blowfish.new(other)"
+		toolLine = `DIGEST = hashlib.sha1(b"tool").hexdigest()`
+	)
+	finding := func(dir, file, pattern, line string) scanner.Finding {
+		return scanner.Finding{File: filepath.Join(dir, filepath.FromSlash(file)), PatternID: pattern, Match: line}
+	}
+	entries := []scanner.Finding{
+		finding(oldRoot, "keys.py", "RSA-001", keyLine),
+		finding(oldRoot, "tools/a.py", "BLOWFISH-001", aLine),
+		finding(oldRoot, "tools/b.py", "BLOWFISH-001", bLine),
+		finding(oldRoot, "tools/tool.py", "SHA1-001", toolLine),
+		finding(oldRoot, "tools/tools/tool.py", "SHA1-001", toolLine),
+	}
+	reported := []scanner.Finding{
+		finding(repo, "keys.py", "RSA-001", keyLine),
+		finding(repo, "a.py", "BLOWFISH-001", aLine),
+		finding(repo, "b.py", "BLOWFISH-001", bLine),
+		finding(repo, "tool.py", "SHA1-001", toolLine),
+		finding(repo, "tools/tool.py", "SHA1-001", toolLine),
+	}
+	// The indices of the two entries recorded at tools/tool.py and
+	// tools/tools/tool.py, and of the findings in tool.py, which moved out of
+	// tools/, and in tools/tool.py, which moved in from tools/tools/.
+	const toolEntry, twinEntry, movedOut, movedIn = 3, 4, 3, 4
+
+	keys := make([]baselineKey, len(reported))
+	paths := make(map[string]bool)
+	for i, f := range reported {
+		keys[i] = findingKey(f, repo)
+		paths[keys[i].path] = true
+	}
+	tools := filepath.Join(oldRoot, "tools")
+	if got := inferBaselineRoot(entries, paths); got != tools {
+		t.Fatalf("inferBaselineRoot = %q, want %q", got, tools)
+	}
+	if got := inferRootOfEveryFile(entries, paths, ""); got != oldRoot {
+		t.Fatalf("inferRootOfEveryFile = %q, want %q", got, oldRoot)
+	}
+	first := make([]baselineKey, len(entries))
+	second := make([]baselineKey, len(entries))
+	for j, f := range entries {
+		first[j] = findingKey(f, oldRoot)
+		second[j] = findingKey(f, tools)
+	}
+	for _, tt := range []struct {
+		root, entry string
+		key         baselineKey
+		want        string
+	}{
+		{"the top of the tree", "tools/tool.py", first[toolEntry], "tools/tool.py"},
+		{"tools/", "tools/tool.py", second[toolEntry], "tool.py"},
+		{"tools/", "tools/tools/tool.py", second[twinEntry], "tools/tool.py"},
+	} {
+		if tt.key.path != tt.want {
+			t.Errorf("under %s, the entry recorded at %s is keyed at %s, want %s", tt.root, tt.entry, tt.key.path, tt.want)
+		}
+	}
+
+	if _, holder := matchKeys(keys, first, nil, make([]bool, len(entries))); holder[toolEntry] != movedIn {
+		t.Errorf("the first step gives the entry recorded at tools/tool.py to finding %d, want %d, the one in tools/tool.py", holder[toolEntry], movedIn)
+	}
+	accepted, holder := matchKeys(keys, first, second, make([]bool, len(entries)))
+	if holder[toolEntry] != movedOut || holder[twinEntry] != movedIn {
+		t.Errorf("the entries recorded at tools/tool.py and tools/tools/tool.py go to findings %d and %d, want %d (tool.py) and %d (tools/tool.py)",
+			holder[toolEntry], holder[twinEntry], movedOut, movedIn)
+	}
+	for i, ok := range accepted {
+		if !ok {
+			t.Errorf("the finding in %s is not accepted", keys[i].path)
 		}
 	}
 }

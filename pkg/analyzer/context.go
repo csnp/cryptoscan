@@ -170,7 +170,8 @@ func IsURLOrPath(line, match string) bool {
 	matchLower := LowerSameOffsets(match)
 	lineLower := LowerSameOffsets(line)
 
-	// Find position of match in line
+	// Keep offsets and context slices in the same string: Unicode lowercasing
+	// can change the UTF-8 byte length of the line.
 	pos := strings.Index(lineLower, matchLower)
 	if pos == -1 {
 		return false
@@ -193,11 +194,11 @@ func IsURLOrPath(line, match string) bool {
 	// Look for path separators before/after the match
 	beforeMatch := ""
 	if pos > 0 {
-		beforeMatch = line[max(0, pos-20):pos]
+		beforeMatch = lineLower[max(0, pos-20):pos]
 	}
 	afterMatch := ""
-	if pos+len(match) < len(line) {
-		afterMatch = line[pos+len(match) : min(len(line), pos+len(match)+20)]
+	if pos+len(matchLower) < len(lineLower) {
+		afterMatch = lineLower[pos+len(matchLower) : min(len(lineLower), pos+len(matchLower)+20)]
 	}
 
 	// Path indicators - must have actual path separator
@@ -247,7 +248,7 @@ func IsVariableOrFunctionName(line, match string) bool {
 
 	// Check character before match (if exists)
 	if pos > 0 {
-		charBefore := line[pos-1]
+		charBefore := lineLower[pos-1]
 		// If preceded by a letter, it's part of an identifier
 		if (charBefore >= 'a' && charBefore <= 'z') || (charBefore >= 'A' && charBefore <= 'Z') {
 			return true
@@ -255,13 +256,13 @@ func IsVariableOrFunctionName(line, match string) bool {
 	}
 
 	// Check character after match (if exists)
-	endPos := pos + len(match)
-	if endPos < len(line) {
-		charAfter := line[endPos]
+	endPos := pos + len(matchLower)
+	if endPos < len(lineLower) {
+		charAfter := lineLower[endPos]
 		// If followed by a letter (not just typical suffixes), might be identifier
 		if (charAfter >= 'a' && charAfter <= 'z') || (charAfter >= 'A' && charAfter <= 'Z') {
 			// Exception: common crypto suffixes that indicate actual usage
-			afterStr := strings.ToLower(line[endPos:min(len(line), endPos+10)])
+			afterStr := lineLower[endPos:min(len(lineLower), endPos+10)]
 			validSuffixes := []string{"key", "cert", "sign", "encrypt", "decrypt", "hash"}
 			for _, suffix := range validSuffixes {
 				if strings.HasPrefix(afterStr, suffix) {
